@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-dark: #1E1035;
+    --brand-primary: #6D28D9;
+    --brand-soft: #7C3AED;
+    --brand-light: #F5F3FF;
+    --surface: #FFFFFF;
+    --text-main: #0F172A;
+    --text-muted: #64748B;
+  }
+
+  body {
+    @apply bg-[#FBFBFE] text-slate-800 antialiased font-sans selection:bg-purple-600 selection:text-white;
+    color: #1E293B;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Eye-friendly Clean Glassmorphism & Cards */
+.clean-glass-nav {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.clean-card {
+  background: #FFFFFF;
+  border: 1px solid #EEF0F5;
+  box-shadow: 0 2px 12px -2px rgba(30, 16, 53, 0.04), 0 1px 3px 0 rgba(0, 0, 0, 0.02);
+  transition: all 0.25s ease-in-out;
+}
+
+.clean-card:hover {
+  border-color: #DDD6FE;
+  box-shadow: 0 12px 28px -4px rgba(76, 29, 149, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.03);
+}
+
+/* Subtle, sophisticated typography gradient */
+.text-gradient-primary {
+  background: linear-gradient(135deg, #2E1065 0%, #581C87 50%, #6D28D9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Gentle eye-comfort scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}

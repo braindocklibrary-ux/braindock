@@ -1,0 +1,15 @@
+{
+  "name": "brain-dock-library-suite",
+  "version": "1.0.0",
+  "description": "Brain Dock Library - Premium Library Management & Digital Sanctuary Ecosystem",
+  "private": true,
+  "scripts": {
+    "start": "node start-all.js",
+    "backend": "cd backend && npm start",
+    "user": "cd user-side && npm run dev",
+    "admin": "cd admin-panel && npm run dev"
+  },
+  "dependencies": {
+    "pdfkit": "^0.20.2"
+  }
+}
