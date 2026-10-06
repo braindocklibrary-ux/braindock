@@ -38,6 +38,7 @@ export default function SeatBookingPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    document.title = "Brain Dock Library — 3D Seat Map & Direct Desk Reservation | Amreli";
     fetchSeats();
   }, []);
 

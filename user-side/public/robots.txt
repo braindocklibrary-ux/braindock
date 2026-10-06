@@ -1,0 +1,12 @@
+# robots.txt for Brain Dock Library (https://braindocklibrary.com)
+User-agent: *
+Allow: /
+Allow: /student-portal
+Allow: /seats
+Allow: /membership
+Allow: /facilities
+Allow: /about
+Allow: /contact
+
+# Sitemap index
+Sitemap: https://braindocklibrary.com/sitemap.xml

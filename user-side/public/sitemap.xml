@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 1. Main Website Homepage -->
+  <url>
+    <loc>https://braindocklibrary.com/</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- 2. Brain Dock Student Portal (Targeted High Priority for Search) -->
+  <url>
+    <loc>https://braindocklibrary.com/student-portal</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- 3. Interactive 3D Seat Booking & Floor Map -->
+  <url>
+    <loc>https://braindocklibrary.com/seats</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- 4. Membership Plans -->
+  <url>
+    <loc>https://braindocklibrary.com/membership</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- 5. Facilities & AC Study Sanctuary -->
+  <url>
+    <loc>https://braindocklibrary.com/facilities</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
+  <!-- 6. Study Rooms & Conference Pods -->
+  <url>
+    <loc>https://braindocklibrary.com/study-rooms</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.75</priority>
+  </url>
+
+  <!-- 7. About Brain Dock Library Amreli -->
+  <url>
+    <loc>https://braindocklibrary.com/about</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.70</priority>
+  </url>
+
+  <!-- 8. Contact & Location (Near Me) -->
+  <url>
+    <loc>https://braindocklibrary.com/contact</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.70</priority>
+  </url>
+
+  <!-- 9. Rules & Guidelines -->
+  <url>
+    <loc>https://braindocklibrary.com/rules</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.60</priority>
+  </url>
+
+  <!-- 10. FAQ & Helpdesk -->
+  <url>
+    <loc>https://braindocklibrary.com/faq</loc>
+    <lastmod>2026-10-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.60</priority>
+  </url>
+</urlset>

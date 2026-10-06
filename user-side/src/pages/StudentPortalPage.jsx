@@ -69,6 +69,10 @@ export default function StudentPortalPage() {
   const isRefreshingRef = useRef(false);
 
   useEffect(() => {
+    document.title = "Brain Dock Student Portal — Official Student Login & Biometric Attendance | Amreli";
+  }, []);
+
+  useEffect(() => {
     studentDataRef.current = studentData;
   }, [studentData]);
 
