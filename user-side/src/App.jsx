@@ -55,6 +55,10 @@ export default function App() {
               <Route path="/location" element={<ContactPage />} />
               <Route path="/student-portal" element={<StudentPortalPage />} />
               <Route path="/student-login" element={<StudentPortalPage />} />
+              <Route path="/student portal" element={<Navigate to="/student-portal" replace />} />
+              <Route path="/student%20portal" element={<Navigate to="/student-portal" replace />} />
+              <Route path="/student" element={<Navigate to="/student-portal" replace />} />
+              <Route path="/portal" element={<Navigate to="/student-portal" replace />} />
               <Route path="/login" element={<Navigate to="/student-portal" replace />} />
               <Route path="/register" element={<Navigate to="/student-portal" replace />} />
               <Route path="/forgot-password" element={<Navigate to="/student-portal" replace />} />
