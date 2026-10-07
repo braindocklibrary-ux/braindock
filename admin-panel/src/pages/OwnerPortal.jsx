@@ -48,7 +48,8 @@ import {
   BookOpen,
   HeartHandshake,
   FileText,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Plus
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
@@ -155,7 +156,10 @@ export default function OwnerPortal() {
     aadhaarNo: '',
     studentPhoto: '',
 
-    // Fee & Payment
+    // Fee & Payment (Itemized with dynamic + rows)
+    feeItems: [
+      { description: 'Dedicated Study Desk & Facility Pass', amount: 1500 }
+    ],
     totalFee: 1500,
     paidAmount: 1500,
     paymentMode: 'UPI (GPay / PhonePe)',
@@ -178,13 +182,68 @@ export default function OwnerPortal() {
     notes: ''
   });
 
-  // Renewal Form State
+  // Renewal Form State (Itemized with dynamic + rows)
   const [renewForm, setRenewForm] = useState({
     months: 1,
+    feeItems: [
+      { description: 'Desk Extension (1 Month)', amount: 1500 }
+    ],
     totalFee: 1500,
     paidAmount: 1500,
     paymentMode: 'UPI'
   });
+
+  // Fee Items Handlers for Admission Form
+  const handleAddAdmFeeItem = () => {
+    const updated = [...(admForm.feeItems || []), { description: '', amount: 0 }];
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleRemoveAdmFeeItem = (index) => {
+    const current = admForm.feeItems || [];
+    if (current.length <= 1) return;
+    const updated = current.filter((_, i) => i !== index);
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleAdmFeeItemChange = (index, field, value) => {
+    const updated = (admForm.feeItems || []).map((it, i) => {
+      if (i === index) {
+        return { ...it, [field]: field === 'amount' ? (Number(value) || 0) : value };
+      }
+      return it;
+    });
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  // Fee Items Handlers for Renewal Form
+  const handleAddRenewItem = () => {
+    const updated = [...(renewForm.feeItems || []), { description: '', amount: 0 }];
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleRemoveRenewItem = (index) => {
+    const current = renewForm.feeItems || [];
+    if (current.length <= 1) return;
+    const updated = current.filter((_, i) => i !== index);
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleRenewItemChange = (index, field, value) => {
+    const updated = (renewForm.feeItems || []).map((it, i) => {
+      if (i === index) {
+        return { ...it, [field]: field === 'amount' ? (Number(value) || 0) : value };
+      }
+      return it;
+    });
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
 
   useEffect(() => {
     fetchOwnerData();
@@ -367,6 +426,9 @@ export default function OwnerPortal() {
       seatNumber: chosen,
       biometricEnrollmentId: chosen,
       startDate: new Date().toISOString().split('T')[0],
+      feeItems: [
+        { description: `Dedicated Study Desk #${chosen} & Facility Pass`, amount: 1500 }
+      ],
       totalFee: 1500,
       paidAmount: 1500,
       transactionRef: `UPI/${Date.now().toString().slice(-6)}`
@@ -412,6 +474,9 @@ export default function OwnerPortal() {
       idProofNo: admission.idProofNo || admission.aadhaarNo || '',
       aadhaarNo: admission.aadhaarNo || admission.idProofNo || '',
       studentPhoto: admission.studentPhoto || '',
+      feeItems: (admission.feeItems && Array.isArray(admission.feeItems) && admission.feeItems.length > 0)
+        ? admission.feeItems
+        : [{ description: `Dedicated Study Desk #${admission.seatNumber || ''} & Facility Pass`, amount: admission.totalFee || 1500 }],
       totalFee: admission.totalFee || 1500,
       paidAmount: admission.paidAmount || 1500,
       paymentMode: admission.paymentMode || 'UPI (GPay / PhonePe)',
@@ -559,6 +624,9 @@ export default function OwnerPortal() {
     setSelectedAdmissionForRenew(admission);
     setRenewForm({
       months: 1,
+      feeItems: [
+        { description: `Desk #${admission.seatNumber} Renewal Fee (1 Month)`, amount: 1500 }
+      ],
       totalFee: 1500,
       paidAmount: 1500,
       paymentMode: 'UPI'
@@ -2194,13 +2262,70 @@ export default function OwnerPortal() {
                 </div>
               </div>
 
-              {/* ================= 06 FEE & PAYMENT DETAILS ================= */}
+              {/* ================= 06 FEE & PAYMENT DETAILS (DYNAMIC ITEMIZED ROWS) ================= */}
               <div className="bg-purple-50/50 p-4 rounded-2xl border border-purple-200 space-y-3">
-                <span className="font-bold text-purple-900 block text-xs">
-                  Fee Structure & Official Payment Collection
-                </span>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-purple-900 block text-xs">
+                      Fee Structure & Itemized Charges (शुल्क विवरण)
+                    </span>
+                    <span className="text-[10px] text-purple-700">
+                      नीचे + दबाकर जितने चाहें शुल्क (Locker, Desk, Registration, ID) जोड़ें
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddAdmFeeItem}
+                    className="px-2.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Item</span>
+                  </button>
+                </div>
+
+                {/* Dynamic Itemized Rows */}
+                <div className="space-y-2">
+                  {(admForm.feeItems || []).map((item, index) => (
+                    <div key={index} className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => handleAdmFeeItemChange(index, 'description', e.target.value)}
+                          placeholder="Item Description (e.g. Dedicated Desk #12, Locker Deposit, ID Card)"
+                          className="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          required
+                        />
+                      </div>
+                      <div className="w-32">
+                        <div className="relative">
+                          <span className="absolute left-2.5 top-2 text-slate-400 text-xs font-bold">₹</span>
+                          <input
+                            type="number"
+                            value={item.amount}
+                            onChange={(e) => handleAdmFeeItemChange(index, 'amount', e.target.value)}
+                            placeholder="Price"
+                            className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                            required
+                          />
+                        </div>
+                      </div>
+                      {(admForm.feeItems || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAdmFeeItem(index)}
+                          className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Total / Paid / Due Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-purple-200/80">
                   <div>
                     <label className="block text-slate-600 font-medium mb-1">Total Agreed Fee (₹)</label>
                     <input 
@@ -2475,7 +2600,15 @@ export default function OwnerPortal() {
                   onChange={(e) => {
                     const m = Number(e.target.value);
                     const fee = m === 3 ? 4200 : (m === 6 ? 8000 : 1500 * m);
-                    setRenewForm({ ...renewForm, months: m, totalFee: fee, paidAmount: fee });
+                    const deskDesc = `Desk #${selectedAdmissionForRenew.seatNumber} Renewal (${m} Month${m > 1 ? 's' : ''})`;
+                    const currentItems = [...(renewForm.feeItems || [])];
+                    if (currentItems.length > 0) {
+                      currentItems[0] = { ...currentItems[0], description: deskDesc, amount: fee };
+                    } else {
+                      currentItems.push({ description: deskDesc, amount: fee });
+                    }
+                    const sum = currentItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+                    setRenewForm({ ...renewForm, months: m, feeItems: currentItems, totalFee: sum, paidAmount: sum });
                   }}
                   className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                 >
@@ -2486,9 +2619,71 @@ export default function OwnerPortal() {
                 </select>
               </div>
 
+              {/* Dynamic Itemized Renewal Rows */}
+              <div className="bg-purple-50/50 p-3 rounded-2xl border border-purple-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-purple-900 block text-xs">
+                      Itemized Charges (शुल्क विवरण)
+                    </span>
+                    <span className="text-[10px] text-purple-700">
+                      नीचे + दबाकर जितने चाहें शुल्क जोड़ें
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddRenewItem}
+                    className="px-2 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold flex items-center space-x-1 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Add Item</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {(renewForm.feeItems || []).map((item, index) => (
+                    <div key={index} className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => handleRenewItemChange(index, 'description', e.target.value)}
+                          placeholder="Item Description (e.g. Desk Renewal, Locker Fee)"
+                          className="w-full p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          required
+                        />
+                      </div>
+                      <div className="w-28">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-bold">₹</span>
+                          <input
+                            type="number"
+                            value={item.amount}
+                            onChange={(e) => handleRenewItemChange(index, 'amount', e.target.value)}
+                            placeholder="Price"
+                            className="w-full pl-5 pr-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                            required
+                          />
+                        </div>
+                      </div>
+                      {(renewForm.feeItems || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRenewItem(index)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Renewal Fee (₹)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Total Agreed Fee (₹)</label>
                   <input 
                     type="number" 
                     value={renewForm.totalFee}

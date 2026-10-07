@@ -745,8 +745,16 @@ class DataStore {
       return { success: false, message: `Seat ${seatNum} is already occupied by ${seat.occupant?.studentName}` };
     }
 
-    const totalFee = Number(data.totalFee || 1500);
-    const paidAmount = Number(data.paidAmount || 0);
+    const feeItems = Array.isArray(data.feeItems) && data.feeItems.length > 0
+      ? data.feeItems.map(item => ({
+          description: String(item.description || '').trim() || `Dedicated Study Desk #${seatNum} & Facility Pass`,
+          amount: Number(item.amount) || 0
+        }))
+      : [{ description: `Dedicated Study Desk #${seatNum} & Facility Pass`, amount: Number(data.totalFee || 1500) }];
+
+    const calculatedTotal = feeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalFee = calculatedTotal > 0 ? calculatedTotal : Number(data.totalFee || 1500);
+    const paidAmount = Number(data.paidAmount != null ? data.paidAmount : totalFee);
     const pendingFee = Math.max(0, totalFee - paidAmount);
     const feeStatus = pendingFee === 0 ? 'Paid' : (paidAmount > 0 ? 'Pending' : 'Pending');
 
@@ -864,7 +872,8 @@ class DataStore {
       paidAmount,
       pendingFee,
       feeDueDate: newAdmission.feeDueDate,
-      lockerNumber: newAdmission.lockerNumber
+      lockerNumber: newAdmission.lockerNumber,
+      feeItems
     };
 
     // Create Official Receipt
@@ -882,6 +891,7 @@ class DataStore {
       plan: newAdmission.plan,
       validFrom: newAdmission.startDate,
       validTo: newAdmission.endDate,
+      feeItems,
       totalFee,
       amountPaid: paidAmount,
       pendingDue: pendingFee,
@@ -988,13 +998,21 @@ class DataStore {
     return { success: true, admission: adm, receipt: newReceipt };
   }
 
-  renewAdmission(admissionId, { months, totalFee, paidAmount, paymentMode, transactionRef }) {
+  renewAdmission(admissionId, { months, totalFee, paidAmount, paymentMode, transactionRef, feeItems }) {
     const adm = this.admissions.find(a => a.admissionId === admissionId);
     if (!adm) return { success: false, message: 'Admission record not found' };
 
     const renewMonths = Number(months || 1);
-    const fee = Number(totalFee || 1500);
-    const paid = Number(paidAmount || fee);
+    const renewFeeItems = Array.isArray(feeItems) && feeItems.length > 0
+      ? feeItems.map(item => ({
+          description: String(item.description || '').trim() || `Desk #${adm.seatNumber} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
+          amount: Number(item.amount) || 0
+        }))
+      : [{ description: `Desk #${adm.seatNumber} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`, amount: Number(totalFee || 1500) }];
+
+    const calculatedTotal = renewFeeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const fee = calculatedTotal > 0 ? calculatedTotal : Number(totalFee || 1500);
+    const paid = Number(paidAmount != null ? paidAmount : fee);
     const pending = Math.max(0, fee - paid);
 
     // Push end date forward from current end date (or today if already expired)
@@ -1042,6 +1060,7 @@ class DataStore {
       plan: `Renewal for ${renewMonths} Month(s)`,
       validFrom: new Date().toISOString().split('T')[0],
       validTo: adm.endDate,
+      feeItems: renewFeeItems,
       totalFee: fee,
       amountPaid: paid,
       pendingDue: pending,

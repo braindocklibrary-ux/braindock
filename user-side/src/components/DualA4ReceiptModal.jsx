@@ -97,81 +97,78 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
           </div>
         </div>
 
-        {/* Financial Breakdown Compact Table */}
-        <div className="mt-2 border border-slate-300 rounded-lg overflow-hidden">
-          <table className="w-full text-[10px] text-left">
-            <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
-              <tr>
-                <th className="py-1 px-2.5">Item Description</th>
-                <th className="py-1 px-2 text-right">Agreed Fee</th>
-                <th className="py-1 px-2 text-right">Paid Amount</th>
-                <th className="py-1 px-2 text-right">Balance Due</th>
-                <th className="py-1 px-2 text-right">Payment Mode & Ref</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="py-1.5 px-2.5">
-                  <strong className="text-slate-900">Dedicated Study Desk #{receipt.seatNumber} & Facility Pass</strong>
-                  <span className="text-[9px] text-slate-500 block">Includes 24/7 Biometric Access, 1Gbps WiFi, AC & Reading Lamp</span>
-                </td>
-                <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-900">
-                  ₹{receipt.totalFee}
-                </td>
-                <td className="py-1.5 px-2 text-right font-mono font-black text-emerald-800 bg-emerald-50/50">
-                  ₹{receipt.amountPaid}
-                </td>
-                <td className="py-1.5 px-2 text-right font-mono font-bold">
-                  {receipt.pendingDue > 0 ? (
-                    <span className="text-rose-700">₹{receipt.pendingDue}</span>
-                  ) : (
-                    <span className="text-slate-500">₹0 (NIL)</span>
-                  )}
-                </td>
-                <td className="py-1.5 px-2 text-right font-mono text-[9px] text-slate-700">
-                  {receipt.paymentMode || 'UPI'} <br />
-                  <span className="text-slate-400 font-mono text-[8px]">{receipt.transactionRef || 'OFFLINE-DESK'}</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        {/* Financial Breakdown Table */}
+        {(() => {
+          const items = (receipt.feeItems && Array.isArray(receipt.feeItems) && receipt.feeItems.length > 0)
+            ? receipt.feeItems
+            : [{ description: `Dedicated Study Desk #${receipt.seatNumber} & Facility Pass`, amount: receipt.totalFee }];
 
-        {/* Stamp and Signature Section */}
-        <div className="mt-3 pt-2 border-t border-slate-300 grid grid-cols-3 gap-3 items-end">
+          return (
+            <div className="mt-2 border border-slate-300 rounded-lg overflow-hidden">
+              <table className="w-full text-[10px] text-left">
+                <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-1 px-2.5">Item Description (विवरण)</th>
+                    <th className="py-1 px-2 text-right">Amount (रकम)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="py-1 px-2.5">
+                        <strong className="text-slate-900">{item.description}</strong>
+                      </td>
+                      <td className="py-1 px-2 text-right font-mono font-bold text-slate-900">
+                        ₹{item.amount}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t-2 border-slate-300 font-semibold text-[10px]">
+                  <tr>
+                    <td className="py-1 px-2.5">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-[9px] text-slate-700">
+                        <span>Payment Mode: <strong className="font-mono text-slate-900">{receipt.paymentMode || 'UPI'}</strong></span>
+                        <span>Ref / UTR: <strong className="font-mono text-slate-900">{receipt.transactionRef || 'OFFLINE-DESK'}</strong></span>
+                      </div>
+                    </td>
+                    <td className="py-1 px-2 text-right">
+                      <div className="space-y-0.5 text-right font-mono">
+                        <div className="text-[10px]">Total Agreed: <strong className="font-bold text-slate-950">₹{receipt.totalFee}</strong></div>
+                        <div className="text-[10px] text-emerald-800">Paid: <strong className="font-bold text-emerald-800">₹{receipt.amountPaid}</strong></div>
+                        {receipt.pendingDue > 0 ? (
+                          <div className="text-[10px] text-rose-700 font-bold">Due: ₹{receipt.pendingDue}</div>
+                        ) : (
+                          <div className="text-[9px] text-slate-500">Due: ₹0 (NIL)</div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          );
+        })()}
+
+        {/* Signature Section (Left: Student Sign, Right: Library Authorized Sign - Stamp Removed as Requested) */}
+        <div className="mt-3 pt-2 border-t border-slate-300 flex items-end justify-between">
           {/* 1. Student Signature */}
           <div className="space-y-1">
-            <div className="border-b border-slate-500 w-36 h-8 flex items-end">
-              <span className="text-[8px] text-slate-400 italic mb-0.5">sign here...</span>
+            <div className="border-b border-slate-500 w-44 h-8 flex items-end">
+              <span className="text-[8px] text-slate-400 italic mb-0.5">student signature...</span>
             </div>
-            <p className="text-[9px] font-bold text-slate-800 leading-tight">Student Signature</p>
+            <p className="text-[9px] font-bold text-slate-800 leading-tight">Student Signature (विद्यार्थी हस्ताक्षर)</p>
             <p className="text-[8px] text-slate-600 font-mono">
               Name: <strong>{receipt.studentName}</strong>
             </p>
           </div>
 
-          {/* 2. Official Library Seal / Stamp Box */}
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-24 h-12 border-2 border-dashed border-emerald-700/60 rounded-lg flex flex-col items-center justify-center bg-emerald-50/30 text-emerald-900 text-center px-1">
-              <span className="text-[7px] font-mono uppercase font-black tracking-widest text-emerald-800">
-                BRAIN DOCK
-              </span>
-              <span className="text-[8px] font-extrabold uppercase text-emerald-700">
-                OFFICIAL SEAL / STAMP
-              </span>
-              <span className="text-[7px] text-emerald-600 font-mono">
-                VERIFIED ✓
-              </span>
-            </div>
-            <span className="text-[7px] text-slate-400 mt-0.5 font-mono">Office Stamp Affixed</span>
-          </div>
-
-          {/* 3. Authorized Signatory */}
+          {/* 2. Authorized Signatory */}
           <div className="space-y-1 text-right">
-            <div className="border-b border-slate-500 w-36 h-8 ml-auto flex items-end justify-end">
+            <div className="border-b border-slate-500 w-44 h-8 ml-auto flex items-end justify-end">
               <span className="font-serif italic text-[11px] text-slate-800 font-bold mb-0.5">Dr. Keval Patel</span>
             </div>
-            <p className="text-[9px] font-bold text-slate-800 leading-tight">Authorized Signatory</p>
+            <p className="text-[9px] font-bold text-slate-800 leading-tight">Authorized Signatory (अधिकृत हस्ताक्षर)</p>
             <p className="text-[8px] text-slate-500 font-mono">
               Brain Dock Library Administration • Date: <strong>{receipt.date}</strong>
             </p>
@@ -235,8 +232,8 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
       <div className="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl relative my-2 sm:my-6 border border-slate-300 text-slate-900 print:p-0 print:border-none print:shadow-none print:m-0">
         
         {/* Modal Controls - Sticky at Top */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md flex items-center justify-between pb-3 pt-1 border-b border-slate-200 no-print">
-          <div>
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md pb-3 pt-1 border-b border-slate-200 no-print space-y-2">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="text-xs font-black text-purple-900 bg-purple-100 px-3 py-1 rounded-full border border-purple-200 font-mono uppercase tracking-wider">
                 A4 DUAL RECEIPT (2 प्रति: विद्यार्थी + कार्यालय)
@@ -245,24 +242,28 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
                 Single A4 Page • 2 Receipts with Perforated Cut Line
               </span>
             </div>
+            
+            <div className="flex items-center space-x-2.5">
+              <button 
+                onClick={handlePrint}
+                className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print / Save as PDF (लैपटॉप में PDF सेव करें)</span>
+              </button>
+              <button 
+                onClick={onClose}
+                className="px-3 py-1.5 text-slate-700 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 border border-slate-300 rounded-xl transition-colors font-bold text-xs flex items-center space-x-1 cursor-pointer"
+                title="Close (ESC)"
+              >
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
           </div>
-          
-          <div className="flex items-center space-x-2.5">
-            <button 
-              onClick={handlePrint}
-              className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print A4 Receipt (प्रिंट करें)</span>
-            </button>
-            <button 
-              onClick={onClose}
-              className="px-3 py-1.5 text-slate-700 hover:text-rose-700 bg-slate-100 hover:bg-rose-50 border border-slate-300 rounded-xl transition-colors font-bold text-xs flex items-center space-x-1 cursor-pointer"
-              title="Close (ESC)"
-            >
-              <X className="w-4 h-4" />
-              <span>Close</span>
-            </button>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5 text-[11px] text-purple-900 flex items-center justify-between">
+            <span>💡 <strong>लैपटॉप में रसीद सेव करने के लिए:</strong> ऊपर <strong>"Print / Save as PDF"</strong> बटन दबाएं &gt; प्रिंट विंडो में Destination / Printer में <strong>"Save as PDF"</strong> चुनें और सेव करें।</span>
           </div>
         </div>
 
