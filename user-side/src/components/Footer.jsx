@@ -80,7 +80,7 @@ export default function Footer() {
                 <div className="p-1.5 rounded-lg bg-purple-50 text-purple-700 shrink-0 mt-0.5 border border-purple-200/60">
                   <MapPin className="w-3.5 h-3.5" />
                 </div>
-                <span className="leading-relaxed">Brain Dock Tower, Knowledge Corridor, Gujarat 380054</span>
+                <span className="leading-relaxed">2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601</span>
               </div>
 
               <div className="flex items-center space-x-2.5">
@@ -117,7 +117,7 @@ export default function Footer() {
 
         {/* Bottom Legal & Copyright Bar */}
         <div className="pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3 text-center sm:text-left">
-          <p>© {new Date().getFullYear()} Brain Dock Library & Study Sanctuary. All Rights Reserved.</p>
+          <p>© {new Date().getFullYear()} Brain Dock Library. All Rights Reserved.</p>
           
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-1.5 text-xs">
             <Link to="/rules" className="hover:text-purple-700 transition-colors">Library Rules</Link>

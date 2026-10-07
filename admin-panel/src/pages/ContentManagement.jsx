@@ -177,7 +177,7 @@ export default function ContentManagement() {
 
   const handleRemoveStatsItem = (index) => {
     if (statsConfig.items.length <= 1) {
-      alert('Kam se kam ek metric hona chahiye.');
+      alert('At least one metric is required.');
       return;
     }
     const newItems = statsConfig.items.filter((_, i) => i !== index);
@@ -225,7 +225,7 @@ export default function ContentManagement() {
   };
 
   const handleDeleteFeature = (id, title) => {
-    if (window.confirm(`Kya aap "${title}" facility ko delete karna chahte hain?`)) {
+    if (window.confirm(`Are you sure you want to delete the "${title}" facility?`)) {
       const newItems = featuresConfig.items.filter(item => item.id !== id);
       setFeaturesConfig({ ...featuresConfig, items: newItems });
       showToast(`🗑️ "${title}" removed from list. Click 'Save All Changes' to apply.`);
@@ -235,7 +235,7 @@ export default function ContentManagement() {
   const handleAddFeatureSubmit = (e) => {
     e.preventDefault();
     if (!newFeature.title.trim()) {
-      alert('Kripya Facility ka Title enter karein.');
+      alert('Please enter a facility title.');
       return;
     }
     const itemToAdd = {
@@ -255,7 +255,7 @@ export default function ContentManagement() {
   };
 
   const handleResetFeaturesDefaults = () => {
-    if (window.confirm('Kya aap default facilities (Personal Desk, Personal Locker, Revolving Chair, Pantry Area, etc.) restore karna chahte hain?')) {
+    if (window.confirm('Are you sure you want to restore default facilities (Personal Desk, Personal Locker, Revolving Chair, Pantry Area, etc.)?')) {
       const defaults = {
         badge: 'The Brain Dock Difference',
         title: 'Engineered for Concentration & Clarity',
@@ -432,7 +432,7 @@ export default function ContentManagement() {
                   Engineered for Concentration & Clarity — Facilities Editor
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Personal Desk, Personal Locker, Revolving Chair, Pantry Area aur anya features ko edit, add ya delete karein.
+                  Edit, add, or remove features including Personal Desk, Personal Locker, Revolving Chair, and Pantry Area.
                 </p>
               </div>
 
@@ -442,7 +442,7 @@ export default function ContentManagement() {
                   className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center space-x-1.5"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Add Facility (नया फीचर जोड़ें)</span>
+                  <span>Add Facility</span>
                 </button>
 
                 <button
@@ -514,7 +514,7 @@ export default function ContentManagement() {
                 Active Facilities & Amenities ({featuresConfig?.items?.length || 0})
               </h4>
               <span className="text-xs text-slate-500">
-                Aap up/down arrows se order badal sakte hain aur direct delete/edit kar sakte hain.
+                Use up/down arrows to reorder items, or edit and remove them directly.
               </span>
             </div>
 
@@ -660,7 +660,7 @@ export default function ContentManagement() {
                 <h3 className="text-sm font-extrabold text-slate-900">Live Preview — Homepage Rendering</h3>
               </div>
               <span className="text-[11px] text-slate-500">
-                Yeh preview dikhata hai ki homepage (http://localhost:5173) par cards kaise dikhenge.
+                Preview of how facility cards appear on the live website homepage.
               </span>
             </div>
 
@@ -840,8 +840,8 @@ export default function ContentManagement() {
                   </div>
                   <p className="text-xs text-slate-600 mt-1">
                     {statsConfig.isVisible 
-                      ? 'Yeh 5-column numbers banner public website (http://localhost:5173) per dikh raha hai.' 
-                      : 'Yeh section abhi public website per HIDE hai. Koi bhi visitor ise nahi dekh sakta.'}
+                      ? 'The 5-column statistics banner is currently visible on the live public website.' 
+                      : 'This section is currently hidden on the public website.'}
                   </p>
                 </div>
               </div>
@@ -858,12 +858,12 @@ export default function ContentManagement() {
                 {statsConfig.isVisible ? (
                   <>
                     <EyeOff className="w-4 h-4" />
-                    <span>Hide From Website (Hide Karein)</span>
+                    <span>Hide From Website</span>
                   </>
                 ) : (
                   <>
                     <Eye className="w-4 h-4" />
-                    <span>Show On Website (Live Karein)</span>
+                    <span>Show On Website</span>
                   </>
                 )}
               </button>
@@ -874,7 +874,7 @@ export default function ContentManagement() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">Edit Statistics Metrics & Numbers</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Yahan se aap har ek box ka number aur title edit ya change kar sakte hain.</p>
+                <p className="text-xs text-slate-500 mt-0.5">Customize numbers, metric titles, and labels for the homepage statistics counter.</p>
               </div>
 
               <div className="flex items-center space-x-2">

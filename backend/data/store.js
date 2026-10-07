@@ -585,10 +585,7 @@ class DataStore {
     };
     this.seatBookings.unshift(booking);
 
-    // Prepare WhatsApp Message for User
-    const cleanUserPhone = String(phone).replace(/\D/g, '');
-    const fullUserPhone = cleanUserPhone.startsWith('91') ? cleanUserPhone : `91${cleanUserPhone.slice(-10)}`;
-    const userMsg = `🎉 *Brain Dock Library - Desk Reservation Confirmed!* 📚\n\nDear *${name.trim()}*,\nYour study desk has been successfully reserved!\n\n📌 *Desk Number:* Desk #${seatNum}\n🏠 *Address:* ${address.trim()}\n📱 *Mobile:* ${phone.trim()}\n🎫 *Pass ID:* ${admission.admissionId}\n\n✨ *Included Amenities:*\n• 24/7 Silent AC Reading Sanctuary\n• High-Speed USB-C & AC Charging Socket\n• Warm Dimmable LED Reading Lamp\n• Biometric Attendance & Personal Locker\n• Gigabit Fiber WiFi & RO Water\n\n📍 *Brain Dock Library & Study Sanctuary*\nHelpline: +91 63 5600 6100\nThank you!`;
+    const userMsg = `🎉 *Brain Dock Library - Desk Reservation Confirmed!* 📚\n\nDear *${name.trim()}*,\nYour study desk has been successfully reserved!\n\n📌 *Desk Number:* Desk #${seatNum}\n🏠 *Address:* ${address.trim()}\n📱 *Mobile:* ${phone.trim()}\n🎫 *Pass ID:* ${admission.admissionId}\n\n✨ *Included Amenities:*\n• 24/7 Silent AC Reading Sanctuary\n• High-Speed USB-C & AC Charging Socket\n• Warm Dimmable LED Reading Lamp\n• Biometric Attendance & Personal Locker\n• Gigabit Fiber WiFi & RO Water\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
     const userWhatsAppUrl = `https://api.whatsapp.com/send?phone=${fullUserPhone}&text=${encodeURIComponent(userMsg)}`;
 
     // Prepare WhatsApp Message for Admin / Owner
@@ -1108,7 +1105,7 @@ class DataStore {
             ? 'EXPIRES TODAY' 
             : `expiring in ${diffDays} day(s)`;
 
-        const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library & Study Sanctuary*\nHelpline: +91 63 5600 6100\nThank you!`;
+        const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
 
         const whatsAppUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(reminderMessage)}`;
 
@@ -1161,7 +1158,7 @@ class DataStore {
         ? 'EXPIRES TODAY' 
         : `expiring in ${diffDays} day(s)`;
 
-    const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library & Study Sanctuary*\nHelpline: +91 63 5600 6100\nThank you!`;
+    const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
 
     const whatsAppUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(reminderMessage)}`;
 

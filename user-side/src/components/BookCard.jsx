@@ -76,7 +76,7 @@ export default function BookCard({ book, onReadOnline, onDownloadPdf }) {
             </h3>
           </Link>
           
-          {/* Original Script Title (e.g. સરસ્વતીચંદ્ર, भगवद्गीता, गोदान) */}
+          {/* Original Script Title (e.g. Saraswatichandra, Bhagavad Gita, Godan) */}
           {book.originalScriptTitle && (
             <p className="text-xs text-purple-700 font-bold truncate mt-0.5 font-serif">
               {book.originalScriptTitle}

@@ -200,9 +200,9 @@ export default function CatalogPage() {
 
   const languagesList = [
     { label: 'All Languages', value: 'All' },
-    { label: 'ગુજરાતી (Gujarati)', value: 'Gujarati' },
-    { label: 'संस्कृतम् (Sanskrit)', value: 'Sanskrit' },
-    { label: 'हिन्दी (Hindi)', value: 'Hindi' },
+    { label: 'Gujarati', value: 'Gujarati' },
+    { label: 'Sanskrit', value: 'Sanskrit' },
+    { label: 'Hindi', value: 'Hindi' },
     { label: 'English Classics', value: 'English' }
   ];
 

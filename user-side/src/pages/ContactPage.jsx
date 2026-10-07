@@ -67,7 +67,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h4 className="font-bold text-slate-900">Physical Campus</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">Brain Dock Tower, Knowledge Corridor, Near Tech Park, Gujarat 380054</p>
+                    <p className="text-xs text-slate-500 mt-0.5">2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601</p>
                   </div>
                 </div>
 

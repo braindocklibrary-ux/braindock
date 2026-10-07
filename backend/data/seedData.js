@@ -10,7 +10,7 @@ export const seedUsers = [
     membershipStatus: 'Active',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     finesDue: 0,
-    address: 'Brain Dock HQ, Silicon Corridor, Gujarat',
+    address: '2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601',
     gender: 'Male'
   },
   {

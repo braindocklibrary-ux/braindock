@@ -123,8 +123,8 @@ export default function OwnerPortal() {
     whatsAppNumber: '',
     studentEmail: '',
     address: '',
-    city: 'Surat',
-    pinCode: '',
+    city: 'Amreli',
+    pinCode: '365601',
 
     // 02 Education / Professional
     qualification: '',
@@ -450,8 +450,8 @@ export default function OwnerPortal() {
       whatsAppNumber: admission.whatsAppNumber || admission.studentPhone || '',
       studentEmail: admission.studentEmail || '',
       address: admission.address || '',
-      city: admission.city || 'Surat',
-      pinCode: admission.pinCode || '',
+      city: admission.city || 'Amreli',
+      pinCode: admission.pinCode || '365601',
       qualification: admission.qualification || '',
       institution: admission.institution || '',
       course: admission.course || '',
@@ -833,7 +833,7 @@ export default function OwnerPortal() {
             className="flex-1 md:flex-none bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5"
           >
             <UserPlus className="w-4 h-4" />
-            <span>New Admission (नया एडमिशन)</span>
+            <span>New Admission</span>
           </button>
 
           <button 
@@ -888,7 +888,7 @@ export default function OwnerPortal() {
         </div>
 
         <div className="bg-white border border-emerald-100 p-5 rounded-2xl shadow-xs bg-emerald-50/20">
-          <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">Available (खाली)</span>
+          <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider block">Available Desks</span>
           <h3 className="text-2xl font-bold text-emerald-700 mt-1">{stats.availableSeats} Seats</h3>
           <button 
             onClick={() => { setActiveTab('grid'); setGridFilter('available'); }}
@@ -905,7 +905,7 @@ export default function OwnerPortal() {
         </div>
 
         <div className={`p-5 rounded-2xl shadow-xs transition-all ${stats.totalFeePending > 0 ? 'bg-amber-50/40 border border-amber-200' : 'bg-white border border-slate-200/80'}`}>
-          <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider block">Pending Dues (बाकी)</span>
+          <span className="text-[11px] font-semibold text-amber-800 uppercase tracking-wider block">Pending Dues</span>
           <h3 className="text-2xl font-bold text-amber-700 mt-1">₹{stats.totalFeePending?.toLocaleString()}</h3>
           <button 
             onClick={() => { setActiveTab('register'); setRegisterFilter('pending'); }}
@@ -937,7 +937,7 @@ export default function OwnerPortal() {
               activeTab === 'grid' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            🪑 102-Seat Floor Matrix (सीट ग्रिड)
+            🪑 102-Seat Floor Matrix
           </button>
           <button 
             onClick={() => setActiveTab('register')}
@@ -969,7 +969,7 @@ export default function OwnerPortal() {
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
           <span className="inline-flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-emerald-500"></span>
-            <span>Available (खाली)</span>
+            <span>Available</span>
           </span>
           <span className="inline-flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-slate-800"></span>
@@ -977,7 +977,7 @@ export default function OwnerPortal() {
           </span>
           <span className="inline-flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-amber-500"></span>
-            <span>Fee Pending (बाकी)</span>
+            <span>Fee Pending</span>
           </span>
           <span className="inline-flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-md bg-rose-500"></span>
@@ -1023,7 +1023,7 @@ export default function OwnerPortal() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-purple-700"></span>
-                <h3 className="font-bold text-slate-900 text-sm">All 102 Premium Study Desks (102 प्रीमियम सीट्स)</h3>
+                <h3 className="font-bold text-slate-900 text-sm">All 102 Premium Study Desks</h3>
                 <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded-md border border-purple-200">
                   ALL 102 SEATS PREMIUM
                 </span>
@@ -1343,16 +1343,16 @@ export default function OwnerPortal() {
                   </span>
                   <div>
                     <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                      3-Day Membership Expiry Watch (लास्ट 3 दिन का ऑटो रिमाइंडर)
+                      3-Day Membership Expiry Watch (Automated Protocol)
                     </h3>
                     <p className="text-xs text-amber-900 font-semibold">
-                      Automated Protocol: Last 3 days me harroj sirf 1 reminder • Renew karne par turant stop
+                      Automated Protocol: 1 reminder per day during final 3 days • Automatically stops upon renewal
                     </p>
                   </div>
                 </div>
 
                 <p className="text-xs text-slate-600 leading-relaxed pt-1">
-                  💡 <strong>Rule Engine:</strong> Jis bhi student ki membership expire hone me 3 din (ya usse kam) bache ho, system unhe is priority list me add karta hai. Daily subah 1 personalized WhatsApp alert bhej sakte hain. Jaise hi student desk par renewal karwa leta hai, wo automatically is list se bahar ho jata hai aur aage notifications band ho jate hain.
+                  💡 <strong>Rule Engine:</strong> Students whose membership expires within 3 days (or has already expired) are automatically tracked here. You can dispatch a personalized WhatsApp renewal notice each morning. As soon as the student renews their desk, they are automatically cleared from this list.
                 </p>
               </div>
 
@@ -1634,7 +1634,7 @@ export default function OwnerPortal() {
               <div className="col-span-2 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200 flex items-center justify-between">
                 <div>
                   <span className="text-[11px] font-bold text-emerald-900 block">Biometric Machine Enrollment PIN</span>
-                  <span className="text-[10px] text-emerald-700">Machine par Add User me yehi ID daal kar finger scan karein:</span>
+                  <span className="text-[10px] text-emerald-700">Enter this PIN in machine Add User menu to enroll fingerprint:</span>
                 </div>
                 <span className="font-mono font-extrabold text-xs text-white bg-emerald-600 px-2.5 py-1 rounded-lg">
                   PIN #{selectedSeat.occupant.biometricEnrollmentId || selectedSeat.seatNumber}
@@ -1652,7 +1652,7 @@ export default function OwnerPortal() {
                 className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors"
               >
                 <Printer className="w-4 h-4 text-slate-500" />
-                <span>Print Receipt (रसीद)</span>
+                <span>Print Receipt</span>
               </button>
 
               <button
@@ -1723,7 +1723,7 @@ export default function OwnerPortal() {
                 onClick={() => handleVacateSeat(selectedSeat.seatNumber)}
                 className="col-span-2 py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 transition-colors"
               >
-                Vacate Seat #{selectedSeat.seatNumber} (सीट खाली करें)
+                Vacate Seat #{selectedSeat.seatNumber}
               </button>
             </div>
           </div>
@@ -1894,7 +1894,7 @@ export default function OwnerPortal() {
                         type="text" 
                         value={admForm.city}
                         onChange={(e) => setAdmForm({ ...admForm, city: e.target.value })}
-                        placeholder="Surat"
+                        placeholder="Amreli"
                         className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
                       />
                     </div>
@@ -1904,7 +1904,7 @@ export default function OwnerPortal() {
                         type="text" 
                         value={admForm.pinCode}
                         onChange={(e) => setAdmForm({ ...admForm, pinCode: e.target.value })}
-                        placeholder="395006"
+                        placeholder="365601"
                         className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-mono"
                       />
                     </div>
@@ -1941,7 +1941,7 @@ export default function OwnerPortal() {
                       type="text" 
                       value={admForm.institution}
                       onChange={(e) => setAdmForm({ ...admForm, institution: e.target.value })}
-                      placeholder="e.g. VNSGU / SVNIT / Surat Public School"
+                      placeholder="e.g. College / University / School"
                       className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
                     />
                   </div>
@@ -2267,10 +2267,10 @@ export default function OwnerPortal() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-bold text-purple-900 block text-xs">
-                      Fee Structure & Itemized Charges (शुल्क विवरण)
+                      Fee Structure & Itemized Charges
                     </span>
                     <span className="text-[10px] text-purple-700">
-                      नीचे + दबाकर जितने चाहें शुल्क (Locker, Desk, Registration, ID) जोड़ें
+                      Click + Add Item to add custom fee components (Locker, Desk, Registration, ID)
                     </span>
                   </div>
                   <button
@@ -2624,10 +2624,10 @@ export default function OwnerPortal() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-bold text-purple-900 block text-xs">
-                      Itemized Charges (शुल्क विवरण)
+                      Itemized Charges
                     </span>
                     <span className="text-[10px] text-purple-700">
-                      नीचे + दबाकर जितने चाहें शुल्क जोड़ें
+                      Click + Add Item to add custom renewal charges
                     </span>
                   </div>
                   <button
