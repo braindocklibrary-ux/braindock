@@ -164,12 +164,10 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             </p>
           </div>
 
-          {/* 2. Authorized Signatory */}
+          {/* 2. Library Representative */}
           <div className="space-y-0.5 text-right">
-            <div className="border-b border-slate-500 w-36 h-6 ml-auto flex items-end justify-end">
-              <span className="font-serif italic text-[10px] text-slate-800 font-bold">Dr. Keval Patel</span>
-            </div>
-            <p className="text-[8.5px] font-bold text-slate-800 leading-tight">Authorized Signatory</p>
+            <div className="border-b border-slate-500 w-36 h-6 ml-auto"></div>
+            <p className="text-[8.5px] font-bold text-slate-800 leading-tight">Library Representative</p>
             <p className="text-[7.5px] text-slate-500 font-mono">
               Brain Dock Library Administration • Date: <strong>{receipt.date}</strong>
             </p>
