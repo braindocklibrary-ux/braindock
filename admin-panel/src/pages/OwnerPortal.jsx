@@ -360,20 +360,6 @@ export default function OwnerPortal() {
     }).catch(e => console.error(e));
   };
 
-  const handleClearAllDummyData = async () => {
-    if (!window.confirm('Clear all dummy records? All 102 seats will be reset to Available and only real biometric punches will be kept.')) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/clear-all-data`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message);
-        fetchOwnerData();
-      }
-    } catch (e) {
-      showToast('Failed to clear dummy data');
-    }
-  };
-
   // Simulate Biometric Punch on TIMEWATCH Hardware
   const handleRunSimulatedPunch = async (targetSeatNum, method = 'Fingerprint') => {
     const seatToPunch = targetSeatNum != null ? targetSeatNum : simulatedSeatNum;
@@ -852,15 +838,6 @@ export default function OwnerPortal() {
             <BarChart3 className="w-3.5 h-3.5 text-purple-700" />
             <span className="hidden sm:inline">Homepage Stats</span>
           </Link>
-
-          <button 
-            onClick={handleClearAllDummyData}
-            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-xl border border-rose-200 transition-colors flex items-center space-x-1.5"
-            title="Clear all dummy data (102 seats clean, machine data only)"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Clear Dummy Data</span>
-          </button>
 
           <button 
             onClick={() => setIsUnlocked(false)}
