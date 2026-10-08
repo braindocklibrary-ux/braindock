@@ -17,6 +17,8 @@ build/
 backend/.env
 user-side/.env
 admin-panel/.env
+*google-service-account*.json
+*.pem
 
 # Temporary & Log files
 npm-debug.log*

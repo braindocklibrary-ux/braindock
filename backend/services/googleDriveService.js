@@ -8,6 +8,7 @@ import { store } from '../data/store.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEFAULT_KEY_FILE = path.join(__dirname, '..', 'config', 'google-service-account.json');
+const ROOT_KEY_FILE = path.join(__dirname, '..', 'google-service-account.json');
 
 let lastBackupStatus = {
   configured: false,
@@ -46,9 +47,10 @@ export function getDriveClient() {
         scopes: ['https://www.googleapis.com/auth/drive']
       });
     }
-    // Option 3: Local JSON key file
-    else if (fs.existsSync(DEFAULT_KEY_FILE)) {
-      const keyFileRaw = fs.readFileSync(DEFAULT_KEY_FILE, 'utf8');
+    // Option 3: Local JSON key file in config/ or backend/
+    else if (fs.existsSync(DEFAULT_KEY_FILE) || fs.existsSync(ROOT_KEY_FILE)) {
+      const targetFile = fs.existsSync(ROOT_KEY_FILE) ? ROOT_KEY_FILE : DEFAULT_KEY_FILE;
+      const keyFileRaw = fs.readFileSync(targetFile, 'utf8');
       const credentials = JSON.parse(keyFileRaw);
       serviceAccountEmail = credentials.client_email;
       auth = new google.auth.JWT({
@@ -86,35 +88,43 @@ async function getOrCreateBackupFolder(drive) {
   }
 
   try {
-    // Search for existing 'Brain Dock Library Backups' folder
-    const searchRes = await drive.files.list({
-      q: "name = 'Brain Dock Library Backups' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-      fields: 'files(id, name)',
+    // 1. Search for shared folder from user's Drive (sharedWithMe = true)
+    const sharedRes = await drive.files.list({
+      q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false and sharedWithMe = true",
+      fields: 'files(id, name, owners, shared)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
       spaces: 'drive'
     });
 
-    if (searchRes.data.files && searchRes.data.files.length > 0) {
-      const folderId = searchRes.data.files[0].id;
+    if (sharedRes.data.files && sharedRes.data.files.length > 0) {
+      // Find one named 'Brain Dock Library Backups' if available, otherwise use first shared folder
+      const namedFolder = sharedRes.data.files.find(f => f.name.toLowerCase().includes('brain dock') || f.name.toLowerCase().includes('backup')) || sharedRes.data.files[0];
+      const folderId = namedFolder.id;
       lastBackupStatus.folderId = folderId;
+      console.log(`📁 Found Shared User Google Drive Folder: "${namedFolder.name}" (ID: ${folderId})`);
       return folderId;
     }
 
-    // Create folder if not found
-    const fileMetadata = {
-      name: 'Brain Dock Library Backups',
-      mimeType: 'application/vnd.google-apps.folder'
-    };
-    const folderRes = await drive.files.create({
-      resource: fileMetadata,
-      fields: 'id'
+    // 2. Search for any folder with name 'Brain Dock Library Backups' where owner is not service account
+    const searchRes = await drive.files.list({
+      q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false and name = 'Brain Dock Library Backups'",
+      fields: 'files(id, name, owners, shared)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true
     });
 
-    const newFolderId = folderRes.data.id;
-    lastBackupStatus.folderId = newFolderId;
-    console.log(`📁 Created Google Drive Backup Folder: Brain Dock Library Backups (ID: ${newFolderId})`);
-    return newFolderId;
+    const userOwnedFolder = searchRes.data.files?.find(f => f.owners?.some(o => !o.me) || f.shared);
+    if (userOwnedFolder) {
+      lastBackupStatus.folderId = userOwnedFolder.id;
+      console.log(`📁 Found User-owned Backup Folder: "${userOwnedFolder.name}" (ID: ${userOwnedFolder.id})`);
+      return userOwnedFolder.id;
+    }
+
+    console.warn('⚠️ No user-shared Google Drive folder found. Please share a folder from your personal Google Drive with the Service Account email.');
+    return null;
   } catch (err) {
-    console.error('Error finding/creating Google Drive folder:', err.message);
+    console.error('Error finding Google Drive folder:', err.message);
     return null;
   }
 }
@@ -252,9 +262,10 @@ export async function uploadBackupToGoogleDrive() {
     };
 
     const jsonUploadRes = await drive.files.create({
-      resource: jsonFileMetadata,
+      requestBody: jsonFileMetadata,
       media: jsonMedia,
-      fields: 'id, name, webViewLink'
+      fields: 'id, name, webViewLink',
+      supportsAllDrives: true
     });
 
     uploadedFiles.push({
@@ -284,9 +295,10 @@ export async function uploadBackupToGoogleDrive() {
     };
 
     const csvUploadRes = await drive.files.create({
-      resource: csvFileMetadata,
+      requestBody: csvFileMetadata,
       media: csvMedia,
-      fields: 'id, name, webViewLink'
+      fields: 'id, name, webViewLink',
+      supportsAllDrives: true
     });
 
     uploadedFiles.push({
@@ -328,7 +340,8 @@ export function getGoogleDriveBackupStatus() {
   const isConfigured = Boolean(
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON || 
     (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) ||
-    fs.existsSync(DEFAULT_KEY_FILE)
+    fs.existsSync(DEFAULT_KEY_FILE) ||
+    fs.existsSync(ROOT_KEY_FILE)
   );
 
   return {
