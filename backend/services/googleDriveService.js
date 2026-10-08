@@ -208,19 +208,88 @@ export function generateStudentCsv(admissions = []) {
  * Upload Full System Backup (JSON + Excel/CSV) to Google Drive
  */
 export async function uploadBackupToGoogleDrive() {
+  const dateStamp = new Date().toISOString().replace(/:/g, '-').slice(0, 19).replace('T', '_');
+  const displayDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+  // 1. Gather comprehensive 3-portal database snapshot
+  const backupData = {
+    version: '1.0',
+    libraryName: 'Brain Dock Library',
+    exportedAt: new Date().toISOString(),
+    indianTime: displayDate,
+    admissions: store.admissions || [],
+    receipts: store.receipts || [],
+    ownerSeats: store.ownerSeats || [],
+    biometricLogs: store.biometricLogs || [],
+    homepageStats: store.homepageStats,
+    homepageFeatures: store.homepageFeatures,
+    summary: {
+      totalSeats: 102,
+      totalAdmissions: (store.admissions || []).length,
+      totalReceipts: (store.receipts || []).length,
+      totalBiometricLogs: (store.biometricLogs || []).length
+    }
+  };
+
+  const jsonFileName = `BrainDock_Full_Backup_${dateStamp}.json`;
+  const csvFileName = `BrainDock_Students_Master_${dateStamp}.csv`;
+  const csvString = generateStudentCsv(store.admissions || []);
+
+  // METHOD A: Google Apps Script Webhook (Works 100% on Personal Gmail & 15GB Drive Storage)
+  const webhookUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GOOGLE_DRIVE_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      console.log('☁️ Dispatching backup to Google Drive via Google Apps Script Webhook...');
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonFileName,
+          csvFileName,
+          jsonData: backupData,
+          csvData: csvString,
+          timestamp: new Date().toISOString(),
+          folderName: 'Brain Dock Library Backups'
+        })
+      });
+
+      const resData = await response.json().catch(() => ({}));
+      lastBackupStatus.configured = true;
+      lastBackupStatus.lastBackupAt = new Date().toISOString();
+      lastBackupStatus.lastStatus = `✅ Backup Successful on ${displayDate} (Google Drive)`;
+      lastBackupStatus.error = null;
+
+      console.log(`☁️ Google Drive Backup Success via Webhook: Uploaded ${jsonFileName} & ${csvFileName}`);
+      return {
+        success: true,
+        message: `Google Drive Backup successfully saved to your personal Google Drive folder!`,
+        timestamp: lastBackupStatus.lastBackupAt,
+        files: [
+          { name: jsonFileName, type: 'JSON (Full System Restore File)' },
+          { name: csvFileName, type: 'CSV (Google Sheets / Excel Format)' }
+        ]
+      };
+    } catch (err) {
+      console.error('Google Apps Script Webhook Backup Error:', err.message);
+      lastBackupStatus.error = err.message;
+      return { success: false, message: `Google Drive Webhook error: ${err.message}` };
+    }
+  }
+
+  // METHOD B: Official Google Drive API (Service Account)
   const drive = getDriveClient();
   if (!drive) {
     return {
       success: false,
-      message: 'Google Drive API is not configured. Please provide Google Cloud Service Account credentials.'
+      message: 'Google Drive is not configured. Please set GOOGLE_APPS_SCRIPT_URL or Google Cloud Service Account credentials.'
     };
   }
 
   try {
     const folderId = await getOrCreateBackupFolder(drive);
     if (!folderId) {
-      const errMsg = 'No shared Google Drive folder found. Please create a folder in your Google Drive, share it with braindock-backup@brain-dock-library.iam.gserviceaccount.com as Editor, and set GOOGLE_DRIVE_FOLDER_ID in environment variables.';
-      lastBackupStatus.lastStatus = '⚠️ Waiting for Shared Google Drive Folder';
+      const errMsg = 'No shared Google Drive folder found. Please set GOOGLE_APPS_SCRIPT_URL or share a Google Drive folder.';
+      lastBackupStatus.lastStatus = '⚠️ Waiting for Google Drive Connection';
       lastBackupStatus.error = errMsg;
       console.warn('⚠️ Google Drive Note:', errMsg);
       return {
@@ -228,29 +297,6 @@ export async function uploadBackupToGoogleDrive() {
         message: errMsg
       };
     }
-
-    const dateStamp = new Date().toISOString().replace(/:/g, '-').slice(0, 19).replace('T', '_');
-    const displayDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-
-    // 1. Gather comprehensive 3-portal database snapshot
-    const backupData = {
-      version: '1.0',
-      libraryName: 'Brain Dock Library',
-      exportedAt: new Date().toISOString(),
-      indianTime: displayDate,
-      admissions: store.admissions || [],
-      receipts: store.receipts || [],
-      ownerSeats: store.ownerSeats || [],
-      biometricLogs: store.biometricLogs || [],
-      homepageStats: store.homepageStats,
-      homepageFeatures: store.homepageFeatures,
-      summary: {
-        totalSeats: 102,
-        totalAdmissions: (store.admissions || []).length,
-        totalReceipts: (store.receipts || []).length,
-        totalBiometricLogs: (store.biometricLogs || []).length
-      }
-    };
 
     const uploadedFiles = [];
 
@@ -348,7 +394,8 @@ export async function uploadBackupToGoogleDrive() {
  * Get current Google Drive Backup Status
  */
 export function getGoogleDriveBackupStatus() {
-  const isConfigured = Boolean(
+  const isWebhookConfigured = Boolean(process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GOOGLE_DRIVE_WEBHOOK_URL);
+  const isServiceAccountConfigured = Boolean(
     process.env.GOOGLE_SERVICE_ACCOUNT_JSON || 
     (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) ||
     fs.existsSync(DEFAULT_KEY_FILE) ||
@@ -357,9 +404,10 @@ export function getGoogleDriveBackupStatus() {
 
   return {
     ...lastBackupStatus,
-    configured: isConfigured,
-    serviceAccountEmail: lastBackupStatus.serviceAccountEmail || process.env.GOOGLE_CLIENT_EMAIL || null,
-    folderId: lastBackupStatus.folderId || process.env.GOOGLE_DRIVE_FOLDER_ID || null
+    configured: isWebhookConfigured || isServiceAccountConfigured,
+    mode: isWebhookConfigured ? 'Google Apps Script (Personal Drive Webhook)' : 'Google Cloud Service Account API',
+    serviceAccountEmail: lastBackupStatus.serviceAccountEmail || process.env.GOOGLE_CLIENT_EMAIL || (isWebhookConfigured ? 'Personal Google Drive (Connected via Webhook)' : null),
+    folderId: lastBackupStatus.folderId || process.env.GOOGLE_DRIVE_FOLDER_ID || 'Brain Dock Library Backups'
   };
 }
 
@@ -371,8 +419,9 @@ let pendingBackup = false;
  * Trigger Instant Real-time Cloud Backup to Google Drive upon any Action / Form Save / Edit
  */
 export function triggerRealtimeGoogleDriveBackup(delayMs = 2000) {
+  const isWebhookConfigured = Boolean(process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GOOGLE_DRIVE_WEBHOOK_URL);
   const drive = getDriveClient();
-  if (!drive) return;
+  if (!drive && !isWebhookConfigured) return;
 
   if (realtimeBackupTimeout) {
     clearTimeout(realtimeBackupTimeout);
