@@ -264,14 +264,58 @@ export default function OwnerPortal() {
       fetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()),
       fetch(`${API_BASE_URL}/api/owner/expiry-reminders`).then(r => r.json())
     ])
-      .then(([seatsRes, admRes, statsRes, bioLogsRes, bioStatsRes, expRes]) => {
-        if (seatsRes.success) setSeats(seatsRes.data);
-        if (admRes.success) setAdmissions(admRes.data);
+      .then(async ([seatsRes, admRes, statsRes, bioLogsRes, bioStatsRes, expRes]) => {
+        let currentAdmissions = (admRes && admRes.success) ? admRes.data : [];
+
+        // Auto-heal / Auto-recover from Browser LocalStorage if server was cold-booted/reset
+        if (currentAdmissions.length === 0) {
+          try {
+            const cachedBackup = localStorage.getItem('bdl_owner_full_backup');
+            if (cachedBackup) {
+              const parsedBackup = JSON.parse(cachedBackup);
+              if (parsedBackup && Array.isArray(parsedBackup.admissions) && parsedBackup.admissions.length > 0) {
+                console.log('🔄 Auto-recovering admissions from browser local storage into backend...');
+                const restoreRes = await fetch(`${API_BASE_URL}/api/owner/restore`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ backup: parsedBackup })
+                });
+                const restoreData = await restoreRes.json();
+                if (restoreData.success) {
+                  const freshAdm = await fetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json());
+                  const freshSeats = await fetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json());
+                  const freshStats = await fetch(`${API_BASE_URL}/api/owner/stats`).then(r => r.json());
+                  if (freshAdm.success) currentAdmissions = freshAdm.data;
+                  if (freshSeats.success) setSeats(freshSeats.data);
+                  if (freshStats.success) setStats(freshStats.data);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Auto-heal note:', err);
+          }
+        }
+
+        if (seatsRes.success && (!currentAdmissions.length || !seatsRes.data.some(s => s.status === 'Occupied'))) setSeats(seatsRes.data);
+        if (admRes.success) setAdmissions(currentAdmissions);
         if (statsRes.success) setStats(statsRes.data);
         if (bioLogsRes.success) setBiometricLogs(bioLogsRes.data);
         if (bioStatsRes.success) setBiometricStats(bioStatsRes.data);
         if (expRes.success) setExpiryReminders(expRes.data || []);
         setLoading(false);
+
+        // Keep local storage backup fresh
+        if (currentAdmissions.length > 0) {
+          try {
+            fetch(`${API_BASE_URL}/api/owner/backup`)
+              .then(r => r.json())
+              .then(d => {
+                if (d.success && d.data) {
+                  localStorage.setItem('bdl_owner_full_backup', JSON.stringify(d.data));
+                }
+              }).catch(() => {});
+          } catch (e) {}
+        }
       })
       .catch(err => {
         console.error('Failed to load owner data', err);
@@ -607,6 +651,16 @@ export default function OwnerPortal() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          try {
+            const cached = localStorage.getItem('bdl_owner_full_backup');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed && Array.isArray(parsed.admissions)) {
+                parsed.admissions = parsed.admissions.filter(a => a.admissionId !== deleteConfirmModal.admissionId);
+                localStorage.setItem('bdl_owner_full_backup', JSON.stringify(parsed));
+              }
+            }
+          } catch (e) {}
           setDeleteConfirmModal(null);
           fetchOwnerData();
           showToast(data.message || 'Admission deleted and seat vacated.');
