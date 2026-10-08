@@ -8,6 +8,7 @@ import { pushUserToDevice } from '../services/biometricAdmsService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
+import { uploadBackupToGoogleDrive, getGoogleDriveBackupStatus } from '../services/googleDriveService.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -896,6 +897,22 @@ router.post('/owner/restore', (req, res) => {
 
   const result = store.restoreBackup(backup);
   res.json(result);
+});
+
+// Google Drive Backup Status
+router.get('/owner/backup/google-drive/status', (req, res) => {
+  const status = getGoogleDriveBackupStatus();
+  res.json({ success: true, data: status });
+});
+
+// Trigger Instant Backup to Google Drive
+router.post('/owner/backup/google-drive', async (req, res) => {
+  const result = await uploadBackupToGoogleDrive();
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(500).json(result);
+  }
 });
 
 // Overview Stats for 102 Seats & Financials

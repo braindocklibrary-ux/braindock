@@ -14,6 +14,7 @@ import {
   recentPunches 
 } from './services/biometricAdmsService.js';
 import { store } from './data/store.js';
+import { initScheduledGoogleDriveBackup } from './services/googleDriveService.js';
 
 dotenv.config();
 
@@ -90,6 +91,9 @@ setTimeout(() => {
     pushUserToDevice({ pin: adm.seatNumber, name: adm.studentName });
   });
 }, 2000);
+
+// Initialize Automated Google Drive Cloud Backup Service
+initScheduledGoogleDriveBackup();
 
 // Error handling middleware
 app.use((err, req, res, next) => {

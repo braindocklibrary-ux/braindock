@@ -49,7 +49,12 @@ import {
   HeartHandshake,
   FileText,
   Image as ImageIcon,
-  Plus
+  Plus,
+  Cloud,
+  ExternalLink,
+  FileSpreadsheet,
+  FileCode,
+  CheckCircle
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
@@ -111,6 +116,10 @@ export default function OwnerPortal() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [driveModalOpen, setDriveModalOpen] = useState(false);
+  const [driveStatus, setDriveStatus] = useState(null);
+  const [pushingDrive, setPushingDrive] = useState(false);
+  const [loadingDriveStatus, setLoadingDriveStatus] = useState(false);
 
   // Comprehensive Admission Form Initial State (Sections 01 to 05)
   const initialAdmForm = {
@@ -452,6 +461,48 @@ export default function OwnerPortal() {
       showToast('Error parsing backup file. Please select a valid Brain Dock backup JSON.');
     }
     e.target.value = '';
+  };
+
+  // Google Drive Cloud Backup Status & Manual Trigger
+  const fetchDriveStatus = async () => {
+    setLoadingDriveStatus(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/owner/backup/google-drive/status`);
+      const data = await res.json();
+      if (data.success) {
+        setDriveStatus(data.data);
+      }
+    } catch (e) {
+      console.error('Failed to load Google Drive status', e);
+    } finally {
+      setLoadingDriveStatus(false);
+    }
+  };
+
+  const handleOpenDriveModal = () => {
+    setDriveModalOpen(true);
+    fetchDriveStatus();
+  };
+
+  const handlePushToGoogleDrive = async () => {
+    setPushingDrive(true);
+    try {
+      showToast('Uploading full backup to Google Drive...');
+      const res = await fetch(`${API_BASE_URL}/api/owner/backup/google-drive`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('✅ Cloud backup successfully uploaded to Google Drive!');
+        fetchDriveStatus();
+      } else {
+        alert(data.message || 'Google Drive backup failed. Check your Service Account credentials.');
+      }
+    } catch (e) {
+      alert('Error uploading to Google Drive: ' + e.message);
+    } finally {
+      setPushingDrive(false);
+    }
   };
 
   // Simulate Biometric Punch on TIMEWATCH Hardware
@@ -967,6 +1018,16 @@ export default function OwnerPortal() {
               className="hidden" 
             />
           </label>
+
+          {/* Google Drive Automatic Cloud Backup */}
+          <button 
+            onClick={handleOpenDriveModal}
+            className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold rounded-xl border border-amber-300 transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
+            title="Google Drive Cloud Backups (Auto-Sync & Manual Push)"
+          >
+            <Cloud className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Google Drive</span>
+          </button>
 
           <button 
             onClick={() => setIsUnlocked(false)}
@@ -2840,6 +2901,144 @@ export default function OwnerPortal() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: GOOGLE DRIVE CLOUD BACKUP & AUTO-SYNC ================= */}
+      {driveModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+                  <Cloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Google Drive Cloud Backups</h3>
+                  <p className="text-xs text-slate-500">Automated 3-Portal Sync via Official Google Drive API</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDriveModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Status Section */}
+            {loadingDriveStatus ? (
+              <div className="py-8 text-center text-slate-500 text-xs flex flex-col items-center justify-center space-y-2">
+                <RefreshCw className="w-5 h-5 animate-spin text-amber-600" />
+                <span>Checking Google Drive connection status...</span>
+              </div>
+            ) : driveStatus?.configured ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start space-x-3">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-900 space-y-1">
+                    <p className="font-bold">Google Cloud Service Account Connected</p>
+                    <p className="text-emerald-700 font-mono text-[11px] truncate">
+                      {driveStatus.serviceAccountEmail}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-medium block">Backup Destination</span>
+                    <span className="font-semibold text-slate-800">Google Drive Folder</span>
+                    <p className="text-[11px] text-slate-500 truncate">{driveStatus.folderName || 'Brain Dock Library Backups'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">Auto-Sync Cadence</span>
+                    <span className="font-semibold text-emerald-700">Every 12 Hours (Active)</span>
+                    <p className="text-[11px] text-slate-500">Automated background sync</p>
+                  </div>
+                </div>
+
+                {driveStatus.lastBackup && (
+                  <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold">Latest Cloud Snapshot</span>
+                      <span className="font-semibold text-purple-900">{driveStatus.lastBackup.fileName}</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-mono">{new Date(driveStatus.lastBackup.timestamp).toLocaleString()}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-1">
+                  <button 
+                    type="button"
+                    disabled={pushingDrive}
+                    onClick={handlePushToGoogleDrive}
+                    className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 text-white font-semibold text-xs transition-all shadow-xs flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${pushingDrive ? 'animate-spin' : ''}`} />
+                    <span>{pushingDrive ? 'Uploading Snapshot to Drive...' : '⚡ Push Backup to Google Drive Now'}</span>
+                  </button>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-1">
+                    <span className="flex items-center space-x-1">
+                      <FileCode className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Full JSON Restore File</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Excel / Sheets Student Master CSV</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <div className="flex items-center space-x-2 font-bold text-amber-950">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>Google Cloud Credentials Setup Required</span>
+                  </div>
+                  <p className="text-amber-800 leading-relaxed">
+                    To enable 100% automated backups to your personal or organization Google Drive, provide your Google Cloud Service Account key.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-3">
+                  <h4 className="font-bold text-slate-800">Quick 3-Step Setup:</h4>
+                  <ol className="list-decimal list-inside space-y-1.5 text-slate-600 leading-relaxed">
+                    <li>Create a <strong>Service Account</strong> in Google Cloud Console and enable the <strong>Google Drive API</strong>.</li>
+                    <li>Create and download a <strong>JSON key</strong> for the Service Account.</li>
+                    <li>
+                      Set environment variable <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px]">GOOGLE_SERVICE_ACCOUNT_JSON</code> with the JSON content in your server (or save as <code className="bg-slate-200 px-1.5 py-0.5 rounded font-mono text-[11px]">backend/google-service-account.json</code>).
+                    </li>
+                  </ol>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={fetchDriveStatus}
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-semibold text-xs transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Re-check Connection Status</span>
+                </button>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="border-t border-slate-100 pt-3 flex items-center justify-between text-xs text-slate-400">
+              <span>Secure Server-to-Server Encryption</span>
+              <button 
+                type="button"
+                onClick={() => setDriveModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </div>
       )}
