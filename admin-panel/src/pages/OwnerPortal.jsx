@@ -305,7 +305,7 @@ export default function OwnerPortal() {
           }
         }
 
-        if (seatsRes.success && (!currentAdmissions.length || !seatsRes.data.some(s => s.status === 'Occupied'))) setSeats(seatsRes.data);
+        if (seatsRes.success) setSeats(seatsRes.data);
         if (admRes.success) setAdmissions(currentAdmissions);
         if (statsRes.success) setStats(statsRes.data);
         if (bioLogsRes.success) setBiometricLogs(bioLogsRes.data);
