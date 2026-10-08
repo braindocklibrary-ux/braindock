@@ -1433,6 +1433,25 @@ class DataStore {
     }
   }
 
+  restoreBackup(backup) {
+    try {
+      if (Array.isArray(backup.admissions)) this.admissions = backup.admissions;
+      if (Array.isArray(backup.receipts)) this.receipts = backup.receipts;
+      if (Array.isArray(backup.ownerSeats) && backup.ownerSeats.length > 0) this.ownerSeats = backup.ownerSeats;
+      if (Array.isArray(backup.biometricLogs)) this.biometricLogs = backup.biometricLogs;
+      if (backup.homepageStats) this.homepageStats = backup.homepageStats;
+      if (backup.homepageFeatures) this.homepageFeatures = backup.homepageFeatures;
+
+      this.saveState();
+      return {
+        success: true,
+        message: `Backup successfully restored! ${this.admissions.length} admissions, ${this.receipts.length} receipts recovered.`
+      };
+    } catch (err) {
+      return { success: false, message: `Restore failed: ${err.message}` };
+    }
+  }
+
   getHomepageStats() {
     if (!this.homepageStats) {
       this.homepageStats = {

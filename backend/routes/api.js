@@ -868,6 +868,36 @@ router.post('/owner/verify-pin', (req, res) => {
   return res.status(401).json({ success: false, authorized: false, message: 'Invalid Owner Access PIN' });
 });
 
+// Export Full Database Backup (JSON)
+router.get('/owner/backup', (req, res) => {
+  const backup = {
+    version: '1.0',
+    libraryName: 'Brain Dock Library',
+    exportedAt: new Date().toISOString(),
+    admissions: store.admissions || [],
+    receipts: store.receipts || [],
+    ownerSeats: store.ownerSeats || [],
+    biometricLogs: store.biometricLogs || [],
+    homepageStats: store.homepageStats,
+    homepageFeatures: store.homepageFeatures
+  };
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="BrainDock_Backup_${new Date().toISOString().split('T')[0]}.json"`);
+  res.json({ success: true, data: backup });
+});
+
+// Restore Database from Backup (JSON)
+router.post('/owner/restore', (req, res) => {
+  const { backup } = req.body;
+  if (!backup) {
+    return res.status(400).json({ success: false, message: 'Invalid backup file payload.' });
+  }
+
+  const result = store.restoreBackup(backup);
+  res.json(result);
+});
+
 // Overview Stats for 102 Seats & Financials
 router.get('/owner/stats', (req, res) => {
   const stats = store.getOwnerStats();

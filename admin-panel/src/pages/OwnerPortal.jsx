@@ -360,6 +360,56 @@ export default function OwnerPortal() {
     }).catch(e => console.error(e));
   };
 
+  // Full Database Backup Download (Local Laptop Storage)
+  const handleDownloadBackup = async () => {
+    try {
+      showToast('Preparing full library database backup...');
+      const res = await fetch(`${API_BASE_URL}/api/owner/backup`);
+      const data = await res.json();
+      if (data.success) {
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data.data, null, 2))}`;
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute('href', jsonString);
+        downloadAnchor.setAttribute('download', `BrainDock_Database_Backup_${new Date().toISOString().split('T')[0]}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        showToast('✅ Database backup successfully saved to your laptop!');
+      }
+    } catch (e) {
+      showToast('Failed to download backup');
+    }
+  };
+
+  // Restore Database from Laptop Backup JSON
+  const handleRestoreBackupFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!window.confirm(`Restore database from "${file.name}"? This will recover all students, receipts, and assigned seats.`)) {
+      e.target.value = '';
+      return;
+    }
+    try {
+      const text = await file.text();
+      const backupObj = JSON.parse(text);
+      const res = await fetch(`${API_BASE_URL}/api/owner/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup: backupObj })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ ${data.message}`);
+        fetchOwnerData();
+      } else {
+        showToast(data.message || 'Restore failed');
+      }
+    } catch (err) {
+      showToast('Error parsing backup file. Please select a valid Brain Dock backup JSON.');
+    }
+    e.target.value = '';
+  };
+
   // Simulate Biometric Punch on TIMEWATCH Hardware
   const handleRunSimulatedPunch = async (targetSeatNum, method = 'Fingerprint') => {
     const seatToPunch = targetSeatNum != null ? targetSeatNum : simulatedSeatNum;
@@ -839,9 +889,34 @@ export default function OwnerPortal() {
             <span className="hidden sm:inline">Homepage Stats</span>
           </Link>
 
+          {/* 1-Click Database Backup */}
+          <button 
+            onClick={handleDownloadBackup}
+            className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-xl border border-emerald-200 transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
+            title="Download Full Database Backup to your laptop (JSON)"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden sm:inline">Backup Data</span>
+          </button>
+
+          {/* 1-Click Database Restore */}
+          <label 
+            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl border border-blue-200 transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
+            title="Restore Database from a downloaded backup JSON file"
+          >
+            <UploadCloud className="w-3.5 h-3.5 text-blue-700" />
+            <span className="hidden sm:inline">Restore Data</span>
+            <input 
+              type="file" 
+              accept=".json" 
+              onChange={handleRestoreBackupFile} 
+              className="hidden" 
+            />
+          </label>
+
           <button 
             onClick={() => setIsUnlocked(false)}
-            className="p-2.5 bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl border border-slate-200 transition-colors"
+            className="p-2.5 bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl border border-slate-200 transition-colors cursor-pointer"
             title="Lock Desk"
           >
             <Lock className="w-4 h-4" />
