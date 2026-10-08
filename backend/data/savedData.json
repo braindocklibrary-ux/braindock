@@ -1,6 +1,36 @@
 {
   "admissions": [],
-  "receipts": [],
+  "receipts": [
+    {
+      "receiptNumber": "BDL-REC-2026-8994",
+      "admissionId": "BDL-ADM-001-4390",
+      "date": "2026-10-08",
+      "studentName": "Permanent Test Student",
+      "studentPhone": "9999999999",
+      "aadhaarNo": "",
+      "seatNumber": 1,
+      "seatLabel": "Seat 01",
+      "zone": "Zone A (Ground Floor - Silent Hall)",
+      "shift": "Full Day (24x7)",
+      "plan": "1 Month(s)",
+      "validFrom": "2026-10-08",
+      "validTo": "2026-11-08",
+      "feeItems": [
+        {
+          "description": "Dedicated Study Desk #1 & Facility Pass",
+          "amount": 1500
+        }
+      ],
+      "totalFee": 1500,
+      "amountPaid": 1500,
+      "pendingDue": 0,
+      "feeDueDate": null,
+      "feeStatus": "Paid",
+      "paymentMode": "UPI",
+      "transactionRef": "TXN-454391",
+      "authorizedBy": "Dr. Keval Patel (Director / Owner)"
+    }
+  ],
   "ownerSeats": [
     {
       "seatNumber": 1,

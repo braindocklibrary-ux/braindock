@@ -49,8 +49,7 @@ import {
   HeartHandshake,
   FileText,
   Image as ImageIcon,
-  Plus,
-  Cloud
+  Plus
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
@@ -59,11 +58,6 @@ import { API_BASE_URL } from '../config';
 
 export default function OwnerPortal() {
   const { currentStaff } = useAdminAuth();
-
-  // Google Drive Cloud Backup State
-  const [googleDriveModalOpen, setGoogleDriveModalOpen] = useState(false);
-  const [googleDriveWebhookUrl, setGoogleDriveWebhookUrl] = useState(() => localStorage.getItem('bdl_gdrive_webhook_url') || '');
-  const [syncingGoogleDrive, setSyncingGoogleDrive] = useState(false);
 
   // Security Gate State
   const [isUnlocked, setIsUnlocked] = useState(true); // Default accessible for authorized director
@@ -458,35 +452,6 @@ export default function OwnerPortal() {
       showToast('Error parsing backup file. Please select a valid Brain Dock backup JSON.');
     }
     e.target.value = '';
-  };
-
-  // Save Google Drive Webhook URL
-  const handleSaveGoogleDriveWebhook = (e) => {
-    e.preventDefault();
-    localStorage.setItem('bdl_gdrive_webhook_url', googleDriveWebhookUrl.trim());
-    showToast('✅ Google Drive Webhook URL saved to browser!');
-  };
-
-  // Manual Trigger Google Drive & Cloud Email Backup
-  const handleTriggerGoogleDriveSync = async () => {
-    setSyncingGoogleDrive(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/google-drive-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl: googleDriveWebhookUrl.trim() })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('✅ Cloud backup sent to Google Drive & Gmail!');
-      } else {
-        showToast('Sync note: ' + (data.message || 'Check connection'));
-      }
-    } catch (e) {
-      showToast('Network error during Google Drive sync');
-    } finally {
-      setSyncingGoogleDrive(false);
-    }
   };
 
   // Simulate Biometric Punch on TIMEWATCH Hardware
@@ -1002,16 +967,6 @@ export default function OwnerPortal() {
               className="hidden" 
             />
           </label>
-
-          {/* Google Drive Cloud Auto-Backup */}
-          <button 
-            onClick={() => setGoogleDriveModalOpen(true)}
-            className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold rounded-xl border border-amber-200 transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
-            title="Configure Google Drive & Google Sheets Cloud Auto-Backup"
-          >
-            <Cloud className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden sm:inline">Google Drive</span>
-          </button>
 
           <button 
             onClick={() => setIsUnlocked(false)}
@@ -2895,108 +2850,6 @@ export default function OwnerPortal() {
         isOpen={receiptModalOpen} 
         onClose={() => setReceiptModalOpen(false)} 
       />
-
-      {/* ================= MODAL 6: GOOGLE DRIVE & CLOUD AUTO-BACKUP ================= */}
-      {googleDriveModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-emerald-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
-                  ☁️
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Google Drive Auto-Backup</h3>
-                  <p className="text-xs text-slate-500">Live backup to Google Drive, Google Sheets & Email</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => setGoogleDriveModalOpen(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 text-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* How it works info */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-4 mb-5 text-xs text-emerald-900 space-y-2">
-              <div className="font-bold flex items-center space-x-1.5 text-emerald-800">
-                <span>🛡️ 100% Data Protection Guarantee</span>
-              </div>
-              <p>Whenever you save a new student admission, collect fee, or renew a seat:</p>
-              <ul className="list-disc list-inside space-y-1 text-emerald-950/80 pl-1">
-                <li><strong>Live Google Sheets:</strong> Automatically updates a Master Student Register in your Google Drive.</li>
-                <li><strong>JSON Snapshots:</strong> Saves complete backup files directly in your Google Drive folder.</li>
-                <li><strong>Email Backup:</strong> Dispatches an automated copy to <span className="font-mono">braindocklibrary@gmail.com</span>.</li>
-              </ul>
-            </div>
-
-            {/* Webhook Configuration Form */}
-            <form onSubmit={handleSaveGoogleDriveWebhook} className="space-y-4 mb-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Google Apps Script Webhook URL:
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="url"
-                    placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                    value={googleDriveWebhookUrl}
-                    onChange={(e) => setGoogleDriveWebhookUrl(e.target.value)}
-                    className="flex-1 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 focus:outline-emerald-500 focus:bg-white"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs shrink-0"
-                  >
-                    Save URL
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            {/* Manual Trigger Button */}
-            <div className="pt-2 pb-4 border-t border-b border-slate-100 mb-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-slate-800">Manual Cloud Backup</div>
-                <div className="text-[11px] text-slate-500">Sync all current data to Google Drive right now</div>
-              </div>
-              <button
-                type="button"
-                onClick={handleTriggerGoogleDriveSync}
-                disabled={syncingGoogleDrive}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-semibold text-xs rounded-xl shadow-xs flex items-center space-x-1.5"
-              >
-                <span>{syncingGoogleDrive ? 'Syncing...' : '⚡ Sync Now'}</span>
-              </button>
-            </div>
-
-            {/* 3-Step Setup Instructions */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 space-y-2.5">
-              <div className="font-bold text-slate-900 text-xs flex items-center justify-between">
-                <span>📋 2-Minute Google Drive Setup Guide:</span>
-              </div>
-              <ol className="list-decimal list-inside space-y-1.5 text-slate-600 text-[11px] leading-relaxed">
-                <li>Open <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">script.google.com</a> with your Google Account (<span className="font-mono text-slate-800">braindocklibrary@gmail.com</span>) and click <strong>New Project</strong>.</li>
-                <li>Copy all code from the file <span className="font-mono bg-white px-1 py-0.5 border rounded text-slate-800">backend/google-apps-script.js</span> in this project, and paste it into the script editor.</li>
-                <li>Click <strong>Deploy</strong> (top right) &rarr; <strong>New deployment</strong> &rarr; Select type <strong>Web app</strong>.</li>
-                <li>Set <em>Execute as</em>: <strong>Me</strong> and <em>Who has access</em>: <strong>Anyone</strong>. Click <strong>Deploy</strong>.</li>
-                <li>Copy the provided <strong>Web app URL</strong>, paste it into the box above, and click <strong>Save URL</strong>. Done!</li>
-              </ol>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button 
-                type="button" 
-                onClick={() => setGoogleDriveModalOpen(false)}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs hover:bg-slate-200"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

@@ -8,7 +8,6 @@ import { pushUserToDevice } from '../services/biometricAdmsService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
-import { dispatchGoogleDriveBackup } from '../services/googleDriveBackupService.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -938,23 +937,11 @@ router.post('/owner/admissions', (req, res) => {
       pin: result.admission.biometricEnrollmentId || result.admission.seatNumber,
       name: result.admission.studentName
     });
-
-    // Auto-backup to Google Drive & Gmail Cloud Snapshot
-    dispatchGoogleDriveBackup({
-      eventType: 'NEW_ADMISSION',
-      admission: result.admission,
-      fullBackup: {
-        admissions: store.admissions,
-        receipts: store.receipts,
-        ownerSeats: store.ownerSeats,
-        biometricLogs: store.biometricLogs
-      }
-    }).catch(err => console.error('Google Drive Sync error:', err.message));
   }
 
   res.status(201).json({ 
     success: true, 
-    message: 'Student admission successfully processed! User ID & Name dispatched to TimeWatch machine and backed up to Google Cloud.', 
+    message: 'Student admission successfully processed! User ID & Name dispatched to TimeWatch machine.', 
     data: result.admission, 
     receipt: result.receipt 
   });
@@ -973,18 +960,6 @@ router.put('/owner/admissions/:id', (req, res) => {
       pin: result.admission.biometricEnrollmentId || result.admission.seatNumber,
       name: result.admission.studentName
     });
-
-    // Auto-backup update to Google Drive
-    dispatchGoogleDriveBackup({
-      eventType: 'UPDATE_ADMISSION',
-      admission: result.admission,
-      fullBackup: {
-        admissions: store.admissions,
-        receipts: store.receipts,
-        ownerSeats: store.ownerSeats,
-        biometricLogs: store.biometricLogs
-      }
-    }).catch(err => console.error('Google Drive Sync error:', err.message));
   }
 
   res.json({
@@ -1000,18 +975,6 @@ router.delete('/owner/admissions/:id', (req, res) => {
   if (!result.success) {
     return res.status(400).json(result);
   }
-
-  // Auto-backup snapshot to Google Drive after deletion
-  dispatchGoogleDriveBackup({
-    eventType: 'DELETE_ADMISSION',
-    fullBackup: {
-      admissions: store.admissions,
-      receipts: store.receipts,
-      ownerSeats: store.ownerSeats,
-      biometricLogs: store.biometricLogs
-    }
-  }).catch(err => console.error('Google Drive Sync error:', err.message));
-
   res.json(result);
 });
 
@@ -1028,48 +991,12 @@ router.post('/owner/sync-student-to-device', (req, res) => {
   });
 });
 
-// Manual Instant Google Drive Sync Trigger
-router.post('/owner/google-drive-sync', async (req, res) => {
-  const { webhookUrl } = req.body;
-  const fullBackup = {
-    admissions: store.admissions || [],
-    receipts: store.receipts || [],
-    ownerSeats: store.ownerSeats || [],
-    biometricLogs: store.biometricLogs || []
-  };
-
-  const syncResult = await dispatchGoogleDriveBackup({
-    eventType: 'MANUAL_SYNC',
-    fullBackup,
-    webhookUrl
-  });
-
-  res.json({
-    success: true,
-    message: `Cloud backup dispatched! Active students: ${fullBackup.admissions.length}`,
-    details: syncResult
-  });
-});
-
 // Collect pending fee payment
 router.put('/owner/admissions/:id/pay', (req, res) => {
   const result = store.collectPendingFee(req.params.id, req.body);
   if (!result.success) {
     return res.status(400).json(result);
   }
-
-  // Auto-backup fee payment to Google Drive
-  dispatchGoogleDriveBackup({
-    eventType: 'FEE_PAYMENT',
-    admission: result.admission,
-    fullBackup: {
-      admissions: store.admissions,
-      receipts: store.receipts,
-      ownerSeats: store.ownerSeats,
-      biometricLogs: store.biometricLogs
-    }
-  }).catch(err => console.error('Google Drive Sync error:', err.message));
-
   res.json({ 
     success: true, 
     message: 'Fee payment recorded successfully!', 
@@ -1084,19 +1011,6 @@ router.put('/owner/admissions/:id/renew', (req, res) => {
   if (!result.success) {
     return res.status(400).json(result);
   }
-
-  // Auto-backup renewal to Google Drive
-  dispatchGoogleDriveBackup({
-    eventType: 'MEMBERSHIP_RENEWAL',
-    admission: result.admission,
-    fullBackup: {
-      admissions: store.admissions,
-      receipts: store.receipts,
-      ownerSeats: store.ownerSeats,
-      biometricLogs: store.biometricLogs
-    }
-  }).catch(err => console.error('Google Drive Sync error:', err.message));
-
   res.json({ 
     success: true, 
     message: 'Membership renewed successfully!', 

@@ -4,12 +4,10 @@ dotenv.config();
 
 let isConnected = false;
 
+const DEFAULT_MONGODB_URI = 'mongodb+srv://braindocklibrary_db_user:braindock123@cluster0.7dpsi7g.mongodb.net/braindock_library?retryWrites=true&w=majority&appName=Cluster0';
+
 export const connectDB = async () => {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    console.warn("⚠️ No MONGODB_URI provided. Running in high-performance memory storage mode.");
-    return false;
-  }
+  const uri = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
 
   try {
     const conn = await mongoose.connect(uri, {
