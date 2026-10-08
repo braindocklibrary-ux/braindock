@@ -352,27 +352,63 @@ export function getGoogleDriveBackupStatus() {
   };
 }
 
+let realtimeBackupTimeout = null;
+let isBackupInProgress = false;
+let pendingBackup = false;
+
 /**
- * Initialize Automatic Background Drive Backup (Every 12 Hours)
+ * Trigger Instant Real-time Cloud Backup to Google Drive upon any Action / Form Save / Edit
+ */
+export function triggerRealtimeGoogleDriveBackup(delayMs = 2000) {
+  const drive = getDriveClient();
+  if (!drive) return;
+
+  if (realtimeBackupTimeout) {
+    clearTimeout(realtimeBackupTimeout);
+  }
+
+  realtimeBackupTimeout = setTimeout(async () => {
+    if (isBackupInProgress) {
+      pendingBackup = true;
+      return;
+    }
+    try {
+      isBackupInProgress = true;
+      console.log('⚡ Real-time Action Detected: Syncing fresh snapshot to Google Drive immediately...');
+      await uploadBackupToGoogleDrive();
+    } catch (e) {
+      console.warn('Real-time Google Drive sync note:', e.message);
+    } finally {
+      isBackupInProgress = false;
+      if (pendingBackup) {
+        pendingBackup = false;
+        triggerRealtimeGoogleDriveBackup(1000);
+      }
+    }
+  }, delayMs);
+}
+
+/**
+ * Initialize Automatic Background Drive Backup & Boot Check
  */
 export function initScheduledGoogleDriveBackup() {
-  // Run once 30 seconds after server boot if configured
+  // Run once 20 seconds after server boot if configured
   setTimeout(() => {
     const drive = getDriveClient();
     if (drive) {
       console.log('⏰ Initiating initial automated Google Drive backup check...');
       uploadBackupToGoogleDrive().catch(e => console.warn('Drive background backup note:', e.message));
     } else {
-      console.log('💡 Google Drive Backup Service is ready. Add Google Service Account JSON to activate automatic cloud drive sync.');
+      console.log('💡 Google Drive Backup Service is ready. Real-time sync will activate as soon as Google Service Account is connected.');
     }
-  }, 30000);
+  }, 20000);
 
-  // Run every 12 hours (12 * 60 * 60 * 1000 = 43,200,000 ms)
+  // Safety periodic sync every 6 hours
   setInterval(() => {
     const drive = getDriveClient();
     if (drive) {
-      console.log('⏰ Running scheduled 12-hour Google Drive backup sync...');
-      uploadBackupToGoogleDrive().catch(e => console.error('Scheduled Drive Backup error:', e.message));
+      console.log('⏰ Periodic Google Drive safety backup sync...');
+      uploadBackupToGoogleDrive().catch(e => console.error('Periodic Drive Backup error:', e.message));
     }
-  }, 12 * 60 * 60 * 1000);
+  }, 6 * 60 * 60 * 1000);
 }

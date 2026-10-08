@@ -2955,8 +2955,8 @@ export default function OwnerPortal() {
                   </div>
                   <div>
                     <span className="text-slate-400 font-medium block">Auto-Sync Cadence</span>
-                    <span className="font-semibold text-emerald-700">Every 12 Hours (Active)</span>
-                    <p className="text-[11px] text-slate-500">Automated background sync</p>
+                    <span className="font-semibold text-emerald-700">⚡ Real-Time Instant Sync (Active)</span>
+                    <p className="text-[11px] text-slate-500">Syncs automatically on every form save & edit</p>
                   </div>
                 </div>
 

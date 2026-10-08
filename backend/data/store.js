@@ -20,6 +20,7 @@ import { ancientWorldClassics } from './ancientClassicsData.js';
 import { getFullChaptersForBook } from './fullBookContents.js';
 import mongoose from 'mongoose';
 import { Admission, Receipt, OwnerSeat, BiometricLog, HomepageContent } from '../models/schemas.js';
+import { triggerRealtimeGoogleDriveBackup } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1430,6 +1431,13 @@ class DataStore {
       } catch (err) {
         console.error('Error syncing state to MongoDB Atlas:', err.message);
       }
+    }
+
+    // 3. Instant Real-time Cloud Sync to Google Drive on every Action/Save
+    try {
+      triggerRealtimeGoogleDriveBackup(2000);
+    } catch (e) {
+      // Non-blocking
     }
   }
 
