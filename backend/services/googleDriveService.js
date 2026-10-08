@@ -218,6 +218,17 @@ export async function uploadBackupToGoogleDrive() {
 
   try {
     const folderId = await getOrCreateBackupFolder(drive);
+    if (!folderId) {
+      const errMsg = 'No shared Google Drive folder found. Please create a folder in your Google Drive, share it with braindock-backup@brain-dock-library.iam.gserviceaccount.com as Editor, and set GOOGLE_DRIVE_FOLDER_ID in environment variables.';
+      lastBackupStatus.lastStatus = '⚠️ Waiting for Shared Google Drive Folder';
+      lastBackupStatus.error = errMsg;
+      console.warn('⚠️ Google Drive Note:', errMsg);
+      return {
+        success: false,
+        message: errMsg
+      };
+    }
+
     const dateStamp = new Date().toISOString().replace(/:/g, '-').slice(0, 19).replace('T', '_');
     const displayDate = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
