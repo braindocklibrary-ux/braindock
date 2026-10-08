@@ -268,6 +268,110 @@ const AuditLogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+// Admission Schema (102-Desk Operations)
+const AdmissionSchema = new mongoose.Schema({
+  admissionId: { type: String, required: true, unique: true },
+  receiptNumber: { type: String },
+  grId: { type: String },
+  seatNumber: { type: Number, required: true },
+  biometricEnrollmentId: { type: Number },
+  seatLabel: { type: String },
+  zone: { type: String },
+  floor: { type: String },
+  studentName: { type: String, required: true },
+  parentsName: { type: String, default: '' },
+  dob: { type: String, default: '' },
+  gender: { type: String, default: 'Male' },
+  studentPhone: { type: String, required: true },
+  whatsAppNumber: { type: String, default: '' },
+  studentEmail: { type: String, default: '' },
+  address: { type: String, default: '' },
+  city: { type: String, default: 'Amreli' },
+  pinCode: { type: String, default: '365601' },
+  qualification: { type: String, default: '' },
+  institution: { type: String, default: '' },
+  course: { type: String, default: '' },
+  yearSemester: { type: String, default: '' },
+  occupation: { type: String, default: 'Self Study / General Reading' },
+  targetExam: { type: String, default: 'Self Study / General Reading' },
+  membershipType: { type: String, default: 'Monthly' },
+  shift: { type: String, default: 'Full Day (24x7)' },
+  plan: { type: String, default: '1 Month(s)' },
+  startDate: { type: String },
+  endDate: { type: String },
+  daysRemaining: { type: Number, default: 30 },
+  lockerNumber: { type: String, default: '' },
+  emergencyName: { type: String, default: '' },
+  emergencyRelation: { type: String, default: 'Parent' },
+  emergencyPhone: { type: String, default: '' },
+  guardianPhone: { type: String, default: '' },
+  idProofType: { type: String, default: 'Aadhaar Card' },
+  idProofNo: { type: String, default: '' },
+  aadhaarNo: { type: String, default: '' },
+  photoAttached: { type: Boolean, default: false },
+  studentPhoto: { type: String, default: '' },
+  feeItems: [{ description: String, amount: Number }],
+  totalFee: { type: Number, default: 0 },
+  paidAmount: { type: Number, default: 0 },
+  pendingFee: { type: Number, default: 0 },
+  feeDueDate: { type: String, default: null },
+  feeStatus: { type: String, default: 'Paid' },
+  paymentMode: { type: String, default: 'Cash' },
+  transactionRef: { type: String, default: '' },
+  notes: { type: String, default: '' },
+  status: { type: String, default: 'Active' },
+  createdAt: { type: String }
+}, { strict: false, timestamps: true });
+
+// Receipt Schema
+const ReceiptSchema = new mongoose.Schema({
+  receiptNumber: { type: String, required: true, unique: true },
+  admissionId: { type: String },
+  studentName: { type: String, required: true },
+  studentPhone: { type: String, required: true },
+  seatNumber: { type: Number, required: true },
+  date: { type: String },
+  totalFee: { type: Number, default: 0 },
+  amountPaid: { type: Number, default: 0 },
+  pendingDue: { type: Number, default: 0 },
+  paymentMode: { type: String, default: 'Cash' },
+  transactionRef: { type: String, default: '' },
+  feeItems: [{ description: String, amount: Number }]
+}, { strict: false, timestamps: true });
+
+// Owner Seat Schema
+const OwnerSeatSchema = new mongoose.Schema({
+  seatNumber: { type: Number, required: true, unique: true },
+  seatLabel: { type: String },
+  zone: { type: String },
+  floor: { type: String },
+  hasSocket: { type: Boolean, default: true },
+  hasLamp: { type: Boolean, default: true },
+  hasErgonomicChair: { type: Boolean, default: true },
+  status: { type: String, default: 'Available' },
+  occupant: { type: mongoose.Schema.Types.Mixed, default: null }
+}, { strict: false, timestamps: true });
+
+// Biometric Log Schema
+const BiometricLogSchema = new mongoose.Schema({
+  logId: { type: String },
+  seatNumber: { type: Number },
+  biometricEnrollmentId: { type: Number },
+  studentName: { type: String },
+  studentPhone: { type: String },
+  grId: { type: String },
+  timestamp: { type: String },
+  method: { type: String, default: 'Fingerprint' },
+  granted: { type: Boolean, default: true },
+  message: { type: String }
+}, { strict: false, timestamps: true });
+
+// Homepage Content Schema
+const HomepageContentSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true }, // 'stats' or 'features'
+  data: { type: mongoose.Schema.Types.Mixed, required: true }
+}, { timestamps: true });
+
 export const User = mongoose.model('User', UserSchema);
 export const Book = mongoose.model('Book', BookSchema);
 export const BookIssue = mongoose.model('BookIssue', BookIssueSchema);
@@ -285,3 +389,9 @@ export const Notification = mongoose.model('Notification', NotificationSchema);
 export const Payment = mongoose.model('Payment', PaymentSchema);
 export const ContactMessage = mongoose.model('ContactMessage', ContactMessageSchema);
 export const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
+export const Admission = mongoose.model('Admission', AdmissionSchema);
+export const Receipt = mongoose.model('Receipt', ReceiptSchema);
+export const OwnerSeat = mongoose.model('OwnerSeat', OwnerSeatSchema);
+export const BiometricLog = mongoose.model('BiometricLog', BiometricLogSchema);
+export const HomepageContent = mongoose.model('HomepageContent', HomepageContentSchema);
+

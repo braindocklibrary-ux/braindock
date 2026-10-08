@@ -18,6 +18,8 @@ import {
 import { generateInitial102SeatsAndAdmissions } from './ownerSeatsData.js';
 import { ancientWorldClassics } from './ancientClassicsData.js';
 import { getFullChaptersForBook } from './fullBookContents.js';
+import mongoose from 'mongoose';
+import { Admission, Receipt, OwnerSeat, BiometricLog, HomepageContent } from '../models/schemas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -134,10 +136,10 @@ class DataStore {
     try {
       if (fs.existsSync(PERSIST_FILE)) {
         const saved = JSON.parse(fs.readFileSync(PERSIST_FILE, 'utf8'));
-        if (saved.admissions && saved.admissions.length > 0) this.admissions = saved.admissions;
-        if (saved.receipts && saved.receipts.length > 0) this.receipts = saved.receipts;
-        if (saved.ownerSeats && saved.ownerSeats.length > 0) this.ownerSeats = saved.ownerSeats;
-        if (saved.biometricLogs && saved.biometricLogs.length > 0) this.biometricLogs = saved.biometricLogs;
+        if (Array.isArray(saved.admissions)) this.admissions = saved.admissions;
+        if (Array.isArray(saved.receipts)) this.receipts = saved.receipts;
+        if (Array.isArray(saved.ownerSeats) && saved.ownerSeats.length > 0) this.ownerSeats = saved.ownerSeats;
+        if (Array.isArray(saved.biometricLogs)) this.biometricLogs = saved.biometricLogs;
         if (saved.homepageStats) this.homepageStats = saved.homepageStats;
         if (saved.homepageFeatures) this.homepageFeatures = saved.homepageFeatures;
       }
@@ -163,6 +165,11 @@ class DataStore {
     } catch (e) {
       console.error('Error loading persisted data:', e.message);
     }
+
+    // Auto-load & sync from MongoDB Atlas whenever connected
+    mongoose.connection.on('connected', () => {
+      this.loadFromMongoDB();
+    });
     this.studentOtps = {};
     this.lockers = [...seedLockers];
     this.events = [...seedEvents];
@@ -1355,7 +1362,47 @@ class DataStore {
     return this.receipts.find(r => r.receiptNumber === receiptNumber);
   }
 
-  saveState() {
+  async loadFromMongoDB() {
+    try {
+      if (mongoose.connection.readyState !== 1) return false;
+      const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures] = await Promise.all([
+        Admission.find({}).lean(),
+        Receipt.find({}).lean(),
+        OwnerSeat.find({}).lean(),
+        BiometricLog.find({}).lean(),
+        HomepageContent.findOne({ key: 'stats' }).lean(),
+        HomepageContent.findOne({ key: 'features' }).lean()
+      ]);
+
+      if (Array.isArray(dbAdmissions) && dbAdmissions.length > 0) {
+        this.admissions = dbAdmissions;
+      }
+      if (Array.isArray(dbReceipts) && dbReceipts.length > 0) {
+        this.receipts = dbReceipts;
+      }
+      if (Array.isArray(dbSeats) && dbSeats.length > 0) {
+        this.ownerSeats = dbSeats;
+      }
+      if (Array.isArray(dbLogs) && dbLogs.length > 0) {
+        this.biometricLogs = dbLogs;
+      }
+      if (dbStats && dbStats.data) {
+        this.homepageStats = dbStats.data;
+      }
+      if (dbFeatures && dbFeatures.data) {
+        this.homepageFeatures = dbFeatures.data;
+      }
+
+      console.log(`✅ Synced with MongoDB Atlas: ${this.admissions.length} admissions, ${this.receipts.length} receipts, ${this.ownerSeats.length} seats.`);
+      return true;
+    } catch (err) {
+      console.warn('⚠️ MongoDB Atlas sync note:', err.message);
+      return false;
+    }
+  }
+
+  async saveState() {
+    // 1. Local disk persistence
     try {
       fs.writeFileSync(PERSIST_FILE, JSON.stringify({
         admissions: this.admissions,
@@ -1366,7 +1413,23 @@ class DataStore {
         homepageFeatures: this.homepageFeatures
       }, null, 2));
     } catch (e) {
-      console.error('Error saving state:', e.message);
+      console.error('Error saving state to disk:', e.message);
+    }
+
+    // 2. Cloud MongoDB Atlas persistence (Survives any server reboot or redeploy)
+    if (mongoose.connection.readyState === 1) {
+      try {
+        await Promise.all([
+          Admission.deleteMany({}).then(() => this.admissions.length > 0 ? Admission.insertMany(this.admissions) : null),
+          Receipt.deleteMany({}).then(() => this.receipts.length > 0 ? Receipt.insertMany(this.receipts) : null),
+          OwnerSeat.deleteMany({}).then(() => this.ownerSeats.length > 0 ? OwnerSeat.insertMany(this.ownerSeats) : null),
+          BiometricLog.deleteMany({}).then(() => this.biometricLogs.length > 0 ? BiometricLog.insertMany(this.biometricLogs) : null),
+          HomepageContent.findOneAndUpdate({ key: 'stats' }, { key: 'stats', data: this.homepageStats }, { upsert: true }),
+          HomepageContent.findOneAndUpdate({ key: 'features' }, { key: 'features', data: this.homepageFeatures }, { upsert: true })
+        ]);
+      } catch (err) {
+        console.error('Error syncing state to MongoDB Atlas:', err.message);
+      }
     }
   }
 
