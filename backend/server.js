@@ -56,8 +56,12 @@ app.get('/api/biometric/punches', (req, res) => {
   });
 });
 
-// Connect to MongoDB Atlas (with graceful background retry)
-connectDB();
+// Connect to MongoDB Atlas (with immediate sync)
+connectDB().then(async (connected) => {
+  if (connected) {
+    await store.loadFromMongoDB();
+  }
+});
 
 // API Routes
 app.use('/api', apiRouter);

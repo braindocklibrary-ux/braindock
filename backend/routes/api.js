@@ -9,6 +9,7 @@ import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
 import { uploadBackupToGoogleDrive, getGoogleDriveBackupStatus } from '../services/googleDriveService.js';
+import mongoose from 'mongoose';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -886,6 +887,16 @@ router.get('/owner/backup', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="BrainDock_Backup_${new Date().toISOString().split('T')[0]}.json"`);
   res.json({ success: true, data: backup });
+});
+
+// Auto-ensure MongoDB Atlas sync for all owner queries on cold boot
+router.use('/owner', async (req, res, next) => {
+  if (store.admissions.length === 0 && mongoose.connection.readyState === 1) {
+    try {
+      await store.loadFromMongoDB();
+    } catch (e) {}
+  }
+  next();
 });
 
 // Restore Database from Backup (JSON)

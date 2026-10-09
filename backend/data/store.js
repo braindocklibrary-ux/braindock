@@ -1381,9 +1381,6 @@ class DataStore {
       if (Array.isArray(dbReceipts) && dbReceipts.length > 0) {
         this.receipts = dbReceipts;
       }
-      if (Array.isArray(dbSeats) && dbSeats.length > 0) {
-        this.ownerSeats = dbSeats;
-      }
       if (Array.isArray(dbLogs) && dbLogs.length > 0) {
         this.biometricLogs = dbLogs;
       }
@@ -1394,7 +1391,69 @@ class DataStore {
         this.homepageFeatures = dbFeatures.data;
       }
 
-      console.log(`✅ Synced with MongoDB Atlas: ${this.admissions.length} admissions, ${this.receipts.length} receipts, ${this.ownerSeats.length} seats.`);
+      // Always ensure 102 seats matrix exists
+      if (!this.ownerSeats || this.ownerSeats.length !== 102) {
+        const { seats } = generateInitial102SeatsAndAdmissions();
+        this.ownerSeats = seats;
+      }
+
+      // Reset all seats to Available first, then populate occupied seats from active admissions
+      this.ownerSeats.forEach(s => {
+        s.status = 'Available';
+        s.occupant = null;
+      });
+
+      // Reconcile active admissions with 102 seats matrix
+      const now = new Date();
+      (this.admissions || []).forEach(adm => {
+        if (adm.status !== 'Vacated') {
+          const seatNum = Number(adm.seatNumber);
+          const seat = this.ownerSeats.find(s => s.seatNumber === seatNum);
+          if (seat) {
+            const end = new Date(adm.endDate);
+            const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+            adm.daysRemaining = days;
+            
+            seat.status = (days < 0) ? 'Expired' : 'Occupied';
+            seat.occupant = {
+              admissionId: adm.admissionId,
+              receiptNumber: adm.receiptNumber,
+              grId: adm.grId || `GR-${String(seatNum).padStart(3, '0')}`,
+              biometricEnrollmentId: adm.biometricEnrollmentId || seatNum,
+              studentName: adm.studentName,
+              studentPhone: adm.studentPhone,
+              studentEmail: adm.studentEmail,
+              studentPhoto: adm.studentPhoto,
+              targetExam: adm.targetExam,
+              shift: adm.shift,
+              startDate: adm.startDate,
+              endDate: adm.endDate,
+              daysRemaining: days,
+              feeStatus: adm.feeStatus,
+              totalFee: adm.totalFee,
+              paidAmount: adm.paidAmount,
+              pendingFee: adm.pendingFee,
+              feeDueDate: adm.feeDueDate,
+              lockerNumber: adm.lockerNumber,
+              feeItems: adm.feeItems
+            };
+          }
+        }
+      });
+
+      // Update local disk cache immediately
+      try {
+        fs.writeFileSync(PERSIST_FILE, JSON.stringify({
+          admissions: this.admissions,
+          receipts: this.receipts,
+          ownerSeats: this.ownerSeats,
+          biometricLogs: this.biometricLogs,
+          homepageStats: this.homepageStats,
+          homepageFeatures: this.homepageFeatures
+        }, null, 2));
+      } catch (e) {}
+
+      console.log(`✅ Synced with MongoDB Atlas: ${this.admissions.length} admissions, ${this.receipts.length} receipts, ${this.ownerSeats.filter(s => s.status !== 'Available').length} occupied seats.`);
       return true;
     } catch (err) {
       console.warn('⚠️ MongoDB Atlas sync note:', err.message);

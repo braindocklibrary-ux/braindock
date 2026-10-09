@@ -274,7 +274,7 @@ export default function OwnerPortal() {
       fetch(`${API_BASE_URL}/api/owner/expiry-reminders`).then(r => r.json())
     ])
       .then(async ([seatsRes, admRes, statsRes, bioLogsRes, bioStatsRes, expRes]) => {
-        let currentAdmissions = (admRes && admRes.success) ? admRes.data : [];
+        let currentAdmissions = (admRes && admRes.success && Array.isArray(admRes.data)) ? admRes.data : [];
 
         // Auto-heal / Auto-recover from Browser LocalStorage if server was cold-booted/reset
         if (currentAdmissions.length === 0) {
@@ -294,9 +294,9 @@ export default function OwnerPortal() {
                   const freshAdm = await fetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json());
                   const freshSeats = await fetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json());
                   const freshStats = await fetch(`${API_BASE_URL}/api/owner/stats`).then(r => r.json());
-                  if (freshAdm.success) currentAdmissions = freshAdm.data;
-                  if (freshSeats.success) setSeats(freshSeats.data);
-                  if (freshStats.success) setStats(freshStats.data);
+                  if (freshAdm && freshAdm.success && Array.isArray(freshAdm.data)) currentAdmissions = freshAdm.data;
+                  if (freshSeats && freshSeats.success && Array.isArray(freshSeats.data)) setSeats(freshSeats.data);
+                  if (freshStats && freshStats.success && freshStats.data) setStats(freshStats.data);
                 }
               }
             }
@@ -305,12 +305,22 @@ export default function OwnerPortal() {
           }
         }
 
-        if (seatsRes.success) setSeats(seatsRes.data);
-        if (admRes.success) setAdmissions(currentAdmissions);
-        if (statsRes.success) setStats(statsRes.data);
-        if (bioLogsRes.success) setBiometricLogs(bioLogsRes.data);
-        if (bioStatsRes.success) setBiometricStats(bioStatsRes.data);
-        if (expRes.success) setExpiryReminders(expRes.data || []);
+        if (seatsRes && seatsRes.success && Array.isArray(seatsRes.data)) {
+          setSeats(seatsRes.data);
+        }
+        setAdmissions(currentAdmissions);
+        if (statsRes && statsRes.success && statsRes.data) {
+          setStats(statsRes.data);
+        }
+        if (bioLogsRes && bioLogsRes.success && Array.isArray(bioLogsRes.data)) {
+          setBiometricLogs(bioLogsRes.data);
+        }
+        if (bioStatsRes && bioStatsRes.success && bioStatsRes.data) {
+          setBiometricStats(bioStatsRes.data);
+        }
+        if (expRes && expRes.success && Array.isArray(expRes.data)) {
+          setExpiryReminders(expRes.data);
+        }
         setLoading(false);
 
         // Keep local storage backup fresh
