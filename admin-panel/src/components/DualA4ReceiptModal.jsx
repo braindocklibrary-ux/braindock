@@ -117,10 +117,19 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
   const renderSingleReceipt = (copyType) => {
     const isStudentCopy = copyType === 'STUDENT COPY';
     return (
-      <div className="receipt-single-box border-2 border-slate-900 rounded-xl p-3.5 sm:p-4 bg-white text-slate-900 relative flex flex-col justify-between">
+      <div className="receipt-single-box border-2 border-slate-900 rounded-xl p-3.5 sm:p-4 bg-white text-slate-900 relative flex flex-col justify-between overflow-hidden">
         
+        {/* Diagonal Watermark Logo across the receipt */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none">
+          <img 
+            src="/logo.png" 
+            alt="" 
+            className="w-72 sm:w-80 opacity-[0.06] transform -rotate-15 select-none filter contrast-150"
+          />
+        </div>
+
         {/* Top Content: Header + Student Details + Financial Table */}
-        <div className="space-y-2">
+        <div className="space-y-2 relative z-10">
           {/* Top Header */}
           <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2">
             <div className="flex items-center space-x-3">
@@ -251,7 +260,7 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
         </div>
 
         {/* Bottom Content (Docked): Signatures + Terms Footer */}
-        <div className="pt-2 border-t border-slate-300 mt-2">
+        <div className="pt-2 border-t border-slate-300 mt-2 relative z-10">
           {/* Signature Section */}
           <div className="flex items-end justify-between">
             {/* 1. Student Signature */}
