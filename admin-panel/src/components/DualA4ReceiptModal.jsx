@@ -22,77 +22,77 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
   const renderSingleReceipt = (copyType, copyColor) => {
     const isStudentCopy = copyType === 'STUDENT COPY';
     return (
-      <div className="receipt-single-box border-2 border-slate-900 rounded-lg p-3 sm:p-4 bg-white text-slate-900 relative">
+      <div className="receipt-single-box border-2 border-slate-900 rounded-lg p-3 sm:p-4 print:p-2.5 bg-white text-slate-900 relative flex flex-col justify-between">
         {/* Top Header */}
-        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-2">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-start justify-between border-b-2 border-slate-900 pb-1.5 print:pb-1">
+          <div className="flex items-center space-x-2.5">
             <img 
               src="/logo.png" 
               alt="Brain Dock Library" 
-              className="h-11 w-auto object-contain filter contrast-125"
+              className="h-10 print:h-8 w-auto object-contain filter contrast-125"
             />
             <div>
-              <h2 className="text-base sm:text-lg font-black tracking-tight uppercase text-slate-950 font-serif leading-none">
+              <h2 className="text-base sm:text-lg print:text-sm font-black tracking-tight uppercase text-slate-950 font-serif leading-none">
                 BRAIN DOCK LIBRARY
               </h2>
-              <p className="text-[10px] text-slate-600 font-semibold mt-1">
+              <p className="text-[9.5px] print:text-[8.5px] text-slate-600 font-semibold mt-0.5">
                 24/7 Intelligent Digital Research Commons & Dedicated Reading Desks
               </p>
-              <p className="text-[9px] text-slate-500 font-mono mt-0.5">
+              <p className="text-[8.5px] print:text-[7.5px] text-slate-500 font-mono mt-0.5">
                 2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601 • Helpline: +91 63 5600 6100
               </p>
             </div>
           </div>
 
           <div className="text-right shrink-0">
-            <span className={`inline-block font-mono font-black text-[10px] px-2.5 py-0.5 rounded tracking-wider text-white ${
+            <span className={`inline-block font-mono font-black text-[9.5px] print:text-[8.5px] px-2 py-0.5 rounded tracking-wider text-white ${
               isStudentCopy ? 'bg-purple-900' : 'bg-slate-900'
             }`}>
               {copyType}
             </span>
-            <p className="text-xs font-mono font-black text-purple-900 mt-1">
+            <p className="text-xs print:text-[10.5px] font-mono font-black text-purple-900 mt-0.5">
               {receipt.receiptNumber}
             </p>
-            <p className="text-[9px] text-slate-500 font-mono">
+            <p className="text-[8.5px] print:text-[7.5px] text-slate-500 font-mono">
               Date: <strong>{receipt.date}</strong>
             </p>
           </div>
         </div>
 
         {/* Student & Seat Grid */}
-        <div className="grid grid-cols-4 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-lg border border-slate-200 mt-2">
+        <div className="grid grid-cols-4 gap-1.5 text-[9.5px] print:text-[8.5px] bg-slate-50 p-2 print:p-1.5 rounded-lg border border-slate-200 mt-1.5 print:mt-1">
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Student Name:</span>
-            <strong className="text-slate-950 text-xs block truncate">{receipt.studentName}</strong>
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Student Name:</span>
+            <strong className="text-slate-950 text-[11px] print:text-[9.5px] block truncate">{receipt.studentName}</strong>
           </div>
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Contact Mobile:</span>
-            <strong className="text-slate-900 font-mono text-[11px] block">{receipt.studentPhone}</strong>
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Contact Mobile:</span>
+            <strong className="text-slate-900 font-mono text-[10.5px] print:text-[9px] block">{receipt.studentPhone}</strong>
           </div>
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Allocated Desk:</span>
-            <strong className="text-purple-950 font-black text-xs font-mono block bg-purple-100/90 px-1.5 py-0.5 rounded w-fit border border-purple-300">
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Allocated Desk:</span>
+            <strong className="text-purple-950 font-black text-[11px] print:text-[9.5px] font-mono block bg-purple-100/90 px-1.5 py-0.5 rounded w-fit border border-purple-300">
               SEAT #{receipt.seatNumber}
             </strong>
           </div>
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Machine PIN / ID:</span>
-            <strong className="text-slate-900 font-mono text-[11px] block">
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Machine PIN / ID:</span>
+            <strong className="text-slate-900 font-mono text-[10.5px] print:text-[9px] block">
               PIN #{receipt.biometricEnrollmentId || receipt.seatNumber || '01'}
             </strong>
           </div>
 
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Shift & Hours:</span>
-            <strong className="text-slate-800 text-[9.5px] block truncate">{receipt.shift || 'Full Day (24x7)'}</strong>
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Shift & Hours:</span>
+            <strong className="text-slate-800 text-[9px] print:text-[8px] block truncate">{receipt.shift || 'Full Day (24x7)'}</strong>
           </div>
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Plan Duration:</span>
-            <strong className="text-slate-800 text-[9.5px] block">{receipt.plan || 'Monthly'}</strong>
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Plan Duration:</span>
+            <strong className="text-slate-800 text-[9px] print:text-[8px] block">{receipt.plan || 'Monthly'}</strong>
           </div>
           <div className="col-span-2">
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Membership Validity:</span>
-            <strong className="text-emerald-950 font-mono text-[11px] block">
+            <span className="text-slate-500 block text-[8px] print:text-[7px] uppercase font-bold">Membership Validity:</span>
+            <strong className="text-emerald-950 font-mono text-[10.5px] print:text-[9px] block">
               {receipt.validFrom} <span className="text-slate-400">TO</span> {receipt.validTo}
             </strong>
           </div>
@@ -105,36 +105,36 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             : [{ description: `Dedicated Study Desk #${receipt.seatNumber} & Facility Pass`, amount: receipt.totalFee }];
 
           return (
-            <div className="mt-2 border border-slate-300 rounded-lg overflow-hidden flex-1 flex flex-col justify-between">
-              <table className="w-full text-[10px] text-left">
+            <div className="mt-1.5 print:mt-1 border border-slate-300 rounded-lg overflow-hidden">
+              <table className="w-full text-[9.5px] print:text-[8.5px] text-left">
                 <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
                   <tr>
-                    <th className="py-1 px-3">Item Description</th>
-                    <th className="py-1 px-3 text-right">Amount</th>
+                    <th className="py-0.5 px-2.5">Item Description</th>
+                    <th className="py-0.5 px-2.5 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item, idx) => (
                     <tr key={idx}>
-                      <td className="py-1 px-3">
+                      <td className="py-0.5 px-2.5">
                         <strong className="text-slate-900">{item.description}</strong>
                       </td>
-                      <td className="py-1 px-3 text-right font-mono font-bold text-slate-900">
+                      <td className="py-0.5 px-2.5 text-right font-mono font-bold text-slate-900">
                         ₹{item.amount}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-50 border-t border-slate-300 font-semibold text-[10px]">
+                <tfoot className="bg-slate-50 border-t border-slate-300 font-semibold text-[9.5px] print:text-[8.5px]">
                   <tr>
-                    <td className="py-1 px-3">
-                      <div className="flex flex-wrap items-center gap-x-4 text-[9.5px] text-slate-700">
+                    <td className="py-0.5 px-2.5">
+                      <div className="flex flex-wrap items-center gap-x-3 text-[9px] print:text-[8px] text-slate-700">
                         <span>Mode: <strong className="font-mono text-slate-900">{receipt.paymentMode || 'UPI'}</strong></span>
                         <span>Ref: <strong className="font-mono text-slate-900">{receipt.transactionRef || 'OFFLINE-DESK'}</strong></span>
                       </div>
                     </td>
-                    <td className="py-1 px-3 text-right">
-                      <div className="flex items-center justify-end space-x-3 text-right font-mono text-[10.5px]">
+                    <td className="py-0.5 px-2.5 text-right">
+                      <div className="flex items-center justify-end space-x-2.5 text-right font-mono text-[9.5px] print:text-[8.5px]">
                         <span>Total: <strong className="font-bold text-slate-950">₹{receipt.totalFee}</strong></span>
                         <span className="text-emerald-800">Paid: <strong className="font-bold">₹{receipt.amountPaid}</strong></span>
                         {receipt.pendingDue > 0 ? (
@@ -152,30 +152,30 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
         })()}
 
         {/* Signature Section */}
-        <div className="mt-2.5 pt-1.5 border-t border-slate-300 flex items-end justify-between">
+        <div className="mt-1.5 print:mt-1 pt-1 border-t border-slate-300 flex items-end justify-between">
           {/* 1. Student Signature */}
-          <div className="space-y-1">
-            <div className="border-b border-slate-500 w-44 h-8 flex items-end">
-              <span className="text-[8px] text-slate-400 italic">student signature...</span>
+          <div className="space-y-0.5">
+            <div className="border-b border-slate-500 w-36 sm:w-44 h-6 print:h-5 flex items-end">
+              <span className="text-[7.5px] print:text-[6.5px] text-slate-400 italic">student signature...</span>
             </div>
-            <p className="text-[10px] font-bold text-slate-800 leading-tight">Student Signature</p>
-            <p className="text-[8.5px] text-slate-600 font-mono">
+            <p className="text-[9.5px] print:text-[8.5px] font-bold text-slate-800 leading-tight">Student Signature</p>
+            <p className="text-[8px] print:text-[7px] text-slate-600 font-mono">
               Name: <strong>{receipt.studentName}</strong>
             </p>
           </div>
 
           {/* 2. Library Representative */}
-          <div className="space-y-1 text-right">
-            <div className="border-b border-slate-500 w-44 h-8 ml-auto"></div>
-            <p className="text-[10px] font-bold text-slate-800 leading-tight">Library Representative</p>
-            <p className="text-[8.5px] text-slate-500 font-mono">
+          <div className="space-y-0.5 text-right">
+            <div className="border-b border-slate-500 w-36 sm:w-44 h-6 print:h-5 ml-auto"></div>
+            <p className="text-[9.5px] print:text-[8.5px] font-bold text-slate-800 leading-tight">Library Representative</p>
+            <p className="text-[8px] print:text-[7px] text-slate-500 font-mono">
               Brain Dock Library Administration • Date: <strong>{receipt.date}</strong>
             </p>
           </div>
         </div>
 
         {/* Terms footer */}
-        <div className="mt-1.5 pt-1 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500 font-mono">
+        <div className="mt-1 print:mt-0.5 pt-0.5 border-t border-slate-200 flex items-center justify-between text-[7.5px] print:text-[6.5px] text-slate-500 font-mono">
           <span>* Fees once paid are non-refundable. Biometric punch mandatory for entry & exit. Strict silence.</span>
           <span className="font-bold text-slate-700">Computer Generated Official Receipt</span>
         </div>
@@ -194,7 +194,7 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 8mm !important;
+            margin: 3mm 5mm !important;
           }
           *, *::before, *::after {
             box-sizing: border-box !important;
@@ -225,8 +225,8 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            height: 283mm !important;
-            max-height: 283mm !important;
+            height: 290mm !important;
+            max-height: 290mm !important;
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
@@ -234,20 +234,21 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             break-after: avoid !important;
           }
           .receipt-single-box {
-            height: 136mm !important;
-            max-height: 136mm !important;
+            height: 141mm !important;
+            max-height: 141mm !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            padding: 4.5mm 5.5mm !important;
+            padding: 3mm 4mm !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             border: 1.5px solid #0f172a !important;
             border-radius: 6px !important;
+            overflow: hidden !important;
           }
           .receipt-cut-line {
-            height: 7mm !important;
+            height: 5mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
