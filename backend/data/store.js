@@ -1235,6 +1235,8 @@ class DataStore {
       adm.endDate = data.endDate;
       adm.daysRemaining = Math.ceil((new Date(adm.endDate).getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
     }
+    if (data.admissionDate !== undefined) adm.admissionDate = data.admissionDate;
+    if (data.date !== undefined) adm.date = data.date;
     if (data.lockerNumber !== undefined) adm.lockerNumber = data.lockerNumber;
 
     // 04 Emergency Contact
@@ -1250,6 +1252,29 @@ class DataStore {
     if (data.studentPhoto !== undefined) {
       adm.studentPhoto = data.studentPhoto;
       adm.photoAttached = !!data.studentPhoto;
+    }
+
+    // 06 Financials / Fees & Payment Sync
+    if (data.deposit !== undefined) adm.deposit = Number(data.deposit) || 0;
+    if (data.totalFee !== undefined || data.feeAmount !== undefined) {
+      const tf = Number(data.totalFee !== undefined ? data.totalFee : data.feeAmount) || 0;
+      adm.totalFee = tf;
+      adm.feeAmount = tf;
+    }
+    if (data.paidAmount !== undefined) {
+      adm.paidAmount = Number(data.paidAmount) || 0;
+    }
+    if (data.pendingFee !== undefined) {
+      adm.pendingFee = Number(data.pendingFee);
+    } else {
+      adm.pendingFee = Math.max(0, (Number(adm.totalFee) || 0) - (Number(adm.paidAmount) || 0));
+    }
+    adm.feeStatus = adm.pendingFee <= 0 ? 'Paid' : (adm.paidAmount > 0 ? 'Partial' : 'Pending');
+    if (data.feeDueDate !== undefined) adm.feeDueDate = data.feeDueDate;
+    if (data.paymentMode !== undefined) adm.paymentMode = data.paymentMode;
+    if (data.transactionRef !== undefined) adm.transactionRef = data.transactionRef;
+    if (data.feeItems && Array.isArray(data.feeItems) && data.feeItems.length > 0) {
+      adm.feeItems = data.feeItems;
     }
 
     // Biometric PIN
@@ -1285,19 +1310,57 @@ class DataStore {
       };
     }
 
-    // Sync corresponding receipt student name/phone
-    const receipt = this.receipts.find(r => r.admissionId === admissionId);
+    // Fully Sync corresponding official receipt with edited fees, dates, and student info
+    const receipt = this.receipts.find(r => r.admissionId === admissionId || (adm.receiptNumber && r.receiptNumber === adm.receiptNumber));
     if (receipt) {
       receipt.studentName = adm.studentName;
       receipt.studentPhone = adm.studentPhone;
       receipt.seatNumber = adm.seatNumber;
       receipt.seatLabel = adm.seatLabel;
+      receipt.zone = adm.zone || receipt.zone;
       receipt.shift = adm.shift;
+      receipt.plan = adm.plan || adm.membershipType || receipt.plan;
       receipt.aadhaarNo = adm.aadhaarNo || adm.idProofNo;
+      receipt.biometricEnrollmentId = adm.biometricEnrollmentId || adm.seatNumber;
+      receipt.date = adm.admissionDate || adm.date || receipt.date || new Date().toISOString().split('T')[0];
+      receipt.validFrom = adm.startDate;
+      receipt.validTo = adm.endDate;
+      receipt.totalFee = adm.totalFee;
+      receipt.amountPaid = adm.paidAmount;
+      receipt.pendingDue = adm.pendingFee;
+      receipt.feeDueDate = adm.feeDueDate;
+      receipt.feeStatus = adm.feeStatus;
+      receipt.paymentMode = adm.paymentMode || receipt.paymentMode;
+      receipt.transactionRef = adm.transactionRef || receipt.transactionRef;
+
+      // Reconstruct / sync fee items
+      if (adm.feeItems && Array.isArray(adm.feeItems) && adm.feeItems.length > 0) {
+        receipt.feeItems = adm.feeItems;
+      } else {
+        const updatedFeeItems = [];
+        if (adm.deposit && Number(adm.deposit) > 0) {
+          updatedFeeItems.push({ description: 'Security Deposit (Refundable)', amount: Number(adm.deposit) });
+        }
+        const deskFee = (Number(adm.totalFee) || 0) - (Number(adm.deposit) || 0);
+        updatedFeeItems.push({
+          description: `Dedicated Study Desk #${adm.seatNumber} (${adm.shift || '24/7'} • ${adm.plan || 'Monthly'})`,
+          amount: deskFee > 0 ? deskFee : (Number(adm.totalFee) || 0)
+        });
+        receipt.feeItems = updatedFeeItems;
+      }
+    }
+
+    // Sync payments ledger
+    const payment = this.payments.find(p => p.memberId === admissionId || (receipt && p.invoiceNumber === receipt.receiptNumber));
+    if (payment) {
+      payment.userName = adm.studentName;
+      payment.amount = adm.paidAmount;
+      payment.paymentMethod = adm.paymentMode;
+      payment.transactionId = adm.transactionRef || payment.transactionId;
     }
 
     this.saveState();
-    return { success: true, message: 'Student admission updated successfully!', admission: adm };
+    return { success: true, message: 'Student admission updated successfully!', admission: adm, data: adm, receipt };
   }
 
   deleteAdmission(admissionId) {

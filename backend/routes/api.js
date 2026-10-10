@@ -993,7 +993,8 @@ router.put('/owner/admissions/:id', (req, res) => {
   res.json({
     success: true,
     message: result.message,
-    data: result.admission
+    data: result.admission,
+    receipt: result.receipt
   });
 });
 

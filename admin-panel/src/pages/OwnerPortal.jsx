@@ -687,8 +687,10 @@ export default function OwnerPortal() {
           showToast(isEdit 
             ? `Admission record for ${data.data.studentName} updated successfully!` 
             : `Admission for ${data.data.studentName} on Seat #${data.data.seatNumber} completed!`);
-          if (!isEdit && data.receipt) {
+          if (data.receipt) {
             setActiveReceipt(data.receipt);
+          }
+          if (!isEdit && data.receipt) {
             setReceiptModalOpen(true);
           }
         } else {
