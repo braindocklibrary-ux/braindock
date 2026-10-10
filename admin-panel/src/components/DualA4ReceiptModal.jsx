@@ -15,7 +15,82 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
   if (!isOpen || !receipt) return null;
 
   const handlePrint = () => {
-    window.print();
+    const printEl = document.getElementById('printable-a4-dual-receipt');
+    if (!printEl) {
+      window.print();
+      return;
+    }
+
+    // Remove any existing print iframe
+    const existingIframe = document.getElementById('receipt-print-frame');
+    if (existingIframe) existingIframe.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'receipt-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.zIndex = '-9999';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Receipt_${receipt.receiptNumber}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 5mm 8mm;
+            }
+            *, *::before, *::after {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: white;
+              width: 100%;
+              font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
+            .receipt-single-box {
+              border: 1.5px solid #0f172a !important;
+              border-radius: 6px !important;
+              padding: 3.5mm 5mm !important;
+              background: white !important;
+              box-sizing: border-box !important;
+            }
+            .receipt-cut-line {
+              margin: 2mm 0 !important;
+              padding: 0 !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+            }
+          </style>
+        </head>
+        <body class="bg-white p-0 m-0">
+          <div style="width: 100%; max-width: 194mm; margin: 0 auto; display: flex; flex-direction: column; gap: 2.5mm;">
+            ${printEl.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 450);
   };
 
   // Helper to render one copy of the receipt
