@@ -119,12 +119,12 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
     return (
       <div className="receipt-single-box border-2 border-slate-900 rounded-xl p-3.5 sm:p-4 bg-white text-slate-900 relative flex flex-col justify-between overflow-hidden">
         
-        {/* Diagonal Watermark Logo across the receipt */}
+        {/* Diagonal Watermark Logo across the receipt (Bottom-Left to Top-Right) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none">
           <img 
             src="/logo.png" 
             alt="" 
-            className="w-72 sm:w-80 opacity-[0.06] transform -rotate-15 select-none filter contrast-150"
+            className="w-[380px] sm:w-[440px] opacity-[0.08] transform -rotate-[28deg] select-none filter contrast-125"
           />
         </div>
 
