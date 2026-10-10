@@ -189,12 +189,12 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       
-      {/* Print-specific Stylesheet: Standard A4 Portrait with safe page margins */}
+      {/* Print-specific Stylesheet: Exact 1-Page A4 Full Coverage (50% Student Copy + 50% Office Copy) */}
       <style>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 8mm !important;
+            margin: 5mm 8mm !important;
           }
           *, *::before, *::after {
             box-sizing: border-box !important;
@@ -203,10 +203,11 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
           }
           html, body {
             width: 100% !important;
-            height: auto !important;
+            height: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
+            overflow: hidden !important;
           }
           /* Hide everything outside receipt modal in print */
           body * {
@@ -217,33 +218,48 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             visibility: visible !important;
           }
           #printable-a4-dual-receipt {
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
+            height: 100% !important;
+            max-height: 287mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            display: block !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             background: white !important;
+            box-sizing: border-box !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
           }
           .receipt-single-box {
             width: 100% !important;
+            height: 48.5% !important;
+            max-height: 139mm !important;
             box-sizing: border-box !important;
             border: 1.5px solid #0f172a !important;
             border-radius: 6px !important;
-            padding: 3mm 4.5mm !important;
-            margin: 0 0 2mm 0 !important;
+            padding: 3.5mm 5mm !important;
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            overflow: hidden !important;
           }
           .receipt-cut-line {
-            height: 6mm !important;
+            height: 3% !important;
+            max-height: 7mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin: 1mm 0 !important;
+            margin: 0 !important;
             padding: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
