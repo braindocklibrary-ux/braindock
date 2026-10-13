@@ -56,6 +56,11 @@ class DataStore {
     this.receipts = receipts;
     this.biometricLogs = [...(initialBiometricLogs || [])];
 
+    // Database sync & load safety status
+    this.isMongoLoaded = false;
+    this.isLoadingMongo = false;
+    this.initialLoadPromise = null;
+
     // Homepage Refined Statistics Section (Default hidden as per user request)
     this.homepageStats = {
       isVisible: false,
@@ -1000,6 +1005,7 @@ class DataStore {
       date: new Date()
     });
 
+    this.saveState();
     return { success: true, admission: adm, receipt: newReceipt };
   }
 
@@ -1311,20 +1317,31 @@ class DataStore {
     }
 
     // Fully Sync corresponding official receipt with edited fees, dates, and student info
-    const receipt = this.receipts.find(r => r.admissionId === admissionId || (adm.receiptNumber && r.receiptNumber === adm.receiptNumber));
-    if (receipt) {
-      receipt.studentName = adm.studentName;
-      receipt.studentPhone = adm.studentPhone;
-      receipt.seatNumber = adm.seatNumber;
-      receipt.seatLabel = adm.seatLabel;
-      receipt.zone = adm.zone || receipt.zone;
-      receipt.shift = adm.shift;
-      receipt.plan = adm.plan || adm.membershipType || receipt.plan;
-      receipt.aadhaarNo = adm.aadhaarNo || adm.idProofNo;
-      receipt.biometricEnrollmentId = adm.biometricEnrollmentId || adm.seatNumber;
-      receipt.date = adm.admissionDate || adm.date || receipt.date || new Date().toISOString().split('T')[0];
-      receipt.validFrom = adm.startDate;
-      receipt.validTo = adm.endDate;
+    let receipt = this.receipts.find(r => r.admissionId === admissionId || (adm.receiptNumber && r.receiptNumber === adm.receiptNumber));
+    if (!receipt) {
+      receipt = {
+        receiptNumber: adm.receiptNumber || `BDL-REC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        admissionId: adm.admissionId,
+        studentName: adm.studentName,
+        studentPhone: adm.studentPhone,
+        seatNumber: adm.seatNumber,
+        authorizedBy: 'Dr. Keval Patel (Director / Owner)'
+      };
+      this.receipts.unshift(receipt);
+    }
+
+    receipt.studentName = adm.studentName;
+    receipt.studentPhone = adm.studentPhone;
+    receipt.seatNumber = adm.seatNumber;
+    receipt.seatLabel = adm.seatLabel;
+    receipt.zone = adm.zone || receipt.zone;
+    receipt.shift = adm.shift;
+    receipt.plan = adm.plan || adm.membershipType || receipt.plan;
+    receipt.aadhaarNo = adm.aadhaarNo || adm.idProofNo;
+    receipt.biometricEnrollmentId = adm.biometricEnrollmentId || adm.seatNumber;
+    receipt.date = adm.admissionDate || adm.date || adm.startDate || receipt.date || new Date().toISOString().split('T')[0];
+    receipt.validFrom = adm.startDate;
+    receipt.validTo = adm.endDate;
       receipt.totalFee = adm.totalFee;
       receipt.amountPaid = adm.paidAmount;
       receipt.pendingDue = adm.pendingFee;
@@ -1348,7 +1365,6 @@ class DataStore {
         });
         receipt.feeItems = updatedFeeItems;
       }
-    }
 
     // Sync payments ledger
     const payment = this.payments.find(p => p.memberId === admissionId || (receipt && p.invoiceNumber === receipt.receiptNumber));
@@ -1386,6 +1402,11 @@ class DataStore {
       delete this.studentOtps[phone];
     }
 
+    // Explicitly delete from MongoDB Atlas
+    if (mongoose.connection.readyState === 1) {
+      Admission.deleteOne({ admissionId }).catch(e => console.warn('Mongo delete admission note:', e.message));
+    }
+
     this.saveState();
     return { 
       success: true, 
@@ -1419,109 +1440,158 @@ class DataStore {
       timestamp: new Date()
     });
 
+    this.saveState();
     return { success: true, message: `Seat #${num} is now available for new admission.` };
   }
 
   getReceipt(receiptNumber) {
-    return this.receipts.find(r => r.receiptNumber === receiptNumber);
+    let receipt = this.receipts.find(r => r.receiptNumber === receiptNumber || r.admissionId === receiptNumber);
+    if (!receipt) {
+      const adm = this.admissions.find(a => a.receiptNumber === receiptNumber || a.admissionId === receiptNumber);
+      if (adm) {
+        receipt = {
+          receiptNumber: adm.receiptNumber || receiptNumber,
+          admissionId: adm.admissionId,
+          date: adm.admissionDate || adm.date || adm.startDate || new Date().toISOString().split('T')[0],
+          studentName: adm.studentName,
+          studentPhone: adm.studentPhone,
+          seatNumber: adm.seatNumber,
+          seatLabel: adm.seatLabel,
+          zone: adm.zone,
+          shift: adm.shift,
+          plan: adm.plan,
+          validFrom: adm.startDate,
+          validTo: adm.endDate,
+          feeItems: adm.feeItems,
+          totalFee: adm.totalFee,
+          amountPaid: adm.paidAmount,
+          pendingDue: adm.pendingFee,
+          feeDueDate: adm.feeDueDate,
+          feeStatus: adm.feeStatus,
+          paymentMode: adm.paymentMode || 'Cash',
+          transactionRef: adm.transactionRef || '',
+          authorizedBy: 'Dr. Keval Patel (Director / Owner)'
+        };
+        this.receipts.unshift(receipt);
+        this.saveState();
+      }
+    }
+    return receipt;
   }
 
   async loadFromMongoDB() {
-    try {
-      if (mongoose.connection.readyState !== 1) return false;
-      const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures] = await Promise.all([
-        Admission.find({}).lean(),
-        Receipt.find({}).lean(),
-        OwnerSeat.find({}).lean(),
-        BiometricLog.find({}).lean(),
-        HomepageContent.findOne({ key: 'stats' }).lean(),
-        HomepageContent.findOne({ key: 'features' }).lean()
-      ]);
-
-      if (Array.isArray(dbAdmissions) && dbAdmissions.length > 0) {
-        this.admissions = dbAdmissions;
-      }
-      if (Array.isArray(dbReceipts) && dbReceipts.length > 0) {
-        this.receipts = dbReceipts;
-      }
-      if (Array.isArray(dbLogs) && dbLogs.length > 0) {
-        this.biometricLogs = dbLogs;
-      }
-      if (dbStats && dbStats.data) {
-        this.homepageStats = dbStats.data;
-      }
-      if (dbFeatures && dbFeatures.data) {
-        this.homepageFeatures = dbFeatures.data;
-      }
-
-      // Always ensure 102 seats matrix exists
-      if (!this.ownerSeats || this.ownerSeats.length !== 102) {
-        const { seats } = generateInitial102SeatsAndAdmissions();
-        this.ownerSeats = seats;
-      }
-
-      // Reset all seats to Available first, then populate occupied seats from active admissions
-      this.ownerSeats.forEach(s => {
-        s.status = 'Available';
-        s.occupant = null;
-      });
-
-      // Reconcile active admissions with 102 seats matrix
-      const now = new Date();
-      (this.admissions || []).forEach(adm => {
-        if (adm.status !== 'Vacated') {
-          const seatNum = Number(adm.seatNumber);
-          const seat = this.ownerSeats.find(s => s.seatNumber === seatNum);
-          if (seat) {
-            const end = new Date(adm.endDate);
-            const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-            adm.daysRemaining = days;
-            
-            seat.status = (days < 0) ? 'Expired' : 'Occupied';
-            seat.occupant = {
-              admissionId: adm.admissionId,
-              receiptNumber: adm.receiptNumber,
-              grId: adm.grId || `GR-${String(seatNum).padStart(3, '0')}`,
-              biometricEnrollmentId: adm.biometricEnrollmentId || seatNum,
-              studentName: adm.studentName,
-              studentPhone: adm.studentPhone,
-              studentEmail: adm.studentEmail,
-              studentPhoto: adm.studentPhoto,
-              targetExam: adm.targetExam,
-              shift: adm.shift,
-              startDate: adm.startDate,
-              endDate: adm.endDate,
-              daysRemaining: days,
-              feeStatus: adm.feeStatus,
-              totalFee: adm.totalFee,
-              paidAmount: adm.paidAmount,
-              pendingFee: adm.pendingFee,
-              feeDueDate: adm.feeDueDate,
-              lockerNumber: adm.lockerNumber,
-              feeItems: adm.feeItems
-            };
-          }
-        }
-      });
-
-      // Update local disk cache immediately
-      try {
-        fs.writeFileSync(PERSIST_FILE, JSON.stringify({
-          admissions: this.admissions,
-          receipts: this.receipts,
-          ownerSeats: this.ownerSeats,
-          biometricLogs: this.biometricLogs,
-          homepageStats: this.homepageStats,
-          homepageFeatures: this.homepageFeatures
-        }, null, 2));
-      } catch (e) {}
-
-      console.log(`✅ Synced with MongoDB Atlas: ${this.admissions.length} admissions, ${this.receipts.length} receipts, ${this.ownerSeats.filter(s => s.status !== 'Available').length} occupied seats.`);
-      return true;
-    } catch (err) {
-      console.warn('⚠️ MongoDB Atlas sync note:', err.message);
-      return false;
+    if (this.isLoadingMongo && this.initialLoadPromise) {
+      return this.initialLoadPromise;
     }
+    this.isLoadingMongo = true;
+    this.initialLoadPromise = (async () => {
+      try {
+        if (mongoose.connection.readyState !== 1) {
+          this.isLoadingMongo = false;
+          return false;
+        }
+        const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures] = await Promise.all([
+          Admission.find({}).lean(),
+          Receipt.find({}).lean(),
+          OwnerSeat.find({}).lean(),
+          BiometricLog.find({}).lean(),
+          HomepageContent.findOne({ key: 'stats' }).lean(),
+          HomepageContent.findOne({ key: 'features' }).lean()
+        ]);
+
+        if (Array.isArray(dbAdmissions) && dbAdmissions.length > 0) {
+          this.admissions = dbAdmissions;
+        }
+        if (Array.isArray(dbReceipts) && dbReceipts.length > 0) {
+          this.receipts = dbReceipts;
+        }
+        if (Array.isArray(dbSeats) && dbSeats.length > 0) {
+          this.ownerSeats = dbSeats;
+        }
+        if (Array.isArray(dbLogs) && dbLogs.length > 0) {
+          this.biometricLogs = dbLogs;
+        }
+        if (dbStats && dbStats.data) {
+          this.homepageStats = dbStats.data;
+        }
+        if (dbFeatures && dbFeatures.data) {
+          this.homepageFeatures = dbFeatures.data;
+        }
+
+        // Always ensure 102 seats matrix exists
+        if (!this.ownerSeats || this.ownerSeats.length !== 102) {
+          const { seats } = generateInitial102SeatsAndAdmissions();
+          this.ownerSeats = seats;
+        }
+
+        // Reset all seats to Available first, then populate occupied seats from active admissions
+        this.ownerSeats.forEach(s => {
+          s.status = 'Available';
+          s.occupant = null;
+        });
+
+        // Reconcile active admissions with 102 seats matrix
+        const now = new Date();
+        (this.admissions || []).forEach(adm => {
+          if (adm.status !== 'Vacated') {
+            const seatNum = Number(adm.seatNumber);
+            const seat = this.ownerSeats.find(s => s.seatNumber === seatNum);
+            if (seat) {
+              const end = new Date(adm.endDate);
+              const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+              adm.daysRemaining = days;
+              
+              seat.status = (days < 0) ? 'Expired' : 'Occupied';
+              seat.occupant = {
+                admissionId: adm.admissionId,
+                receiptNumber: adm.receiptNumber,
+                grId: adm.grId || `GR-${String(seatNum).padStart(3, '0')}`,
+                biometricEnrollmentId: adm.biometricEnrollmentId || seatNum,
+                studentName: adm.studentName,
+                studentPhone: adm.studentPhone,
+                studentEmail: adm.studentEmail,
+                studentPhoto: adm.studentPhoto,
+                targetExam: adm.targetExam,
+                shift: adm.shift,
+                startDate: adm.startDate,
+                endDate: adm.endDate,
+                daysRemaining: days,
+                feeStatus: adm.feeStatus,
+                totalFee: adm.totalFee,
+                paidAmount: adm.paidAmount,
+                pendingFee: adm.pendingFee,
+                feeDueDate: adm.feeDueDate,
+                lockerNumber: adm.lockerNumber,
+                feeItems: adm.feeItems
+              };
+            }
+          }
+        });
+
+        this.isMongoLoaded = true;
+
+        // Update local disk cache immediately so savedData.json is also fresh
+        try {
+          fs.writeFileSync(PERSIST_FILE, JSON.stringify({
+            admissions: this.admissions,
+            receipts: this.receipts,
+            ownerSeats: this.ownerSeats,
+            biometricLogs: this.biometricLogs,
+            homepageStats: this.homepageStats,
+            homepageFeatures: this.homepageFeatures
+          }, null, 2));
+        } catch (e) {}
+
+        console.log(`✅ Synced with MongoDB Atlas: ${this.admissions.length} admissions, ${this.receipts.length} receipts, ${this.ownerSeats.filter(s => s.status !== 'Available').length} occupied seats.`);
+        this.isLoadingMongo = false;
+        return true;
+      } catch (err) {
+        console.warn('⚠️ MongoDB Atlas sync note:', err.message);
+        this.isLoadingMongo = false;
+        return false;
+      }
+    })();
+    return this.initialLoadPromise;
   }
 
   async saveState() {
@@ -1539,17 +1609,83 @@ class DataStore {
       console.error('Error saving state to disk:', e.message);
     }
 
-    // 2. Cloud MongoDB Atlas persistence (Survives any server reboot or redeploy)
+    // 2. Cloud MongoDB Atlas atomic persistence (NEVER deleteMany!)
     if (mongoose.connection.readyState === 1) {
+      // Safety guard: if initial load hasn't completed, do not overwrite Atlas
+      if (!this.isMongoLoaded) {
+        console.warn('⚠️ Skipping MongoDB Atlas sync: initial DB load has not completed yet.');
+        return;
+      }
+
       try {
-        await Promise.all([
-          Admission.deleteMany({}).then(() => this.admissions.length > 0 ? Admission.insertMany(this.admissions) : null),
-          Receipt.deleteMany({}).then(() => this.receipts.length > 0 ? Receipt.insertMany(this.receipts) : null),
-          OwnerSeat.deleteMany({}).then(() => this.ownerSeats.length > 0 ? OwnerSeat.insertMany(this.ownerSeats) : null),
-          BiometricLog.deleteMany({}).then(() => this.biometricLogs.length > 0 ? BiometricLog.insertMany(this.biometricLogs) : null),
-          HomepageContent.findOneAndUpdate({ key: 'stats' }, { key: 'stats', data: this.homepageStats }, { upsert: true }),
-          HomepageContent.findOneAndUpdate({ key: 'features' }, { key: 'features', data: this.homepageFeatures }, { upsert: true })
-        ]);
+        const promises = [];
+
+        // Atomic upserts for Admissions (by admissionId)
+        if (this.admissions && this.admissions.length > 0) {
+          const admOps = this.admissions.map(adm => {
+            const { _id, ...cleanAdm } = adm;
+            return {
+              updateOne: {
+                filter: { admissionId: adm.admissionId },
+                update: { $set: cleanAdm },
+                upsert: true
+              }
+            };
+          });
+          promises.push(Admission.bulkWrite(admOps, { ordered: false }));
+        }
+
+        // Atomic upserts for Receipts (by receiptNumber)
+        if (this.receipts && this.receipts.length > 0) {
+          const recOps = this.receipts.map(rec => {
+            const { _id, ...cleanRec } = rec;
+            return {
+              updateOne: {
+                filter: { receiptNumber: rec.receiptNumber },
+                update: { $set: cleanRec },
+                upsert: true
+              }
+            };
+          });
+          promises.push(Receipt.bulkWrite(recOps, { ordered: false }));
+        }
+
+        // Atomic upserts for OwnerSeats (by seatNumber)
+        if (this.ownerSeats && this.ownerSeats.length > 0) {
+          const seatOps = this.ownerSeats.map(seat => {
+            const { _id, ...cleanSeat } = seat;
+            return {
+              updateOne: {
+                filter: { seatNumber: seat.seatNumber },
+                update: { $set: cleanSeat },
+                upsert: true
+              }
+            };
+          });
+          promises.push(OwnerSeat.bulkWrite(seatOps, { ordered: false }));
+        }
+
+        // Biometric punch logs
+        if (this.biometricLogs && this.biometricLogs.length > 0) {
+          const logOps = this.biometricLogs.slice(0, 200).map(log => {
+            const { _id, ...cleanLog } = log;
+            const logKey = log.logId || `${log.timestamp}_${log.seatNumber || log.biometricEnrollmentId}`;
+            return {
+              updateOne: {
+                filter: { logId: logKey },
+                update: { $set: { ...cleanLog, logId: logKey } },
+                upsert: true
+              }
+            };
+          });
+          promises.push(BiometricLog.bulkWrite(logOps, { ordered: false }));
+        }
+
+        // Homepage dynamic content
+        promises.push(HomepageContent.findOneAndUpdate({ key: 'stats' }, { key: 'stats', data: this.homepageStats }, { upsert: true }));
+        promises.push(HomepageContent.findOneAndUpdate({ key: 'features' }, { key: 'features', data: this.homepageFeatures }, { upsert: true }));
+
+        await Promise.all(promises);
       } catch (err) {
         console.error('Error syncing state to MongoDB Atlas:', err.message);
       }

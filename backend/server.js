@@ -56,11 +56,18 @@ app.get('/api/biometric/punches', (req, res) => {
   });
 });
 
-// Connect to MongoDB Atlas (with immediate sync)
-connectDB().then(async (connected) => {
-  if (connected) {
-    await store.loadFromMongoDB();
+// Middleware to ensure Database is fully loaded before handling API requests
+app.use(async (req, res, next) => {
+  if (req.path === '/api/health') return next();
+
+  if (store.initialLoadPromise) {
+    try {
+      await store.initialLoadPromise;
+    } catch (e) {
+      console.warn('Initial load wait warning:', e.message);
+    }
   }
+  next();
 });
 
 // API Routes
@@ -89,16 +96,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Auto-sync admitted students to TimeWatch device on boot
-setTimeout(() => {
-  (store.admissions || []).forEach(adm => {
-    pushUserToDevice({ pin: adm.seatNumber, name: adm.studentName });
-  });
-}, 2000);
-
-// Initialize Automated Google Drive Cloud Backup Service
-initScheduledGoogleDriveBackup();
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Unhandled API Error:", err);
@@ -108,14 +105,40 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`=======================================================`);
-  console.log(`🚀 BRAIN DOCK LIBRARY BACKEND ACTIVE ON PORT: ${PORT}`);
-  console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`=======================================================`);
-});
+// Bootstrap server only after connecting to MongoDB Atlas and syncing database
+async function startServer() {
+  try {
+    console.log('🔄 Connecting to MongoDB Atlas before binding port...');
+    const connected = await connectDB();
+    if (connected) {
+      await store.loadFromMongoDB();
+    }
+  } catch (err) {
+    console.error('Initial DB bootstrap error:', err.message);
+  }
 
-// Also listen on port 8001 for TimeWatch Bio-1SE default port
-app.listen(BIOMETRIC_PORT, () => {
-  console.log(`📡 BIOMETRIC ADMS ENGINE LISTENING ON PORT: ${BIOMETRIC_PORT}`);
-});
+  app.listen(PORT, () => {
+    console.log(`=======================================================`);
+    console.log(`🚀 BRAIN DOCK LIBRARY BACKEND ACTIVE ON PORT: ${PORT}`);
+    console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+    console.log(`=======================================================`);
+  });
+
+  // Also listen on port 8001 for TimeWatch Bio-1SE default port
+  app.listen(BIOMETRIC_PORT, () => {
+    console.log(`📡 BIOMETRIC ADMS ENGINE LISTENING ON PORT: ${BIOMETRIC_PORT}`);
+  });
+
+  // Auto-sync admitted students to TimeWatch device on boot
+  setTimeout(() => {
+    (store.admissions || []).forEach(adm => {
+      pushUserToDevice({ pin: adm.seatNumber, name: adm.studentName });
+    });
+  }, 2000);
+
+  // Initialize Automated Google Drive Cloud Backup Service
+  initScheduledGoogleDriveBackup();
+}
+
+startServer();
+

@@ -891,7 +891,7 @@ router.get('/owner/backup', (req, res) => {
 
 // Auto-ensure MongoDB Atlas sync for all owner queries on cold boot
 router.use('/owner', async (req, res, next) => {
-  if (store.admissions.length === 0 && mongoose.connection.readyState === 1) {
+  if (!store.isMongoLoaded && mongoose.connection.readyState === 1) {
     try {
       await store.loadFromMongoDB();
     } catch (e) {}
@@ -902,8 +902,11 @@ router.use('/owner', async (req, res, next) => {
 // Restore Database from Backup (JSON)
 router.post('/owner/restore', (req, res) => {
   const { backup } = req.body;
-  if (!backup) {
+  if (!backup || typeof backup !== 'object') {
     return res.status(400).json({ success: false, message: 'Invalid backup file payload.' });
+  }
+  if (!Array.isArray(backup.admissions) || backup.admissions.length === 0) {
+    return res.status(400).json({ success: false, message: 'Backup payload must contain at least one valid admission record.' });
   }
 
   const result = store.restoreBackup(backup);
@@ -1128,8 +1131,11 @@ router.post('/biometric/punch', (req, res) => {
   res.status(result.granted ? 200 : 403).json(result);
 });
 
-// Clear all dummy admissions and attendance logs (Owner Reset to Live State)
+// Clear all dummy admissions and attendance logs (Owner Reset to Live State - Protected)
 router.post('/owner/clear-all-data', (req, res) => {
+  if (req.body?.confirm !== 'CLEAR_ALL_DATA_CONFIRM') {
+    return res.status(403).json({ success: false, message: 'Safety Confirmation required to execute full database reset.' });
+  }
   store.clearAllData();
   res.json({ 
     success: true, 

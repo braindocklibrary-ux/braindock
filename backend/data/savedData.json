@@ -1,38 +1,229 @@
 {
-  "admissions": [],
+  "admissions": [
+    {
+      "_id": "6accf1ee016979f8e55741ba",
+      "admissionId": "BDL-ADM-026-2340",
+      "receiptNumber": "BDL-REC-2026-4251",
+      "grId": "GR-026",
+      "seatNumber": 26,
+      "biometricEnrollmentId": 26,
+      "seatLabel": "Seat 26",
+      "zone": "Zone A (Ground Floor - Silent Hall)",
+      "floor": "Ground Floor",
+      "studentName": "keval",
+      "parentsName": "pansuriya",
+      "dob": "2007-01-04",
+      "gender": "Male",
+      "studentPhone": "9316105583",
+      "whatsAppNumber": "9316105583",
+      "studentEmail": "",
+      "address": "",
+      "city": "Amreli",
+      "pinCode": "365601",
+      "qualification": "",
+      "institution": "",
+      "course": "",
+      "yearSemester": "",
+      "occupation": "UPSC Civil Services",
+      "targetExam": "UPSC Civil Services",
+      "membershipType": "Monthly",
+      "shift": "Full Day (24x7)",
+      "plan": "1 Month(s)",
+      "startDate": "2026-10-10",
+      "endDate": "2026-11-09",
+      "daysRemaining": 27,
+      "lockerNumber": "",
+      "emergencyName": "",
+      "emergencyRelation": "Parent",
+      "emergencyPhone": "",
+      "guardianPhone": "",
+      "idProofType": "Aadhaar Card",
+      "idProofNo": "",
+      "aadhaarNo": "",
+      "photoAttached": false,
+      "studentPhoto": "",
+      "totalFee": 1600,
+      "paidAmount": 1600,
+      "pendingFee": 0,
+      "feeDueDate": null,
+      "feeStatus": "Paid",
+      "paymentMode": "UPI (GPay / PhonePe)",
+      "transactionRef": "UPI/106170",
+      "notes": "",
+      "status": "Active",
+      "createdAt": "2026-10-09T06:25:42.340Z",
+      "feeItems": [],
+      "__v": 0,
+      "updatedAt": "2026-10-13T12:45:06.328Z",
+      "admissionDate": "2026-10-10",
+      "feeAmount": 1600
+    },
+    {
+      "_id": "6ac87fe6793d9b65a9dba30e",
+      "admissionId": "BDL-ADM-001-0258",
+      "receiptNumber": "BDL-REC-2026-6690",
+      "grId": "GR-001",
+      "seatNumber": 1,
+      "biometricEnrollmentId": 1,
+      "seatLabel": "Seat 01",
+      "zone": "Zone A (Ground Floor - Silent Hall)",
+      "floor": "Ground Floor",
+      "studentName": "keval",
+      "parentsName": "dineshbhai",
+      "dob": "2006-01-04",
+      "gender": "Male",
+      "studentPhone": "9316105583",
+      "whatsAppNumber": "9316105583",
+      "studentEmail": "pansuriyakeval434@gmail.com",
+      "address": "chakkergadh",
+      "city": "Amreli",
+      "pinCode": "365601",
+      "qualification": "-",
+      "institution": "-",
+      "course": "-",
+      "yearSemester": "-",
+      "occupation": "-",
+      "targetExam": "-",
+      "membershipType": "Monthly",
+      "shift": "Full Day (24x7)",
+      "plan": "1 Month(s)",
+      "startDate": "2026-10-08",
+      "endDate": "2026-11-08",
+      "daysRemaining": 30,
+      "lockerNumber": "1",
+      "emergencyName": "-",
+      "emergencyRelation": "Parent",
+      "emergencyPhone": "-",
+      "guardianPhone": "-",
+      "idProofType": "Aadhaar Card",
+      "idProofNo": "",
+      "aadhaarNo": "",
+      "photoAttached": false,
+      "studentPhoto": "",
+      "feeItems": [],
+      "totalFee": 1500,
+      "paidAmount": 1500,
+      "pendingFee": 0,
+      "feeDueDate": null,
+      "feeStatus": "Paid",
+      "paymentMode": "UPI (GPay / PhonePe)",
+      "transactionRef": "UPI/280780",
+      "notes": "",
+      "status": "Vacated",
+      "createdAt": "2026-10-08T16:02:50.258Z",
+      "updatedAt": "2026-10-09T05:47:18.086Z",
+      "__v": 0,
+      "vacatedAt": "2026-10-09T06:24:54.022Z",
+      "vacateReason": "Vacated by Library Owner"
+    }
+  ],
   "receipts": [
     {
-      "receiptNumber": "BDL-REC-2026-8994",
-      "admissionId": "BDL-ADM-001-4390",
-      "date": "2026-10-08",
-      "studentName": "Permanent Test Student",
-      "studentPhone": "9999999999",
+      "_id": "6accf1ee016979f8e55741bd",
+      "receiptNumber": "BDL-REC-2026-4251",
+      "admissionId": "BDL-ADM-026-2340",
+      "studentName": "keval",
+      "studentPhone": "9316105583",
+      "seatNumber": 26,
+      "date": "2026-10-10",
+      "totalFee": 1600,
+      "amountPaid": 1600,
+      "pendingDue": 0,
+      "paymentMode": "UPI (GPay / PhonePe)",
+      "transactionRef": "UPI/106170",
+      "feeItems": [
+        {
+          "description": "Dedicated Study Desk #26 (Full Day (24x7) • 1 Month(s))",
+          "amount": 1600
+        }
+      ],
       "aadhaarNo": "",
+      "seatLabel": "Seat 26",
+      "zone": "Zone A (Ground Floor - Silent Hall)",
+      "shift": "Full Day (24x7)",
+      "plan": "1 Month(s)",
+      "validFrom": "2026-10-10",
+      "validTo": "2026-11-09",
+      "feeDueDate": null,
+      "feeStatus": "Paid",
+      "authorizedBy": "Dr. Keval Patel (Director / Owner)",
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.817Z",
+      "updatedAt": "2026-10-12T14:42:54.817Z",
+      "biometricEnrollmentId": 26
+    },
+    {
+      "_id": "6ac87fe6793d9b65a9dba310",
+      "receiptNumber": "BDL-REC-2026-6690",
+      "admissionId": "BDL-ADM-001-0258",
+      "studentName": "keval",
+      "studentPhone": "9316105583",
       "seatNumber": 1,
+      "date": "2026-10-08",
+      "totalFee": 1500,
+      "amountPaid": 1500,
+      "pendingDue": 0,
+      "paymentMode": "UPI (GPay / PhonePe)",
+      "transactionRef": "UPI/280780",
+      "feeItems": [
+        {
+          "description": "Dedicated Study Desk #1 & Facility Pass",
+          "amount": 1500,
+          "_id": "6ac87fe6793d9b65a9dba311"
+        }
+      ],
+      "createdAt": "2026-10-09T05:47:18.107Z",
+      "updatedAt": "2026-10-09T05:47:18.107Z",
+      "__v": 0,
+      "aadhaarNo": "",
       "seatLabel": "Seat 01",
       "zone": "Zone A (Ground Floor - Silent Hall)",
       "shift": "Full Day (24x7)",
       "plan": "1 Month(s)",
       "validFrom": "2026-10-08",
       "validTo": "2026-11-08",
-      "feeItems": [
-        {
-          "description": "Dedicated Study Desk #1 & Facility Pass",
-          "amount": 1500
-        }
-      ],
+      "feeDueDate": null,
+      "feeStatus": "Paid",
+      "authorizedBy": "Dr. Keval Patel (Director / Owner)"
+    },
+    {
+      "_id": "6ac76527d5bdc1f095759a8a",
+      "receiptNumber": "BDL-REC-2026-8994",
+      "admissionId": "BDL-ADM-001-4390",
+      "studentName": "Permanent Test Student",
+      "studentPhone": "9999999999",
+      "seatNumber": 1,
+      "date": "2026-10-08",
       "totalFee": 1500,
       "amountPaid": 1500,
       "pendingDue": 0,
-      "feeDueDate": null,
-      "feeStatus": "Paid",
       "paymentMode": "UPI",
       "transactionRef": "TXN-454391",
+      "feeItems": [
+        {
+          "description": "Dedicated Study Desk #1 & Facility Pass",
+          "amount": 1500,
+          "_id": "6ac76527d5bdc1f095759a8b"
+        }
+      ],
+      "createdAt": "2026-10-08T09:40:55.966Z",
+      "updatedAt": "2026-10-08T09:40:55.966Z",
+      "__v": 0,
+      "aadhaarNo": "",
+      "seatLabel": "Seat 01",
+      "zone": "Zone A (Ground Floor - Silent Hall)",
+      "shift": "Full Day (24x7)",
+      "plan": "1 Month(s)",
+      "validFrom": "2026-10-08",
+      "validTo": "2026-11-08",
+      "feeDueDate": null,
+      "feeStatus": "Paid",
       "authorizedBy": "Dr. Keval Patel (Director / Owner)"
     }
   ],
   "ownerSeats": [
     {
+      "_id": "6accf1ed016979f8e5574153",
       "seatNumber": 1,
       "seatLabel": "Seat 01",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -41,9 +232,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.918Z",
+      "updatedAt": "2026-10-12T14:42:53.918Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574154",
       "seatNumber": 2,
       "seatLabel": "Seat 02",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -52,9 +247,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574155",
       "seatNumber": 3,
       "seatLabel": "Seat 03",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -63,9 +262,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574156",
       "seatNumber": 4,
       "seatLabel": "Seat 04",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -74,9 +277,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574157",
       "seatNumber": 5,
       "seatLabel": "Seat 05",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -85,9 +292,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574158",
       "seatNumber": 6,
       "seatLabel": "Seat 06",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -96,9 +307,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574159",
       "seatNumber": 7,
       "seatLabel": "Seat 07",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -107,9 +322,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415a",
       "seatNumber": 8,
       "seatLabel": "Seat 08",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -118,9 +337,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415b",
       "seatNumber": 9,
       "seatLabel": "Seat 09",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -129,9 +352,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415c",
       "seatNumber": 10,
       "seatLabel": "Seat 10",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -140,9 +367,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.919Z",
+      "updatedAt": "2026-10-12T14:42:53.919Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415d",
       "seatNumber": 11,
       "seatLabel": "Seat 11",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -151,9 +382,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415e",
       "seatNumber": 12,
       "seatLabel": "Seat 12",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -162,9 +397,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557415f",
       "seatNumber": 13,
       "seatLabel": "Seat 13",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -173,9 +412,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574160",
       "seatNumber": 14,
       "seatLabel": "Seat 14",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -184,9 +427,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574161",
       "seatNumber": 15,
       "seatLabel": "Seat 15",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -195,9 +442,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574162",
       "seatNumber": 16,
       "seatLabel": "Seat 16",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -206,9 +457,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574163",
       "seatNumber": 17,
       "seatLabel": "Seat 17",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -217,9 +472,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574164",
       "seatNumber": 18,
       "seatLabel": "Seat 18",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -228,9 +487,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574165",
       "seatNumber": 19,
       "seatLabel": "Seat 19",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -239,9 +502,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574166",
       "seatNumber": 20,
       "seatLabel": "Seat 20",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -250,9 +517,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574167",
       "seatNumber": 21,
       "seatLabel": "Seat 21",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -261,9 +532,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574168",
       "seatNumber": 22,
       "seatLabel": "Seat 22",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -272,9 +547,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574169",
       "seatNumber": 23,
       "seatLabel": "Seat 23",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -283,9 +562,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416a",
       "seatNumber": 24,
       "seatLabel": "Seat 24",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -294,9 +577,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416b",
       "seatNumber": 25,
       "seatLabel": "Seat 25",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -305,9 +592,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416c",
       "seatNumber": 26,
       "seatLabel": "Seat 26",
       "zone": "Zone A (Ground Floor - Silent Hall)",
@@ -315,10 +606,33 @@
       "hasSocket": true,
       "hasLamp": true,
       "hasErgonomicChair": true,
-      "status": "Available",
-      "occupant": null
+      "status": "Occupied",
+      "occupant": {
+        "admissionId": "BDL-ADM-026-2340",
+        "receiptNumber": "BDL-REC-2026-4251",
+        "biometricEnrollmentId": 26,
+        "studentName": "keval",
+        "studentPhone": "9316105583",
+        "studentEmail": "",
+        "studentPhoto": "",
+        "targetExam": "UPSC Civil Services",
+        "shift": "Full Day (24x7)",
+        "startDate": "2026-10-10",
+        "endDate": "2026-11-09",
+        "daysRemaining": 27,
+        "feeStatus": "Paid",
+        "totalFee": 1600,
+        "paidAmount": 1600,
+        "pendingFee": 0,
+        "feeDueDate": null,
+        "lockerNumber": ""
+      },
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416d",
       "seatNumber": 27,
       "seatLabel": "Seat 27",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -327,9 +641,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416e",
       "seatNumber": 28,
       "seatLabel": "Seat 28",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -338,9 +656,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557416f",
       "seatNumber": 29,
       "seatLabel": "Seat 29",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -349,9 +671,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574170",
       "seatNumber": 30,
       "seatLabel": "Seat 30",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -360,9 +686,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574171",
       "seatNumber": 31,
       "seatLabel": "Seat 31",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -371,9 +701,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574172",
       "seatNumber": 32,
       "seatLabel": "Seat 32",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -382,9 +716,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574173",
       "seatNumber": 33,
       "seatLabel": "Seat 33",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -393,9 +731,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574174",
       "seatNumber": 34,
       "seatLabel": "Seat 34",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -404,9 +746,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574175",
       "seatNumber": 35,
       "seatLabel": "Seat 35",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -415,9 +761,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574176",
       "seatNumber": 36,
       "seatLabel": "Seat 36",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -426,9 +776,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574177",
       "seatNumber": 37,
       "seatLabel": "Seat 37",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -437,9 +791,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574178",
       "seatNumber": 38,
       "seatLabel": "Seat 38",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -448,9 +806,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574179",
       "seatNumber": 39,
       "seatLabel": "Seat 39",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -459,9 +821,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417a",
       "seatNumber": 40,
       "seatLabel": "Seat 40",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -470,9 +836,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417b",
       "seatNumber": 41,
       "seatLabel": "Seat 41",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -481,9 +851,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417c",
       "seatNumber": 42,
       "seatLabel": "Seat 42",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -492,9 +866,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.920Z",
+      "updatedAt": "2026-10-12T14:42:53.920Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417d",
       "seatNumber": 43,
       "seatLabel": "Seat 43",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -503,9 +881,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417e",
       "seatNumber": 44,
       "seatLabel": "Seat 44",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -514,9 +896,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557417f",
       "seatNumber": 45,
       "seatLabel": "Seat 45",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -525,9 +911,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574180",
       "seatNumber": 46,
       "seatLabel": "Seat 46",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -536,9 +926,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574181",
       "seatNumber": 47,
       "seatLabel": "Seat 47",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -547,9 +941,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574182",
       "seatNumber": 48,
       "seatLabel": "Seat 48",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -558,9 +956,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574183",
       "seatNumber": 49,
       "seatLabel": "Seat 49",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -569,9 +971,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574184",
       "seatNumber": 50,
       "seatLabel": "Seat 50",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -580,9 +986,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574185",
       "seatNumber": 51,
       "seatLabel": "Seat 51",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -591,9 +1001,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574186",
       "seatNumber": 52,
       "seatLabel": "Seat 52",
       "zone": "Zone B (Ground Floor - Regular Reading)",
@@ -602,9 +1016,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574187",
       "seatNumber": 53,
       "seatLabel": "Seat 53",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -613,9 +1031,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574188",
       "seatNumber": 54,
       "seatLabel": "Seat 54",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -624,9 +1046,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574189",
       "seatNumber": 55,
       "seatLabel": "Seat 55",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -635,9 +1061,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418a",
       "seatNumber": 56,
       "seatLabel": "Seat 56",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -646,9 +1076,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418b",
       "seatNumber": 57,
       "seatLabel": "Seat 57",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -657,9 +1091,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418c",
       "seatNumber": 58,
       "seatLabel": "Seat 58",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -668,9 +1106,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418d",
       "seatNumber": 59,
       "seatLabel": "Seat 59",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -679,9 +1121,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418e",
       "seatNumber": 60,
       "seatLabel": "Seat 60",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -690,9 +1136,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e557418f",
       "seatNumber": 61,
       "seatLabel": "Seat 61",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -701,9 +1151,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574190",
       "seatNumber": 62,
       "seatLabel": "Seat 62",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -712,9 +1166,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574191",
       "seatNumber": 63,
       "seatLabel": "Seat 63",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -723,9 +1181,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574192",
       "seatNumber": 64,
       "seatLabel": "Seat 64",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -734,9 +1196,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574193",
       "seatNumber": 65,
       "seatLabel": "Seat 65",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -745,9 +1211,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574194",
       "seatNumber": 66,
       "seatLabel": "Seat 66",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -756,9 +1226,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574195",
       "seatNumber": 67,
       "seatLabel": "Seat 67",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -767,9 +1241,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574196",
       "seatNumber": 68,
       "seatLabel": "Seat 68",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -778,9 +1256,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574197",
       "seatNumber": 69,
       "seatLabel": "Seat 69",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -789,9 +1271,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:53.921Z",
+      "updatedAt": "2026-10-12T14:42:53.921Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574198",
       "seatNumber": 70,
       "seatLabel": "Seat 70",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -800,9 +1286,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e5574199",
       "seatNumber": 71,
       "seatLabel": "Seat 71",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -811,9 +1301,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419a",
       "seatNumber": 72,
       "seatLabel": "Seat 72",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -822,9 +1316,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419b",
       "seatNumber": 73,
       "seatLabel": "Seat 73",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -833,9 +1331,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419c",
       "seatNumber": 74,
       "seatLabel": "Seat 74",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -844,9 +1346,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419d",
       "seatNumber": 75,
       "seatLabel": "Seat 75",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -855,9 +1361,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419e",
       "seatNumber": 76,
       "seatLabel": "Seat 76",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -866,9 +1376,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.010Z",
+      "updatedAt": "2026-10-12T14:42:54.010Z"
     },
     {
+      "_id": "6accf1ed016979f8e557419f",
       "seatNumber": 77,
       "seatLabel": "Seat 77",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -877,9 +1391,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a0",
       "seatNumber": 78,
       "seatLabel": "Seat 78",
       "zone": "Zone C (1st Floor - Silent Acoustic Pods)",
@@ -888,9 +1406,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a1",
       "seatNumber": 79,
       "seatLabel": "Seat 79",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -899,9 +1421,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a2",
       "seatNumber": 80,
       "seatLabel": "Seat 80",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -910,9 +1436,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a3",
       "seatNumber": 81,
       "seatLabel": "Seat 81",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -921,9 +1451,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a4",
       "seatNumber": 82,
       "seatLabel": "Seat 82",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -932,9 +1466,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a5",
       "seatNumber": 83,
       "seatLabel": "Seat 83",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -943,9 +1481,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a6",
       "seatNumber": 84,
       "seatLabel": "Seat 84",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -954,9 +1496,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a7",
       "seatNumber": 85,
       "seatLabel": "Seat 85",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -965,9 +1511,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a8",
       "seatNumber": 86,
       "seatLabel": "Seat 86",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -976,9 +1526,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741a9",
       "seatNumber": 87,
       "seatLabel": "Seat 87",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -987,9 +1541,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741aa",
       "seatNumber": 88,
       "seatLabel": "Seat 88",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -998,9 +1556,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741ab",
       "seatNumber": 89,
       "seatLabel": "Seat 89",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1009,9 +1571,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741ac",
       "seatNumber": 90,
       "seatLabel": "Seat 90",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1020,9 +1586,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741ad",
       "seatNumber": 91,
       "seatLabel": "Seat 91",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1031,9 +1601,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741ae",
       "seatNumber": 92,
       "seatLabel": "Seat 92",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1042,9 +1616,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741af",
       "seatNumber": 93,
       "seatLabel": "Seat 93",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1053,9 +1631,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b0",
       "seatNumber": 94,
       "seatLabel": "Seat 94",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1064,9 +1646,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b1",
       "seatNumber": 95,
       "seatLabel": "Seat 95",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1075,9 +1661,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b2",
       "seatNumber": 96,
       "seatLabel": "Seat 96",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1086,9 +1676,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b3",
       "seatNumber": 97,
       "seatLabel": "Seat 97",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1097,9 +1691,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b4",
       "seatNumber": 98,
       "seatLabel": "Seat 98",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1108,9 +1706,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b5",
       "seatNumber": 99,
       "seatLabel": "Seat 99",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1119,9 +1721,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b6",
       "seatNumber": 100,
       "seatLabel": "Seat 100",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1130,9 +1736,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b7",
       "seatNumber": 101,
       "seatLabel": "Seat 101",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1141,9 +1751,13 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     },
     {
+      "_id": "6accf1ed016979f8e55741b8",
       "seatNumber": 102,
       "seatLabel": "Seat 102",
       "zone": "Zone D (1st Floor - Digital Research Bay)",
@@ -1152,7 +1766,10 @@
       "hasLamp": true,
       "hasErgonomicChair": true,
       "status": "Available",
-      "occupant": null
+      "occupant": null,
+      "__v": 0,
+      "createdAt": "2026-10-12T14:42:54.011Z",
+      "updatedAt": "2026-10-12T14:42:54.011Z"
     }
   ],
   "biometricLogs": [],

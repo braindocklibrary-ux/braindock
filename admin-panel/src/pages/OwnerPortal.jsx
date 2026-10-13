@@ -323,14 +323,24 @@ export default function OwnerPortal() {
         }
         setLoading(false);
 
-        // Keep local storage backup fresh
+        // Keep local storage backup fresh (only update if fresh data is as complete or more complete than local cache)
         if (currentAdmissions.length > 0) {
           try {
             fetch(`${API_BASE_URL}/api/owner/backup`)
               .then(r => r.json())
               .then(d => {
-                if (d.success && d.data) {
-                  localStorage.setItem('bdl_owner_full_backup', JSON.stringify(d.data));
+                if (d.success && d.data && Array.isArray(d.data.admissions)) {
+                  const cached = localStorage.getItem('bdl_owner_full_backup');
+                  let existingCount = 0;
+                  if (cached) {
+                    try {
+                      const parsed = JSON.parse(cached);
+                      existingCount = Array.isArray(parsed?.admissions) ? parsed.admissions.length : 0;
+                    } catch (e) {}
+                  }
+                  if (d.data.admissions.length >= existingCount) {
+                    localStorage.setItem('bdl_owner_full_backup', JSON.stringify(d.data));
+                  }
                 }
               }).catch(() => {});
           } catch (e) {}
@@ -673,10 +683,16 @@ export default function OwnerPortal() {
       : `${API_BASE_URL}/api/owner/admissions`;
     const method = isEdit ? 'PUT' : 'POST';
 
+    const payload = {
+      ...admForm,
+      admissionDate: admForm.startDate,
+      date: admForm.startDate
+    };
+
     fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(admForm)
+      body: JSON.stringify(payload)
     })
       .then(res => res.json())
       .then(data => {
