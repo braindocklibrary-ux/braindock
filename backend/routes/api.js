@@ -905,11 +905,12 @@ router.post('/owner/restore', (req, res) => {
   if (!backup || typeof backup !== 'object') {
     return res.status(400).json({ success: false, message: 'Invalid backup file payload.' });
   }
-  if (!Array.isArray(backup.admissions) || backup.admissions.length === 0) {
+  const payload = backup.jsonData || backup.data || backup.backup || backup;
+  if (!Array.isArray(payload.admissions) || payload.admissions.length === 0) {
     return res.status(400).json({ success: false, message: 'Backup payload must contain at least one valid admission record.' });
   }
 
-  const result = store.restoreBackup(backup);
+  const result = store.restoreBackup(payload);
   res.json(result);
 });
 

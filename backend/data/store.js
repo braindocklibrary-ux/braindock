@@ -1699,14 +1699,62 @@ class DataStore {
     }
   }
 
-  restoreBackup(backup) {
+  restoreBackup(rawBackup) {
     try {
+      const backup = rawBackup?.jsonData || rawBackup?.data || rawBackup?.backup || rawBackup || {};
+
       if (Array.isArray(backup.admissions)) this.admissions = backup.admissions;
       if (Array.isArray(backup.receipts)) this.receipts = backup.receipts;
       if (Array.isArray(backup.ownerSeats) && backup.ownerSeats.length > 0) this.ownerSeats = backup.ownerSeats;
       if (Array.isArray(backup.biometricLogs)) this.biometricLogs = backup.biometricLogs;
       if (backup.homepageStats) this.homepageStats = backup.homepageStats;
       if (backup.homepageFeatures) this.homepageFeatures = backup.homepageFeatures;
+
+      // Reconcile 102 seats matrix with restored admissions
+      if (!this.ownerSeats || this.ownerSeats.length !== 102) {
+        const { seats } = generateInitial102SeatsAndAdmissions();
+        this.ownerSeats = seats;
+      }
+      this.ownerSeats.forEach(s => {
+        s.status = 'Available';
+        s.occupant = null;
+      });
+
+      const now = new Date();
+      (this.admissions || []).forEach(adm => {
+        if (adm.status !== 'Vacated') {
+          const seatNum = Number(adm.seatNumber);
+          const seat = this.ownerSeats.find(s => s.seatNumber === seatNum);
+          if (seat) {
+            const end = new Date(adm.endDate);
+            const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+            adm.daysRemaining = days;
+            seat.status = (days < 0) ? 'Expired' : 'Occupied';
+            seat.occupant = {
+              admissionId: adm.admissionId,
+              receiptNumber: adm.receiptNumber,
+              grId: adm.grId || `GR-${String(seatNum).padStart(3, '0')}`,
+              biometricEnrollmentId: adm.biometricEnrollmentId || seatNum,
+              studentName: adm.studentName,
+              studentPhone: adm.studentPhone,
+              studentEmail: adm.studentEmail,
+              studentPhoto: adm.studentPhoto,
+              targetExam: adm.targetExam,
+              shift: adm.shift,
+              startDate: adm.startDate,
+              endDate: adm.endDate,
+              daysRemaining: days,
+              feeStatus: adm.feeStatus,
+              totalFee: adm.totalFee,
+              paidAmount: adm.paidAmount,
+              pendingFee: adm.pendingFee,
+              feeDueDate: adm.feeDueDate,
+              lockerNumber: adm.lockerNumber,
+              feeItems: adm.feeItems
+            };
+          }
+        }
+      });
 
       this.saveState();
       return {
