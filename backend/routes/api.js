@@ -930,6 +930,21 @@ router.post('/owner/backup/google-drive', async (req, res) => {
   }
 });
 
+// High-Speed 1-Click Consolidated Bootstrap for Owner Portal (Loads everything in 1 instant request)
+router.get('/owner/bootstrap', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      seats: store.get102Seats(),
+      admissions: store.admissions || [],
+      stats: store.getOwnerStats(),
+      biometricLogs: store.getBiometricLogs ? store.getBiometricLogs({ filter: 'all' }).slice(0, 50) : [],
+      biometricStats: store.getBiometricStats ? store.getBiometricStats() : null,
+      expiryReminders: store.getUpcomingExpiries ? store.getUpcomingExpiries() : []
+    }
+  });
+});
+
 // Overview Stats for 102 Seats & Financials
 router.get('/owner/stats', (req, res) => {
   const stats = store.getOwnerStats();

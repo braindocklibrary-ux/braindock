@@ -69,30 +69,68 @@ export default function OwnerPortal() {
   const [masterPin, setMasterPin] = useState('');
   const [pinError, setPinError] = useState('');
 
-  // Core Data
-  const [seats, setSeats] = useState([]);
-  const [admissions, setAdmissions] = useState([]);
-  const [stats, setStats] = useState({
-    totalSeats: 102,
-    occupiedSeats: 0,
-    availableSeats: 0,
-    maintenanceSeats: 0,
-    occupancyRate: 0,
-    totalFeeCollected: 0,
-    totalFeePending: 0,
-    pendingCount: 0,
-    expiringSoonCount: 0,
-    expiredCount: 0
+  // Instant offline-first local cache getter (Provides instant 0ms appearance on page load)
+  const getInitialOwnerCache = () => {
+    try {
+      const raw = localStorage.getItem('bdl_owner_full_backup');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.admissions) && parsed.admissions.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return null;
+  };
+
+  const initialCache = getInitialOwnerCache();
+
+  // Core Data - Preloaded immediately from browser storage for instant 0ms appearance
+  const [seats, setSeats] = useState(() => initialCache?.ownerSeats || []);
+  const [admissions, setAdmissions] = useState(() => initialCache?.admissions || []);
+  const [stats, setStats] = useState(() => {
+    if (initialCache?.homepageStats?.ownerStats) return initialCache.homepageStats.ownerStats;
+    if (initialCache?.admissions && initialCache.admissions.length > 0) {
+      const totalSeats = 102;
+      const activeAdms = initialCache.admissions.filter(a => a.status !== 'Vacated');
+      const occupiedSeats = activeAdms.length;
+      const paidFee = activeAdms.reduce((sum, a) => sum + (Number(a.paidAmount) || 0), 0);
+      const pendingFee = activeAdms.reduce((sum, a) => sum + (Number(a.pendingFee) || 0), 0);
+      return {
+        totalSeats,
+        occupiedSeats,
+        availableSeats: Math.max(0, totalSeats - occupiedSeats),
+        maintenanceSeats: 0,
+        occupancyRate: Math.round((occupiedSeats / totalSeats) * 100),
+        totalFeeCollected: paidFee,
+        totalFeePending: pendingFee,
+        pendingCount: activeAdms.filter(a => a.pendingFee > 0).length,
+        expiringSoonCount: activeAdms.filter(a => a.daysRemaining <= 3 && a.daysRemaining >= 0).length,
+        expiredCount: activeAdms.filter(a => a.daysRemaining < 0).length
+      };
+    }
+    return {
+      totalSeats: 102,
+      occupiedSeats: 0,
+      availableSeats: 102,
+      maintenanceSeats: 0,
+      occupancyRate: 0,
+      totalFeeCollected: 0,
+      totalFeePending: 0,
+      pendingCount: 0,
+      expiringSoonCount: 0,
+      expiredCount: 0
+    };
   });
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialCache || (initialCache.admissions || []).length === 0);
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'register' | 'biometric'
   const [gridFilter, setGridFilter] = useState('all'); // 'all' | 'available' | 'occupied' | 'pending' | 'expiring'
   const [searchQuery, setSearchQuery] = useState('');
   const [registerFilter, setRegisterFilter] = useState('all'); // 'all' | 'pending' | 'paid' | 'expiring' | 'expired'
 
   // Biometric Attendance & Hardware State
-  const [biometricLogs, setBiometricLogs] = useState([]);
+  const [biometricLogs, setBiometricLogs] = useState(() => initialCache?.biometricLogs || []);
   const [biometricStats, setBiometricStats] = useState(null);
   const [bioFilter, setBioFilter] = useState('all'); // 'all' | 'granted' | 'denied' | 'in' | 'out'
   const [bioSearch, setBioSearch] = useState('');
@@ -263,8 +301,51 @@ export default function OwnerPortal() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchOwnerData = () => {
-    setLoading(true);
+  const fetchOwnerData = async () => {
+    // Only show full loading spinner if no cached data exists
+    if (!admissions || admissions.length === 0) {
+      setLoading(true);
+    }
+
+    try {
+      // 1. High-Speed Single Roundtrip Consolidated Bootstrap
+      const bootstrapRes = await fetch(`${API_BASE_URL}/api/owner/bootstrap`).then(r => r.json()).catch(() => null);
+      if (bootstrapRes && bootstrapRes.success && bootstrapRes.data) {
+        const { seats: bSeats, admissions: bAdmissions, stats: bStats, biometricLogs: bBioLogs, biometricStats: bBioStats, expiryReminders: bExp } = bootstrapRes.data;
+
+        if (Array.isArray(bSeats)) setSeats(bSeats);
+        if (Array.isArray(bAdmissions)) {
+          setAdmissions(bAdmissions);
+          // Keep local storage cache fresh
+          const cached = localStorage.getItem('bdl_owner_full_backup');
+          let existingCount = 0;
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              existingCount = Array.isArray(parsed?.admissions) ? parsed.admissions.length : 0;
+            } catch (e) {}
+          }
+          if (bAdmissions.length >= existingCount) {
+            localStorage.setItem('bdl_owner_full_backup', JSON.stringify({
+              admissions: bAdmissions,
+              ownerSeats: bSeats,
+              biometricLogs: bBioLogs,
+              homepageStats: { ownerStats: bStats }
+            }));
+          }
+        }
+        if (bStats) setStats(bStats);
+        if (Array.isArray(bBioLogs)) setBiometricLogs(bBioLogs);
+        if (bBioStats) setBiometricStats(bBioStats);
+        if (Array.isArray(bExp)) setExpiryReminders(bExp);
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Bootstrap note, falling back to parallel fetch:', err.message);
+    }
+
+    // Fallback: Parallel requests
     Promise.all([
       fetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json()),
       fetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json()),
@@ -276,39 +357,12 @@ export default function OwnerPortal() {
       .then(async ([seatsRes, admRes, statsRes, bioLogsRes, bioStatsRes, expRes]) => {
         let currentAdmissions = (admRes && admRes.success && Array.isArray(admRes.data)) ? admRes.data : [];
 
-        // Auto-heal / Auto-recover from Browser LocalStorage if server was cold-booted/reset
-        if (currentAdmissions.length === 0) {
-          try {
-            const cachedBackup = localStorage.getItem('bdl_owner_full_backup');
-            if (cachedBackup) {
-              const parsedBackup = JSON.parse(cachedBackup);
-              if (parsedBackup && Array.isArray(parsedBackup.admissions) && parsedBackup.admissions.length > 0) {
-                console.log('🔄 Auto-recovering admissions from browser local storage into backend...');
-                const restoreRes = await fetch(`${API_BASE_URL}/api/owner/restore`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ backup: parsedBackup })
-                });
-                const restoreData = await restoreRes.json();
-                if (restoreData.success) {
-                  const freshAdm = await fetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json());
-                  const freshSeats = await fetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json());
-                  const freshStats = await fetch(`${API_BASE_URL}/api/owner/stats`).then(r => r.json());
-                  if (freshAdm && freshAdm.success && Array.isArray(freshAdm.data)) currentAdmissions = freshAdm.data;
-                  if (freshSeats && freshSeats.success && Array.isArray(freshSeats.data)) setSeats(freshSeats.data);
-                  if (freshStats && freshStats.success && freshStats.data) setStats(freshStats.data);
-                }
-              }
-            }
-          } catch (err) {
-            console.warn('Auto-heal note:', err);
-          }
-        }
-
         if (seatsRes && seatsRes.success && Array.isArray(seatsRes.data)) {
           setSeats(seatsRes.data);
         }
-        setAdmissions(currentAdmissions);
+        if (currentAdmissions.length > 0) {
+          setAdmissions(currentAdmissions);
+        }
         if (statsRes && statsRes.success && statsRes.data) {
           setStats(statsRes.data);
         }
@@ -323,7 +377,7 @@ export default function OwnerPortal() {
         }
         setLoading(false);
 
-        // Keep local storage backup fresh (only update if fresh data is as complete or more complete than local cache)
+        // Keep local storage backup fresh
         if (currentAdmissions.length > 0) {
           try {
             fetch(`${API_BASE_URL}/api/owner/backup`)
