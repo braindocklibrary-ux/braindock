@@ -231,6 +231,82 @@ export const fallbackBooks = [
     rating: 5.0,
     reviewsCount: 450,
     tags: ['Saurashtra', 'Meghani', 'Folk Tales', 'Heritage', 'Gujarat']
+  },
+  {
+    bookId: 'BDL-CL-URD-001',
+    title: 'Diwan-e-Ghalib (Complete Urdu Ghazals)',
+    originalScriptTitle: 'دیوانِ غالب (مکمل اردو کلام)',
+    author: 'Mirza Asadullah Khan Ghalib',
+    originalAuthor: 'مرزا اسد اللہ خاں غالب (۱۸۴۱)',
+    isbn: '978-0195470001',
+    publisher: 'Oxford World Literature Heritage (First Edition: 1841)',
+    publicationYear: 1841,
+    era: '18th & 19th Century (1700 - 1900)',
+    category: 'Ancient Epics & Poetry',
+    language: 'Urdu',
+    description: 'The monumental collection of Urdu poetry by Delhi\'s greatest Mughal-era mystic poet Mirza Ghalib, exploring existential longing, love, mortality, and wit.',
+    coverImage: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=600&auto=format&fit=crop&q=80',
+    shelf: 'Urdu & Persian Wing - U1',
+    rack: 'Rack U-01',
+    totalCopies: 5,
+    availableCopies: 5,
+    status: 'Available',
+    isNewArrival: false,
+    isPopular: true,
+    isFeatured: true,
+    rating: 5.0,
+    reviewsCount: 390,
+    tags: ['Urdu', 'Ghalib', 'Ghazal', 'Poetry', 'Mughal Delhi'],
+    chapters: [
+      {
+        title: 'غزل ۱: دلِ ناداں تجھے ہوا کیا ہے (O Foolish Heart, What Afflicts Thee?)',
+        originalText: `دلِ ناداں تجھے ہوا کیا ہے؟
+آخر اس درد کی دوا کیا ہے؟
+
+ہم ہیں مشتاق اور وہ بیزار،
+یا الٰہی یہ ماجرا کیا ہے؟
+
+ہم کو ان سے وفا کی ہے امید،
+جو نہیں جانتے وفا کیا ہے!
+
+ہاں بھلا کر ترا بھلا ہوگا،
+اور درویش کی صدا کیا ہے؟
+
+جان تم پر نثار کرتا ہوں،
+میں نہیں جانتا دعا کیا ہے!
+
+میں نے مانا کہ کچھ نہیں غالبؔ،
+مفت ہاتھ آئے تو برا کیا ہے؟`,
+        englishTranslation: 'O foolish heart, what has come over thee? What cure exists for this boundless yearning? We are overflowing with eager love, while they remain indifferent; O Lord, what riddle of destiny is this? We expect fidelity from those who do not even recognize what faithfulness means!'
+      },
+      {
+        title: 'غزل ۲: ہزاروں خواہشیں ایسی کہ ہر خواہش پہ دم نکلے (Thousands of Desires)',
+        originalText: `ہزاروں خواہشیں ایسی کہ ہر خواہش پہ دم نکلے
+بہت نکلے مرے ارمان لیکن پھر بھی کم نکلے
+
+ڈرے کیوں میرا قاتل کیا رہے گا اس کی گردن پر
+وہ خوں جو چشمِ تر سے عمر بھر یوں دم بدم نکلے
+
+نکلنا خلد سے آدم کا سنتے آئے ہیں لیکن
+بہت بے آبرو ہو کر ترے کوچے سے ہم نکلے
+
+محبت میں نہیں ہے فرق جینے اور مرنے کا
+اسی کو دیکھ کر جیتے ہیں جس کافر پہ دم نکلے`,
+        englishTranslation: 'Thousands of desires, each so intense that with every yearning breath departs; many of my longings were fulfilled, yet so few they still seem! In love there is no difference between living and dying: we draw life only by beholding that unsparing beauty for whom we perish!'
+      },
+      {
+        title: 'غزل ۳: یہ نہ تھی ہماری قسمت کہ وصالِ یار ہوتا (It Was Not Destined)',
+        originalText: `یہ نہ تھی ہماری قسمت کہ وصالِ یار ہوتا
+اگر اور جیتے رہتے یہی انتظار ہوتا
+
+ترے وعدے پر جیے ہم تو یہ جان جھوٹ جانا
+کہ خوشی سے مر نہ جاتے اگر اعتبار ہوتا
+
+کوئی میرے دل سے پوچھے ترے تیرِ نیم کش کو
+یہ خلش کہاں سے ہوتی جو جگر کے پار ہوتا`,
+        englishTranslation: 'It was never our destiny that union with the beloved be realized; had we lived on and on, this very longing would have remained! Ask my heart about the half-drawn arrow: whence would this exquisite ache arise had it pierced straight through the breast?'
+      }
+    ]
   }
 ];
 

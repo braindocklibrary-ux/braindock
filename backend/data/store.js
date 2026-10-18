@@ -38,7 +38,7 @@ class DataStore {
         isDigital: true,
         hasPdf: true,
         pdfPages: fullChapters.length * 15 + 10,
-        pdfUrl: `http://localhost:5000/api/books/${b.bookId}/pdf`,
+        pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${b.bookId}/pdf`,
         downloadPdfFilename: `${(b.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
         status: 'Online Available'
       };
@@ -402,7 +402,7 @@ class DataStore {
       ...book,
       chapters,
       pdfPages: chapters.length * 15 + 10,
-      pdfUrl: `http://localhost:5000/api/books/${book.bookId}/pdf`,
+      pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId}/pdf`,
       downloadPdfFilename: `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`
     };
   }
@@ -416,7 +416,7 @@ class DataStore {
       isDigitalArchive: true,
       hasPdf: true,
       pdfPages: chapters.length * 15 + 10,
-      pdfUrl: `http://localhost:5000/api/books/${book.bookId || 'new'}/pdf`,
+      pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId || 'new'}/pdf`,
       downloadPdfFilename: `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
       totalCopies: Number(book.totalCopies) || 5,
       availableCopies: Number(book.availableCopies ?? book.totalCopies) || 5,

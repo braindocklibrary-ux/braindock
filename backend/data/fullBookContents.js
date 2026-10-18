@@ -199,6 +199,138 @@ export const detailedBookContents = {
         'Never miss twice: bad days happen, but rebound immediately to protect momentum.'
       ]
     }
+  ],
+
+  // 3. Diwan-e-Ghalib (Mirza Asadullah Khan Ghalib - 1841)
+  'BDL-CL-URD-001': [
+    {
+      title: 'غزل ۱: دلِ ناداں تجھے ہوا کیا ہے (O Foolish Heart, What Afflicts Thee?)',
+      originalText: `دلِ ناداں تجھے ہوا کیا ہے؟
+آخر اس درد کی دوا کیا ہے؟
+
+ہم ہیں مشتاق اور وہ بیزار،
+یا الٰہی یہ ماجرا کیا ہے؟
+
+ہم کو ان سے وفا کی ہے امید،
+جو نہیں جانتے وفا کیا ہے!
+
+ہاں بھلا کر ترا بھلا ہوگا،
+اور درویش کی صدا کیا ہے؟
+
+جان تم پر نثار کرتا ہوں،
+میں نہیں جانتا دعا کیا ہے!
+
+میں نے مانا کہ کچھ نہیں غالبؔ،
+مفت ہاتھ آئے تو برا کیا ہے؟`,
+      englishTranslation: 'O foolish heart, what has come over thee? What cure exists for this boundless yearning? We are overflowing with eager love, while they remain indifferent; O Lord, what riddle of destiny is this? We expect fidelity from those who do not even recognize what faithfulness means! Do good, and good will come back to thee—what else is the calling of a wandering dervish? I surrender my soul unto thee; I know not any other prayer! I concede that Ghalib is of little account, but if obtained for free, what is the loss?',
+      fullText: `دیوانِ غالب کا تعارف و تفہیم:
+یہ غزل اردو شاعری کی تاریخ کا ایک شاہکار ہے۔ مرزا غالب نے اس میں انسانی وجود کی کشمکش، آرزوؤں کی بے ثباتی اور روحانی رغبت کو نہایت سادگی مگر غیر معمولی فکری گہرائی کے ساتھ بیان کیا ہے۔ ہر شعر معرفت، خود کلامی اور سچائی کا آئینہ دار ہے۔`,
+      keyTakeaways: [
+        'The timeless existential dialogue between the restless human heart and destiny.',
+        'Explores the irony of expecting fidelity from an indifferent world.',
+        'Masterful use of self-irony and philosophical detachment in the concluding makhta.'
+      ]
+    },
+    {
+      title: 'غزل ۲: ہزاروں خواہشیں ایسی کہ ہر خواہش پہ دم نکلے (Thousands of Desires)',
+      originalText: `ہزاروں خواہشیں ایسی کہ ہر خواہش پہ دم نکلے
+بہت نکلے مرے ارمان لیکن پھر بھی کم نکلے
+
+ڈرے کیوں میرا قاتل کیا رہے گا اس کی گردن پر
+وہ خوں جو چشمِ تر سے عمر بھر یوں دم بدم نکلے
+
+نکلنا خلد سے آدم کا سنتے آئے ہیں لیکن
+بہت بے آبرو ہو کر ترے کوچے سے ہم نکلے
+
+محبت میں نہیں ہے فرق جینے اور مرنے کا
+اسی کو دیکھ کر جیتے ہیں جس کافر پہ دم نکلے
+
+کہاں میخانے کا دروازہ غالبؔ اور کہاں واعظ
+پر اتنا جانتے ہیں کل وہ جاتا تھا کہ ہم نکلے`,
+      englishTranslation: 'Thousands of desires, each so intense that with every yearning breath departs; many of my longings were fulfilled, yet so few they still seem! Why should my beloved assassin fear retribution? What blood rests upon their neck when it has already drained through weeping eyes all lifetime? We heard of Adam’s banishment from Eden, but with far greater humiliation was I cast out from your street! In love there is no difference between living and dying: we draw life only by beholding that unsparing beauty for whom we perish!',
+      fullText: `فکری تجزیہ:
+یہ غزل غالب کے سب سے زیادہ گائے اور پڑھے جانے والے کلام میں شمار ہوتی ہے۔ انسان کی لامتناہی تمناؤں اور کائنات کی حدود کے مابین جو ازلی ٹکراؤ ہے، غالب نے اسے ایک کائناتی سچائی کی شکل دی ہے۔ انسان کتنا ہی حاصل کر لے، اس کی تسکین ناپید رہتی ہے۔`,
+      keyTakeaways: [
+        'Exploration of infinite human desire constrained by mortal finiteness.',
+        'Contrast between spiritual exile and the biblical/quranic descent of humanity.',
+        'Sublime poetic paradox: love as the simultaneous catalyst of life and dissolution.'
+      ]
+    },
+    {
+      title: 'غزل ۳: یہ نہ تھی ہماری قسمت کہ وصالِ یار ہوتا (It Was Not Destined)',
+      originalText: `یہ نہ تھی ہماری قسمت کہ وصالِ یار ہوتا
+اگر اور جیتے رہتے یہی انتظار ہوتا
+
+ترے وعدے پر جیے ہم تو یہ جان جھوٹ جانا
+کہ خوشی سے مر نہ جاتے اگر اعتبار ہوتا
+
+کوئی میرے دل سے پوچھے ترے تیرِ نیم کش کو
+یہ خلش کہاں سے ہوتی جو جگر کے پار ہوتا
+
+کہوں کس سے میں کہ کیا ہے شبِ غم بری بلا ہے
+مجھے کیا برا تھا مرنا اگر ایک بار ہوتا
+
+ہوئے مر کے ہم جو رسوا ہوئے کیوں نہ غرقِ دریا
+نہ کبھی جنازہ اٹھتا نہ کہیں مزار ہوتا`,
+      englishTranslation: 'It was never our destiny that union with the beloved be realized; had we lived on and on, this very longing would have remained! If I survived on the promise of your word, know that it was only disbelief—would I not have perished from sheer joy had I truly believed? Ask my heart about the half-drawn arrow: whence would this exquisite ache arise had it pierced straight through the breast? To whom can I lament the torment of the night of sorrow? Death would have been welcome, had it come but once!',
+      fullText: `شرح و پس منظر:
+غمِ ہستی اور حسرت کا عروج اس غزل میں نظر آتا ہے۔ نیم کش تیر کا استعارہ اردو شاعری کا عظیم ترین استعارہ سمجھا جاتا ہے، جہاں تڑپ اور کشمکش خود حاصلِ زیست بن جاتی ہے۔`,
+      keyTakeaways: [
+        'The celebrated metaphor of the "half-drawn arrow" lingering in the heart.',
+        'The torment of protracted anticipation versus decisive closure.',
+        'Stoic resignation transcending melancholy through lyrical elegance.'
+      ]
+    },
+    {
+      title: 'غزل ۴: ابنِ مریم ہوا کرے کوئی (Let the Son of Mary Heal)',
+      originalText: `ابنِ مریم ہوا کرے کوئی
+میرے دکھ کی دوا کرے کوئی
+
+شرع و آئین پر مدار سہی
+ایسے قاتل کا کیا کرے کوئی
+
+چال جیسے کڑی کمان کا تیر
+دل میں ایسے کے جا کرے کوئی
+
+بات پر واں زباں کٹتی ہے
+وہ کہیں اور سنا کرے کوئی
+
+بک رہا ہوں جنوں میں کیا کیا کچھ
+کچھ نہ سمجھے خدا کرے کوئی`,
+      englishTranslation: 'Let someone be the miraculous Son of Mary—let someone actually cure my sorrow! Granted that society rests upon law and ordinance, what retribution can be sought against such a mesmerizing destroyer? Her gait is like an arrow released from a drawn bow: who can escape entering such a heart? There, uttering a word costs one their tongue; she speaks, and let all creation merely listen! What raving words am I murmuring in my madness? God grant that no one comprehends my utterance!',
+      fullText: `صوفیانہ و ادبی مفہوم:
+عقل اور جنون کے مابین لطیف حد فاصل۔ غالب کائنات کے معالجوں کو چیلنج کرتے ہیں کہ وہ مادی ادویات سے باطنی اور وجودی خلش کا علاج کر کے دکھائیں۔`,
+      keyTakeaways: [
+        'Challenge to worldly healers against the incurable ache of existence.',
+        'The poetic frenzy where speech borders on sacred madness.',
+        'Celebration of beauty as an overwhelming sovereign force.'
+      ]
+    },
+    {
+      title: 'غزل ۵: بازیچۂ اطفال ہے دنیا مرے آگے (The World Is a Playground for Children)',
+      originalText: `بازیچۂ اطفال ہے دنیا مرے آگے
+ہوتا ہے شب و روز تماشا مرے آگے
+
+اک کھیل ہے اورنگِ سلیماں مرے نزدیک
+اک بات ہے اعجازِ مسیحا مرے آگے
+
+جز نام نہیں صورتِ عالم مجھے منظور
+جز وہم نہیں ہستیِ اشیا مرے آگے
+
+پوچھ مت رسوائیِ اندازِ دیدۂ اشتیاق
+حیرتِ نظارہ سوسو بار رسوا ہو گئی
+
+مت پوچھ کہ کیا حال ہے میرا ترے پیچھے
+تو دیکھ کہ کیا رنگ ہے تیرا مرے آگے`,
+      englishTranslation: 'A mere playground for children is this world before me; day and night, an ephemeral spectacle unfolds before my eyes! The throne of Solomon is a trifling plaything in my estimation; the miracles of the Messiah are commonplace occurrences before my vision! Nothing beyond mere labels do I accept as the form of the universe; nothing beyond illusion is the reality of physical objects before me! Ask me not what state I am in behind thy back—behold rather what radiance thou acquirest in my presence!',
+      fullText: `کائناتی و مابعد الطبیعاتی نقطۂ نظر:
+یہ غزل غالب کی سب سے بلند فلسفیانہ پرواز ہے۔ اس میں شنکر آچاریہ کے مایا (عالمِ وہم) اور تصوف کے وحدت الوجود کی آمیزش ملتی ہے۔ دنیا کی تمام شان و شوکت اور معجزات شاعر کے آزاد شعور کے سامنے محض ایک کھیل ہیں۔`,
+      keyTakeaways: [
+        'High metaphysical philosophy: the physical cosmos viewed as Maya/Illusion.',
+        'Transcendent intellectual freedom: rejecting institutional reverence for mere worldly crowns.',
+        'The observer conferring ultimate reality and glory upon the observed.'
+      ]
+    }
   ]
 };
 

@@ -383,8 +383,8 @@ router.get('/books/:id', async (req, res) => {
     const iaId = book.bookId.replace('IA-', '');
     embedReaderUrl = `https://archive.org/embed/${iaId}`;
     pdfUrl = pdfUrl || `https://archive.org/download/${iaId}/${iaId}.pdf`;
-  } else if (!pdfUrl) {
-    pdfUrl = `http://localhost:5000/api/books/${book.bookId}/pdf`;
+  } else if (!pdfUrl || pdfUrl.includes('localhost:5000')) {
+    pdfUrl = `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId}/pdf`;
   }
 
   const chapters = getFullChaptersForBook(book);
