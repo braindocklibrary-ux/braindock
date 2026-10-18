@@ -16,10 +16,12 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config';
+import { fallbackStudyRooms } from '../data/fallbackData';
 
 export default function StudyRoomsPage() {
   const { user } = useAuth();
-  const [rooms, setRooms] = useState([]);
+  const [rooms, setRooms] = useState(fallbackStudyRooms);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedSlot, setSelectedSlot] = useState('10:00 AM - 12:00 PM');
@@ -28,16 +30,17 @@ export default function StudyRoomsPage() {
   const [userBookings, setUserBookings] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/rooms')
+    fetch(`${API_BASE_URL}/api/rooms`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
+        if (data.success && data.data && data.data.length > 0) {
           setRooms(data.data);
           if (data.bookings) {
             setUserBookings(data.bookings);
           }
         }
-      });
+      })
+      .catch(() => {});
   }, []);
 
   const timeSlots = [
@@ -53,7 +56,7 @@ export default function StudyRoomsPage() {
     e.preventDefault();
     if (!selectedRoom) return;
 
-    fetch('http://localhost:5000/api/rooms/book', {
+    fetch(`${API_BASE_URL}/api/rooms/book`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

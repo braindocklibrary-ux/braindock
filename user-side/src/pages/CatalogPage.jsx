@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import BookCard from '../components/BookCard';
 import DigitalReaderModal from '../components/DigitalReaderModal';
+import { API_BASE_URL } from '../config';
+import { fallbackBooks } from '../data/fallbackData';
 
 export default function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,8 +24,8 @@ export default function CatalogPage() {
   const initialCategory = searchParams.get('category') || 'All';
   const initialLanguage = searchParams.get('language') || 'All';
 
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [books, setBooks] = useState(fallbackBooks);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedLanguage, setSelectedLanguage] = useState(initialLanguage);
@@ -69,17 +71,27 @@ export default function CatalogPage() {
   const fetchSuggestions = async (term) => {
     setSuggestionsLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/books/suggestions?q=${encodeURIComponent(term)}`);
+      const res = await fetch(`${API_BASE_URL}/api/books/suggestions?q=${encodeURIComponent(term)}`);
       const data = await res.json();
       if (data.success && data.suggestions && data.suggestions.length > 0) {
         setSuggestions(data.suggestions);
         setShowSuggestions(true);
       } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
+        // Fallback local suggestions
+        const matches = fallbackBooks
+          .filter(b => b.title.toLowerCase().includes(term.toLowerCase()) || b.author.toLowerCase().includes(term.toLowerCase()))
+          .slice(0, 5)
+          .map(b => ({ title: b.title, author: b.author, category: b.category }));
+        setSuggestions(matches);
+        setShowSuggestions(matches.length > 0);
       }
     } catch (err) {
-      console.error('Error fetching suggestions:', err);
+      const matches = fallbackBooks
+        .filter(b => b.title.toLowerCase().includes(term.toLowerCase()) || b.author.toLowerCase().includes(term.toLowerCase()))
+        .slice(0, 5)
+        .map(b => ({ title: b.title, author: b.author, category: b.category }));
+      setSuggestions(matches);
+      setShowSuggestions(matches.length > 0);
     } finally {
       setSuggestionsLoading(false);
     }
@@ -125,7 +137,7 @@ export default function CatalogPage() {
     let localBooks = [];
 
     try {
-      let url = 'http://localhost:5000/api/books?';
+      let url = `${API_BASE_URL}/api/books?`;
       if (selectedCategory !== 'All') url += `&category=${encodeURIComponent(selectedCategory)}`;
       if (selectedLanguage !== 'All') url += `&language=${encodeURIComponent(selectedLanguage)}`;
       if (sortBy) url += `&sort=${encodeURIComponent(sortBy)}`;
@@ -133,7 +145,7 @@ export default function CatalogPage() {
 
       const res = await fetch(url);
       const data = await res.json();
-      if (data.success && data.data) {
+      if (data.success && data.data && data.data.length > 0) {
         localBooks = data.data;
       }
     } catch (err) {
@@ -145,7 +157,7 @@ export default function CatalogPage() {
     if (search.trim().length > 0) {
       try {
         const queryTerm = search.trim();
-        let gUrl = `http://localhost:5000/api/books/global-search?search=${encodeURIComponent(queryTerm)}`;
+        let gUrl = `${API_BASE_URL}/api/books/global-search?search=${encodeURIComponent(queryTerm)}`;
         if (selectedLanguage !== 'All') gUrl += `&language=${encodeURIComponent(selectedLanguage)}`;
         
         const gRes = await fetch(gUrl);
@@ -158,7 +170,37 @@ export default function CatalogPage() {
       }
     }
 
-    setBooks([...localBooks, ...globalBooks]);
+    let finalBooks = [...localBooks, ...globalBooks];
+    
+    // Fallback: if server returned empty, apply local filters to fallbackBooks
+    if (finalBooks.length === 0) {
+      let filtered = [...fallbackBooks];
+      if (selectedCategory !== 'All') {
+        filtered = filtered.filter(b => b.category === selectedCategory);
+      }
+      if (selectedLanguage !== 'All') {
+        filtered = filtered.filter(b => b.language === selectedLanguage);
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        filtered = filtered.filter(b => 
+          b.title.toLowerCase().includes(q) || 
+          b.author.toLowerCase().includes(q) ||
+          (b.tags && b.tags.some(t => t.toLowerCase().includes(q))) ||
+          (b.description && b.description.toLowerCase().includes(q))
+        );
+      }
+      if (sortBy === 'popular') {
+        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      } else if (sortBy === 'rating') {
+        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      } else if (sortBy === 'year') {
+        filtered.sort((a, b) => (b.publicationYear || 0) - (a.publicationYear || 0));
+      }
+      finalBooks = filtered;
+    }
+
+    setBooks(finalBooks);
     setLoading(false);
   };
 
@@ -174,11 +216,16 @@ export default function CatalogPage() {
     setSelectedLanguage('All');
     setSortBy('popular');
     setSearchParams({});
-    fetch('http://localhost:5000/api/books')
+    fetch(`${API_BASE_URL}/api/books`)
       .then(res => res.json())
       .then(data => {
-        if (data.success) setBooks(data.data);
-      });
+        if (data.success && data.data && data.data.length > 0) {
+          setBooks(data.data);
+        } else {
+          setBooks(fallbackBooks);
+        }
+      })
+      .catch(() => setBooks(fallbackBooks));
   };
 
   const handleReadOnline = (book) => {
@@ -187,7 +234,7 @@ export default function CatalogPage() {
 
   const handleDownloadPdf = (book) => {
     setToastMessage(`Downloading E-Book / PDF for "${book.title}"...`);
-    const downloadUrl = book.pdfUrl || `http://localhost:5000/api/books/${book.bookId}/pdf`;
+    const downloadUrl = book.pdfUrl || `${API_BASE_URL}/api/books/${book.bookId}/pdf`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.target = '_blank';

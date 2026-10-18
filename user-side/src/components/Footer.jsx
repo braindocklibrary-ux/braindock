@@ -62,7 +62,7 @@ export default function Footer() {
                   <ArrowRight className="w-3 h-3" />
                 </Link>
               </li>
-              <li><Link to="/student-portal" className="hover:text-purple-700 transition-colors font-medium">Biometric Attendance Logs</Link></li>
+              <li><Link to="/student-portal?tab=attendance" className="hover:text-purple-700 transition-colors font-medium">Biometric Attendance Logs</Link></li>
               <li><Link to="/events" className="hover:text-purple-700 transition-colors font-medium">Workshops & Events</Link></li>
               <li><Link to="/announcements" className="hover:text-purple-700 transition-colors font-medium">Official Announcements</Link></li>
               <li><Link to="/gallery" className="hover:text-purple-700 transition-colors font-medium">Virtual Photo Tour</Link></li>
@@ -117,7 +117,7 @@ export default function Footer() {
 
         {/* Bottom Legal & Copyright Bar */}
         <div className="pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3 text-center sm:text-left">
-          <p>© {new Date().getFullYear()} Brain Dock Library. All Rights Reserved.</p>
+          <p>{`© ${new Date().getFullYear()} Brain Dock Library. All Rights Reserved.`}</p>
           
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-x-5 gap-y-1.5 text-xs">
             <Link to="/rules" className="hover:text-purple-700 transition-colors">Library Rules</Link>

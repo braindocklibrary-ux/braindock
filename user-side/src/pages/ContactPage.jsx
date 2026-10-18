@@ -10,6 +10,7 @@ import {
   Sparkles,
   ExternalLink
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function ContactPage() {
   const [name, setName] = useState('');
@@ -21,7 +22,7 @@ export default function ContactPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    fetch('http://localhost:5000/api/contact', {
+    fetch(`${API_BASE_URL}/api/contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, phone, subject, message })

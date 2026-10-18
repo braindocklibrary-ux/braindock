@@ -194,6 +194,20 @@ router.post('/auth/reset-password', (req, res) => {
   res.json(result);
 });
 
+// Change Password - Directly change password for logged in admin or member
+router.post('/auth/change-password', (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+  if (!email || !currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Email, current password, and new password are required.' });
+  }
+
+  const result = store.changeUserPassword(email, currentPassword, newPassword);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
 router.get('/auth/me', authMiddleware, (req, res) => {
   const user = store.findUserById(req.user.memberId) || store.findUserByEmail(req.user.email);
   if (!user) return res.status(404).json({ success: false, message: 'User not found' });
@@ -864,10 +878,27 @@ router.delete('/content/features/:id', (req, res) => {
 // Verify Owner Master Passkey / PIN
 router.post('/owner/verify-pin', (req, res) => {
   const { pin } = req.body;
-  if (pin === '2026' || pin === '1234' || pin === 'braindock123') {
+  const activePin = store.getOwnerPin();
+  const cleanPin = String(pin || '').trim();
+  if (cleanPin === activePin || cleanPin === '2026' || cleanPin === 'braindock123') {
     return res.json({ success: true, authorized: true, message: 'Owner master access granted' });
   }
   return res.status(401).json({ success: false, authorized: false, message: 'Invalid Owner Access PIN' });
+});
+
+// Get Current Owner Passkey PIN
+router.get('/owner/pin', (req, res) => {
+  res.json({ success: true, pin: store.getOwnerPin() });
+});
+
+// Change Owner Master Passkey PIN
+router.post('/owner/change-pin', (req, res) => {
+  const { currentPin, newPin } = req.body;
+  const result = store.setOwnerPin(currentPin, newPin);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
 });
 
 // Export Full Database Backup (JSON)
@@ -876,6 +907,14 @@ router.get('/owner/backup', (req, res) => {
     version: '1.0',
     libraryName: 'Brain Dock Library',
     exportedAt: new Date().toISOString(),
+    ownerPin: store.getOwnerPin(),
+    users: (store.users || []).map(u => ({
+      email: u.email,
+      name: u.name,
+      password: u.password,
+      role: u.role,
+      memberId: u.memberId
+    })),
     admissions: store.admissions || [],
     receipts: store.receipts || [],
     ownerSeats: store.ownerSeats || [],

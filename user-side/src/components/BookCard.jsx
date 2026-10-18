@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Star, BookOpen, Download, Sparkles, Globe, FileText } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function BookCard({ book, onReadOnline, onDownloadPdf }) {
   const handleRead = (e) => {
@@ -19,7 +20,7 @@ export default function BookCard({ book, onReadOnline, onDownloadPdf }) {
     if (onDownloadPdf) {
       onDownloadPdf(book);
     } else {
-      const url = book.pdfUrl || `http://localhost:5000/api/books/${book.bookId}/pdf`;
+      const url = book.pdfUrl || `${API_BASE_URL}/api/books/${book.bookId}/pdf`;
       window.open(url, '_blank');
     }
   };

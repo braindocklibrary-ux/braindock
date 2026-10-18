@@ -691,14 +691,14 @@ export default function Interactive3DSeatMap({
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 
-                {/* Girl Washroom */}
+                {/* Girls' Washroom */}
                 <div className="bg-pink-50/70 border border-pink-200 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
                   <div className="flex items-center space-x-2.5">
                     <div className="p-2 rounded-xl bg-pink-100 text-pink-700 border border-pink-200">
                       <DoorOpen className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-pink-900">Girl Washroom</h4>
+                      <h4 className="text-xs font-bold text-pink-900">Girls' Washroom</h4>
                       <p className="text-[9px] text-pink-600">Clean & Hygienic</p>
                     </div>
                   </div>
@@ -707,14 +707,14 @@ export default function Interactive3DSeatMap({
                   </span>
                 </div>
 
-                {/* Boy Washroom */}
+                {/* Boys' Washroom */}
                 <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-2xl flex items-center justify-between shadow-2xs">
                   <div className="flex items-center space-x-2.5">
                     <div className="p-2 rounded-xl bg-blue-100 text-blue-700 border border-blue-200">
                       <DoorOpen className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-blue-900">Boy Washroom</h4>
+                      <h4 className="text-xs font-bold text-blue-900">Boys' Washroom</h4>
                       <p className="text-[9px] text-blue-600">Sanitized Daily</p>
                     </div>
                   </div>

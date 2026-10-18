@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Calendar, Pin, AlertCircle, Info, Sparkles } from 'lucide-react';
+import { API_BASE_URL } from '../config';
+import { fallbackAnnouncements } from '../data/fallbackData';
 
 export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState([]);
+  const [announcements, setAnnouncements] = useState(fallbackAnnouncements);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/announcements')
+    fetch(`${API_BASE_URL}/api/announcements`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
+        if (data.success && data.data && data.data.length > 0) {
           setAnnouncements(data.data);
         }
-      });
+      })
+      .catch(() => {});
   }, []);
 
   return (

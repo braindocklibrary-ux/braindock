@@ -1,55 +1,28 @@
 import React, { useState } from 'react';
-import { Search, ChevronDown, HelpCircle, Sparkles } from 'lucide-react';
+import { Search, ChevronDown, HelpCircle, Sparkles, RotateCcw } from 'lucide-react';
+import { fallbackFaqs } from '../data/fallbackData';
 
 export default function FaqPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [openIdx, setOpenIdx] = useState(null);
 
-  const faqs = [
-    {
-      category: 'Membership',
-      q: 'How do I activate my Brain Dock Digital Membership Card?',
-      a: 'Once you sign up and choose a membership plan, your Digital Membership Card is instantly generated in your Member Portal. You can view the live QR code, save it to Apple/Google Wallet, or download a printable PDF copy.'
-    },
-    {
-      category: 'Circulation',
-      q: 'Can I renew my borrowed books online without visiting the library?',
-      a: 'Yes! Navigate to your Member Portal > Currently Issued Books and click "Renew Online". As long as another member has not reserved the volume and you have renewals remaining, your loan period extends by 14 to 21 days.'
-    },
-    {
-      category: 'Hours & Access',
-      q: 'How does 24/7 night access work?',
-      a: 'All enrolled students across both membership plans are registered in our biometric access controller. You can punch in via fingerprint or face recognition 24/7 for seamless entry.'
-    },
-    {
-      category: 'Study Pods',
-      q: 'How do I reserve a Turing Soundproof Pod?',
-      a: 'Head over to the Study Rooms page, select your preferred suite, choose an available date and 2-hour slot, and confirm. Your reservation confirmation will be delivered to your portal.'
-    },
-    {
-      category: 'Fines & Payments',
-      q: 'How are overdue book fines calculated and settled?',
-      a: 'A nominal fine of ₹10 per day is calculated after the loan period expires. You can settle fines in seconds via UPI QR directly from the Member Portal under Fines & Payments.'
-    },
-    {
-      category: 'Facilities',
-      q: 'Can I bring my own laptop and external monitors?',
-      a: 'Absolutely. Every single reading desk and study pod features individual 65W USB-C charging, universal power strips, and low-latency Wi-Fi 7 mesh. Select pods also feature built-in 4K external displays.'
-    },
-    {
-      category: 'Membership',
-      q: 'Can I switch or upgrade my membership plan midway?',
-      a: 'Yes, upgrades take effect immediately and previous unused balances are prorated toward your new plan tier.'
-    }
-  ];
+  const faqs = fallbackFaqs;
 
   const categories = ['All', 'Membership', 'Circulation', 'Hours & Access', 'Study Pods', 'Fines & Payments', 'Facilities'];
 
+  const normalizedSearch = search.toLowerCase().trim().replace(/[\s-_]/g, '');
+
   const filteredFaqs = faqs.filter(f => {
     const matchesCat = activeCategory === 'All' || f.category === activeCategory;
-    const matchesSearch = f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase());
-    return matchesCat && matchesSearch;
+    if (!matchesCat) return false;
+    if (!normalizedSearch) return true;
+
+    const qNorm = f.q.toLowerCase().replace(/[\s-_]/g, '');
+    const aNorm = f.a.toLowerCase().replace(/[\s-_]/g, '');
+    const tagMatch = f.tags && f.tags.some(t => t.toLowerCase().replace(/[\s-_]/g, '').includes(normalizedSearch));
+
+    return qNorm.includes(normalizedSearch) || aNorm.includes(normalizedSearch) || tagMatch;
   });
 
   return (
@@ -87,7 +60,7 @@ export default function FaqPage() {
             <button
               key={c}
               onClick={() => setActiveCategory(c)}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeCategory === c 
                   ? 'bg-purple-700 text-white shadow-sm' 
                   : 'bg-white text-slate-600 hover:bg-purple-50 border border-purple-100'
@@ -98,31 +71,54 @@ export default function FaqPage() {
           ))}
         </div>
 
-        {/* FAQ Accordion List */}
-        <div className="space-y-4">
-          {filteredFaqs.map((faq, idx) => (
-            <div key={idx} className="bg-white rounded-2xl border border-purple-100 overflow-hidden shadow-sm">
-              <button 
-                onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
-                className="w-full p-5 text-left font-bold text-slate-900 flex items-center justify-between hover:text-purple-700 transition-colors"
-              >
-                <div className="flex items-center space-x-3 pr-4">
-                  <span className="text-xs bg-purple-50 text-purple-700 font-mono px-2 py-0.5 rounded border border-purple-200 shrink-0">
-                    {faq.category}
-                  </span>
-                  <span className="text-sm sm:text-base">{faq.q}</span>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-purple-600 shrink-0 transition-transform ${openIdx === idx ? 'rotate-180' : ''}`} />
-              </button>
+        {/* FAQ Accordion List or Empty Feedback */}
+        {filteredFaqs.length > 0 ? (
+          <div className="space-y-4">
+            {filteredFaqs.map((faq, idx) => (
+              <div key={idx} className="bg-white rounded-2xl border border-purple-100 overflow-hidden shadow-sm">
+                <button 
+                  onClick={() => setOpenIdx(openIdx === idx ? null : idx)}
+                  aria-expanded={openIdx === idx}
+                  className="w-full p-5 text-left font-bold text-slate-900 flex items-center justify-between hover:text-purple-700 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-3 pr-4">
+                    <span className="text-xs bg-purple-50 text-purple-700 font-mono px-2 py-0.5 rounded border border-purple-200 shrink-0">
+                      {faq.category}
+                    </span>
+                    <span className="text-sm sm:text-base">{faq.q}</span>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-purple-600 shrink-0 transition-transform ${openIdx === idx ? 'rotate-180' : ''}`} />
+                </button>
 
-              {openIdx === idx && (
-                <div className="px-6 pb-6 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-purple-50 pt-3">
-                  {faq.a}
-                </div>
-              )}
+                {openIdx === idx && (
+                  <div className="px-6 pb-6 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-purple-50 pt-3">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Empty State Feedback (QA-09) */
+          <div className="text-center py-12 bg-white rounded-3xl border border-purple-100 p-8 space-y-4 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mx-auto border border-purple-200">
+              <HelpCircle className="w-7 h-7" />
             </div>
-          ))}
-        </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-extrabold text-slate-900">No Matching Questions Found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                We couldn't find any questions matching <strong className="text-purple-900">"{search}"</strong>. Try checking your spelling or use general keywords like "wifi", "pods", or "renew".
+              </p>
+            </div>
+            <button
+              onClick={() => { setSearch(''); setActiveCategory('All'); }}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filters & Show All FAQs</span>
+            </button>
+          </div>
+        )}
 
       </div>
     </div>

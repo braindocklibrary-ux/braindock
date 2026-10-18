@@ -159,6 +159,24 @@ export default function OwnerPortal() {
   const [pushingDrive, setPushingDrive] = useState(false);
   const [loadingDriveStatus, setLoadingDriveStatus] = useState(false);
 
+  // Security Credentials Modal State (Change Password & PIN)
+  const [securityModalOpen, setSecurityModalOpen] = useState(false);
+  const [securityTab, setSecurityTab] = useState('password'); // 'password' | 'pin'
+  const [secEmail, setSecEmail] = useState(currentStaff?.email || 'admin@braindock.com');
+  const [secCurrentPassword, setSecCurrentPassword] = useState('');
+  const [secNewPassword, setSecNewPassword] = useState('');
+  const [secConfirmPassword, setSecConfirmPassword] = useState('');
+  const [secPassLoading, setSecPassLoading] = useState(false);
+  const [secPassMsg, setSecPassMsg] = useState(null);
+  const [secPassErr, setSecPassErr] = useState(null);
+
+  const [secCurrentPin, setSecCurrentPin] = useState('');
+  const [secNewPin, setSecNewPin] = useState('');
+  const [secConfirmPin, setSecConfirmPin] = useState('');
+  const [secPinLoading, setSecPinLoading] = useState(false);
+  const [secPinMsg, setSecPinMsg] = useState(null);
+  const [secPinErr, setSecPinErr] = useState(null);
+
   // Comprehensive Admission Form Initial State (Sections 01 to 05)
   const initialAdmForm = {
     // 01 Personal Details
@@ -431,6 +449,8 @@ export default function OwnerPortal() {
         setPaymentModalOpen(false);
         setRenewModalOpen(false);
         setDeleteConfirmModal(null);
+        setDriveModalOpen(false);
+        setSecurityModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -608,15 +628,118 @@ export default function OwnerPortal() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Security PIN Verification
-  const handleVerifyPin = (e) => {
+  // Security PIN Verification (Dynamic API verification + offline fallback)
+  const handleVerifyPin = async (e) => {
     e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/owner/verify-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: masterPin })
+      });
+      const data = await res.json();
+      if (data.success && data.authorized) {
+        setIsUnlocked(true);
+        setPinError('');
+        showToast('Owner access verified! Welcome Director.');
+        return;
+      }
+    } catch (err) {}
+
+    // Fallback offline verification
     if (masterPin === '2026' || masterPin === '1234' || masterPin === 'braindock123') {
       setIsUnlocked(true);
       setPinError('');
       showToast('Owner access verified! Welcome Director.');
     } else {
       setPinError('Invalid Passkey PIN. Please enter the authorized owner PIN.');
+    }
+  };
+
+  // Handle Security Modal: Change Login Password
+  const handleSecurityPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setSecPassErr(null);
+    setSecPassMsg(null);
+    if (!secCurrentPassword) {
+      setSecPassErr('Please enter your current login password.');
+      return;
+    }
+    if (!secNewPassword || secNewPassword.length < 6) {
+      setSecPassErr('New password must be at least 6 characters long.');
+      return;
+    }
+    if (secNewPassword !== secConfirmPassword) {
+      setSecPassErr('New password and confirm password do not match.');
+      return;
+    }
+
+    setSecPassLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: secEmail,
+          currentPassword: secCurrentPassword,
+          newPassword: secNewPassword
+        })
+      });
+      const data = await res.json();
+      setSecPassLoading(false);
+      if (data.success) {
+        setSecPassMsg('✅ Login password changed successfully! Please use your new password next time.');
+        setSecCurrentPassword('');
+        setSecNewPassword('');
+        setSecConfirmPassword('');
+        showToast('Login password updated successfully!');
+      } else {
+        setSecPassErr(data.message || 'Failed to change password.');
+      }
+    } catch (err) {
+      setSecPassLoading(false);
+      setSecPassErr('Network error while changing password.');
+    }
+  };
+
+  // Handle Security Modal: Change Director Passkey PIN
+  const handleSecurityPinSubmit = async (e) => {
+    e.preventDefault();
+    setSecPinErr(null);
+    setSecPinMsg(null);
+    if (!secNewPin || secNewPin.length < 4) {
+      setSecPinErr('New PIN must be at least 4 digits.');
+      return;
+    }
+    if (secNewPin !== secConfirmPin) {
+      setSecPinErr('New PIN and confirm PIN do not match.');
+      return;
+    }
+
+    setSecPinLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/owner/change-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPin: secCurrentPin,
+          newPin: secNewPin
+        })
+      });
+      const data = await res.json();
+      setSecPinLoading(false);
+      if (data.success) {
+        setSecPinMsg('✅ Director Passkey PIN updated successfully!');
+        setSecCurrentPin('');
+        setSecNewPin('');
+        setSecConfirmPin('');
+        showToast('Director Passkey PIN updated successfully!');
+      } else {
+        setSecPinErr(data.message || 'Failed to change PIN.');
+      }
+    } catch (err) {
+      setSecPinLoading(false);
+      setSecPinErr('Network error while changing PIN.');
     }
   };
 
@@ -1109,6 +1232,16 @@ export default function OwnerPortal() {
           >
             <Cloud className="w-3.5 h-3.5 text-amber-600" />
             <span className="hidden sm:inline">Google Drive</span>
+          </button>
+
+          {/* Change Login Password & Security PIN */}
+          <button 
+            onClick={() => setSecurityModalOpen(true)}
+            className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-semibold rounded-xl border border-indigo-200 transition-colors flex items-center space-x-1.5 shadow-xs cursor-pointer"
+            title="Change Login Password & Director Passkey PIN"
+          >
+            <Key className="w-3.5 h-3.5 text-indigo-700" />
+            <span className="hidden sm:inline">Change Password / PIN</span>
           </button>
 
           <button 
@@ -3119,6 +3252,225 @@ export default function OwnerPortal() {
               >
                 Close
               </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 6: SECURITY CREDENTIALS (CHANGE PASSWORD & PIN) ================= */}
+      {securityModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">Security & Access Keys</h3>
+                  <p className="text-[11px] text-slate-500">Change Admin Sign-in Password or Director PIN</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSecurityModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex border-b border-slate-200 px-4 sm:px-6 pt-3 bg-white">
+              <button
+                type="button"
+                onClick={() => setSecurityTab('password')}
+                className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer flex items-center space-x-1.5 ${
+                  securityTab === 'password'
+                    ? 'border-purple-600 text-purple-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Change Login Password</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSecurityTab('pin')}
+                className={`pb-2.5 px-3 text-xs font-semibold border-b-2 transition-colors cursor-pointer flex items-center space-x-1.5 ${
+                  securityTab === 'pin'
+                    ? 'border-purple-600 text-purple-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Change Passkey PIN</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              
+              {securityTab === 'password' ? (
+                /* Tab 1: Change Login Password */
+                <form onSubmit={handleSecurityPasswordSubmit} className="space-y-4 text-xs">
+                  {secPassMsg && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-start space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{secPassMsg}</span>
+                    </div>
+                  )}
+
+                  {secPassErr && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-medium flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{secPassErr}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Account Email</label>
+                    <input 
+                      type="email" 
+                      value={secEmail} 
+                      onChange={(e) => setSecEmail(e.target.value)}
+                      required
+                      placeholder="admin@braindock.com"
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Current Password</label>
+                    <input 
+                      type="password" 
+                      value={secCurrentPassword} 
+                      onChange={(e) => setSecCurrentPassword(e.target.value)}
+                      required
+                      placeholder="Enter current password..."
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">New Password (Min 6 Characters)</label>
+                    <input 
+                      type="password" 
+                      value={secNewPassword} 
+                      onChange={(e) => setSecNewPassword(e.target.value)}
+                      required
+                      placeholder="Enter new password..."
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Confirm New Password</label>
+                    <input 
+                      type="password" 
+                      value={secConfirmPassword} 
+                      onChange={(e) => setSecConfirmPassword(e.target.value)}
+                      required
+                      placeholder="Repeat new password..."
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setSecurityModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={secPassLoading}
+                      className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-semibold transition-all shadow-xs flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>{secPassLoading ? 'Updating...' : 'Update Login Password'}</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Tab 2: Change Director Passkey PIN */
+                <form onSubmit={handleSecurityPinSubmit} className="space-y-4 text-xs">
+                  {secPinMsg && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-start space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{secPinMsg}</span>
+                    </div>
+                  )}
+
+                  {secPinErr && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-medium flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{secPinErr}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Current Passkey PIN</label>
+                    <input 
+                      type="password" 
+                      value={secCurrentPin} 
+                      onChange={(e) => setSecCurrentPin(e.target.value)}
+                      placeholder="Enter current PIN (e.g. 2026)..."
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">New 4-Digit Passkey PIN</label>
+                    <input 
+                      type="password" 
+                      value={secNewPin} 
+                      onChange={(e) => setSecNewPin(e.target.value)}
+                      required
+                      maxLength={8}
+                      placeholder="e.g. 8842"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Confirm New PIN</label>
+                    <input 
+                      type="password" 
+                      value={secConfirmPin} 
+                      onChange={(e) => setSecConfirmPin(e.target.value)}
+                      required
+                      maxLength={8}
+                      placeholder="Repeat new PIN..."
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setSecurityModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={secPinLoading}
+                      className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-semibold transition-all shadow-xs flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>{secPinLoading ? 'Updating...' : 'Update Passkey PIN'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
             </div>
 
           </div>

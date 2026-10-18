@@ -25,6 +25,8 @@ import {
   Monitor
 } from 'lucide-react';
 import BookCard from '../components/BookCard';
+import { API_BASE_URL } from '../config';
+import { fallbackBooks } from '../data/fallbackData';
 
 const getFeatureIcon = (name) => {
   switch (name) {
@@ -49,23 +51,23 @@ const getFeatureIcon = (name) => {
 export default function HomePage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [books, setBooks] = useState([]);
+  const [books, setBooks] = useState(fallbackBooks);
   const [activeTab, setActiveTab] = useState('featured');
   const [faqOpen, setFaqOpen] = useState(null);
   const [statsConfig, setStatsConfig] = useState({ isVisible: false, items: [] });
   const [featuresConfig, setFeaturesConfig] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/books')
+    fetch(`${API_BASE_URL}/api/books`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
+        if (data.success && data.data && data.data.length > 0) {
           setBooks(data.data);
         }
       })
       .catch(() => {});
 
-    fetch('http://localhost:5000/api/content/homepage-stats')
+    fetch(`${API_BASE_URL}/api/content/homepage-stats`)
       .then(res => res.json())
       .then(data => {
         if (data && data.success && data.data) {
@@ -74,7 +76,7 @@ export default function HomePage() {
       })
       .catch(() => {});
 
-    fetch('http://localhost:5000/api/content/features')
+    fetch(`${API_BASE_URL}/api/content/features`)
       .then(res => res.json())
       .then(data => {
         if (data && data.success && data.data) {
@@ -721,7 +723,7 @@ export default function HomePage() {
               <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100" alt="Riddhi Pandya" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Riddhi Pandya</h4>
-                <p className="text-xs text-purple-800 font-semibold">UPSC Aspirant (AIR 42)</p>
+                <p className="text-xs text-purple-800 font-semibold">UPSC CSE (AIR 42)</p>
               </div>
             </div>
           </div>
@@ -774,6 +776,7 @@ export default function HomePage() {
               <div key={idx} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                 <button 
                   onClick={() => setFaqOpen(faqOpen === idx ? null : idx)}
+                  aria-expanded={faqOpen === idx}
                   className="w-full p-5 text-left font-bold text-slate-900 flex items-center justify-between hover:text-purple-700 transition-colors"
                 >
                   <span className="text-sm sm:text-base">{faq.q}</span>

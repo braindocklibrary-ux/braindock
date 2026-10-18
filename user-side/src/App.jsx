@@ -23,6 +23,7 @@ import GalleryPage from './pages/GalleryPage';
 import FaqPage from './pages/FaqPage';
 import ContactPage from './pages/ContactPage';
 import StudentPortalPage from './pages/StudentPortalPage';
+import RegisterPage from './pages/RegisterPage';
 import { PrivacyPolicyPage, TermsPage, NotFoundPage } from './pages/TermsPrivacyPages';
 
 export default function App() {
@@ -60,7 +61,9 @@ export default function App() {
               <Route path="/student" element={<Navigate to="/student-portal" replace />} />
               <Route path="/portal" element={<Navigate to="/student-portal" replace />} />
               <Route path="/login" element={<Navigate to="/student-portal" replace />} />
-              <Route path="/register" element={<Navigate to="/student-portal" replace />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/admission" element={<RegisterPage />} />
+              <Route path="/admissions" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<Navigate to="/student-portal" replace />} />
               <Route path="/dashboard" element={<Navigate to="/student-portal" replace />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   ShieldCheck, 
   Smartphone, 
@@ -28,9 +29,10 @@ import {
   Mail
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, ADMIN_PORTAL_URL } from '../config';
 
 export default function StudentPortalPage() {
+  const [searchParams] = useSearchParams();
   // Authentication State
   const [identifierInput, setIdentifierInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
@@ -71,6 +73,15 @@ export default function StudentPortalPage() {
   useEffect(() => {
     document.title = "Brain Dock Student Portal — Official Student Login & Biometric Attendance | Amreli";
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'attendance') {
+      setTimeout(() => {
+        const el = document.getElementById('attendance-card');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 300);
+    }
+  }, [searchParams, studentData]);
 
   useEffect(() => {
     studentDataRef.current = studentData;
@@ -145,7 +156,7 @@ export default function StudentPortalPage() {
       return;
     }
     if (!target.includes('@') || !target.includes('.')) {
-      setAuthError('Please enter a valid email address (e.g. pansuriyakeval434@gmail.com). Mobile number login is disabled.');
+      setAuthError('Please enter a valid registered email address (e.g. student@gmail.com). Mobile number login is disabled.');
       return;
     }
 
@@ -289,7 +300,7 @@ export default function StudentPortalPage() {
                     type="email"
                     value={identifierInput}
                     onChange={(e) => setIdentifierInput(e.target.value)}
-                    placeholder="e.g. pansuriyakeval434@gmail.com"
+                    placeholder="e.g. student@gmail.com or name@example.com"
                     className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-600 focus:border-purple-600 bg-white text-slate-950 font-bold text-sm tracking-wide shadow-xs placeholder:text-slate-400 placeholder:font-normal opacity-100"
                     required
                     autoFocus
@@ -394,7 +405,7 @@ export default function StudentPortalPage() {
 
           <div className="text-center pt-2">
             <a 
-              href="http://localhost:5174/owner-portal"
+              href={`${ADMIN_PORTAL_URL}/owner-portal`}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-slate-400 hover:text-purple-700 font-medium transition-colors"
@@ -522,7 +533,7 @@ export default function StudentPortalPage() {
           </div>
 
           {/* Card 2: TIMEWATCH Biometric Door Lock Access */}
-          <div className={`rounded-3xl p-6 shadow-xs border flex flex-col justify-between transition-all ${
+          <div id="attendance-card" className={`rounded-3xl p-6 shadow-xs border flex flex-col justify-between transition-all ${
             isExpired 
               ? 'bg-rose-50/70 border-rose-300 text-rose-950' 
               : 'bg-emerald-50/70 border-emerald-300 text-emerald-950'

@@ -19,7 +19,7 @@ export default function GalleryPage() {
     {
       category: 'Library',
       title: 'Curated Open Stacks & Reference Aisles',
-      src: 'https://images.unsplash.com/photo-1507842229451-2e5f5f4b005e?w=1000&auto=format&fit=crop&q=80'
+      src: 'https://images.unsplash.com/photo-1568667256549-094345857637?w=1000&auto=format&fit=crop&q=80'
     },
     {
       category: 'Facilities',

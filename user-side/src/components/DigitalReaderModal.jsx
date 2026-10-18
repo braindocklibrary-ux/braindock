@@ -12,6 +12,7 @@ import {
   RefreshCw,
   AlertTriangle
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function DigitalReaderModal({ book, onClose }) {
   if (!book) return null;
@@ -25,7 +26,7 @@ export default function DigitalReaderModal({ book, onClose }) {
   // Fetch full book data from backend if needed
   useEffect(() => {
     let isMounted = true;
-    fetch(`http://localhost:5000/api/books/${book.bookId}`)
+    fetch(`${API_BASE_URL}/api/books/${book.bookId}`)
       .then(res => res.json())
       .then(data => {
         if (isMounted && data.success && data.data) {
@@ -48,7 +49,7 @@ export default function DigitalReaderModal({ book, onClose }) {
   } else if (activeBook.pdfUrl) {
     liveReaderUrl = `${activeBook.pdfUrl}#toolbar=1&navpanes=1&scrollbar=1&view=FitH`;
   } else {
-    liveReaderUrl = `http://localhost:5000/api/books/${activeBook.bookId}/pdf#toolbar=1&navpanes=1&scrollbar=1&view=FitH`;
+    liveReaderUrl = `${API_BASE_URL}/api/books/${activeBook.bookId}/pdf#toolbar=1&navpanes=1&scrollbar=1&view=FitH`;
   }
 
   // Handle PDF Download
@@ -58,7 +59,7 @@ export default function DigitalReaderModal({ book, onClose }) {
 
     let downloadUrl = activeBook.pdfUrl;
     if (!downloadUrl || downloadUrl.includes('#')) {
-      downloadUrl = `http://localhost:5000/api/books/${activeBook.bookId}/pdf`;
+      downloadUrl = `${API_BASE_URL}/api/books/${activeBook.bookId}/pdf`;
     }
 
     const cleanName = (activeBook.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_');

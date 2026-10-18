@@ -12,25 +12,28 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config';
+import { fallbackEvents } from '../data/fallbackData';
 
 export default function EventsPage() {
   const { user } = useAuth();
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState(fallbackEvents);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [ticketData, setTicketData] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/events')
+    fetch(`${API_BASE_URL}/api/events`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
+        if (data.success && data.data && data.data.length > 0) {
           setEvents(data.data);
         }
-      });
+      })
+      .catch(() => {});
   }, []);
 
   const handleRegister = (event) => {
-    fetch('http://localhost:5000/api/events/register', {
+    fetch(`${API_BASE_URL}/api/events/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

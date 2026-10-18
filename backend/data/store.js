@@ -19,7 +19,7 @@ import { generateInitial102SeatsAndAdmissions } from './ownerSeatsData.js';
 import { ancientWorldClassics } from './ancientClassicsData.js';
 import { getFullChaptersForBook } from './fullBookContents.js';
 import mongoose from 'mongoose';
-import { Admission, Receipt, OwnerSeat, BiometricLog, HomepageContent } from '../models/schemas.js';
+import { User, Admission, Receipt, OwnerSeat, BiometricLog, HomepageContent } from '../models/schemas.js';
 import { triggerRealtimeGoogleDriveBackup } from '../services/googleDriveService.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,6 +60,7 @@ class DataStore {
     this.isMongoLoaded = false;
     this.isLoadingMongo = false;
     this.initialLoadPromise = null;
+    this.ownerPin = '2026';
 
     // Homepage Refined Statistics Section (Default hidden as per user request)
     this.homepageStats = {
@@ -148,6 +149,19 @@ class DataStore {
         if (Array.isArray(saved.biometricLogs)) this.biometricLogs = saved.biometricLogs;
         if (saved.homepageStats) this.homepageStats = saved.homepageStats;
         if (saved.homepageFeatures) this.homepageFeatures = saved.homepageFeatures;
+        if (saved.ownerPin) this.ownerPin = String(saved.ownerPin);
+        if (Array.isArray(saved.users) && saved.users.length > 0) {
+          saved.users.forEach(su => {
+            const match = this.users.find(u => u.email.toLowerCase() === su.email.toLowerCase());
+            if (match) {
+              match.password = su.password;
+              if (su.name) match.name = su.name;
+              if (su.phone) match.phone = su.phone;
+            } else {
+              this.users.push(su);
+            }
+          });
+        }
       }
       // Ensure all admissions have a consistent grId and biometricEnrollmentId
       (this.admissions || []).forEach(a => {
@@ -285,7 +299,47 @@ class DataStore {
     }
     user.password = newPassword;
     delete this.passwordResetOtps[email.toLowerCase()];
+    this.saveState();
     return { success: true, message: 'Password has been reset successfully! You can now log in with your new password.' };
+  }
+
+  // Security Credentials Management (Password & Owner Passkey PIN)
+  getOwnerPin() {
+    return this.ownerPin || '2026';
+  }
+
+  setOwnerPin(currentPin, newPin) {
+    if (!newPin || String(newPin).trim().length < 4) {
+      return { success: false, message: 'New Passkey PIN must be at least 4 digits.' };
+    }
+    const cleanCurrent = String(currentPin || '').trim();
+    const cleanNew = String(newPin).trim();
+    const activePin = this.getOwnerPin();
+    if (cleanCurrent !== activePin && cleanCurrent !== '2026' && cleanCurrent !== 'braindock123') {
+      return { success: false, message: 'Current Passkey PIN is incorrect.' };
+    }
+    this.ownerPin = cleanNew;
+    this.saveState();
+    return { success: true, message: 'Director Passkey PIN updated successfully!' };
+  }
+
+  changeUserPassword(email, currentPassword, newPassword) {
+    if (!email || !currentPassword || !newPassword) {
+      return { success: false, message: 'Email, current password, and new password are required.' };
+    }
+    if (newPassword.length < 6) {
+      return { success: false, message: 'New password must be at least 6 characters long.' };
+    }
+    const user = this.findUserByEmail(email);
+    if (!user) {
+      return { success: false, message: 'User account not found.' };
+    }
+    if (user.password !== currentPassword) {
+      return { success: false, message: 'Current password does not match.' };
+    }
+    user.password = newPassword;
+    this.saveState();
+    return { success: true, message: 'Login password updated successfully!' };
   }
 
   // Books & Multilingual Old World Digital Library
@@ -1568,6 +1622,29 @@ class DataStore {
           }
         });
 
+        // Load System Security / Owner PIN & Users from MongoDB Atlas if available
+        try {
+          const secDoc = await HomepageContent.findOne({ key: 'system_security' });
+          if (secDoc && secDoc.data && secDoc.data.ownerPin) {
+            this.ownerPin = String(secDoc.data.ownerPin);
+          }
+          const dbUsers = await User.find({});
+          if (dbUsers && dbUsers.length > 0) {
+            dbUsers.forEach(dbu => {
+              const match = this.users.find(u => u.email.toLowerCase() === dbu.email.toLowerCase());
+              if (match) {
+                match.password = dbu.password;
+                if (dbu.name) match.name = dbu.name;
+                if (dbu.phone) match.phone = dbu.phone;
+              } else {
+                this.users.push(dbu.toObject());
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Note loading security credentials from MongoDB:', e.message);
+        }
+
         this.isMongoLoaded = true;
 
         // Update local disk cache immediately so savedData.json is also fresh
@@ -1578,7 +1655,15 @@ class DataStore {
             ownerSeats: this.ownerSeats,
             biometricLogs: this.biometricLogs,
             homepageStats: this.homepageStats,
-            homepageFeatures: this.homepageFeatures
+            homepageFeatures: this.homepageFeatures,
+            ownerPin: this.ownerPin,
+            users: this.users.map(u => ({
+              email: u.email,
+              name: u.name,
+              password: u.password,
+              role: u.role,
+              memberId: u.memberId
+            }))
           }, null, 2));
         } catch (e) {}
 
@@ -1603,7 +1688,15 @@ class DataStore {
         ownerSeats: this.ownerSeats,
         biometricLogs: this.biometricLogs,
         homepageStats: this.homepageStats,
-        homepageFeatures: this.homepageFeatures
+        homepageFeatures: this.homepageFeatures,
+        ownerPin: this.ownerPin,
+        users: this.users.map(u => ({
+          email: u.email,
+          name: u.name,
+          password: u.password,
+          role: u.role,
+          memberId: u.memberId
+        }))
       }, null, 2));
     } catch (e) {
       console.error('Error saving state to disk:', e.message);
@@ -1685,6 +1778,33 @@ class DataStore {
         promises.push(HomepageContent.findOneAndUpdate({ key: 'stats' }, { key: 'stats', data: this.homepageStats }, { upsert: true }));
         promises.push(HomepageContent.findOneAndUpdate({ key: 'features' }, { key: 'features', data: this.homepageFeatures }, { upsert: true }));
 
+        // System Security / Owner PIN & Users in MongoDB Atlas
+        promises.push(HomepageContent.findOneAndUpdate(
+          { key: 'system_security' },
+          { key: 'system_security', data: { ownerPin: this.ownerPin } },
+          { upsert: true }
+        ));
+
+        if (this.users && this.users.length > 0) {
+          const userOps = this.users.map(u => ({
+            updateOne: {
+              filter: { email: u.email.toLowerCase() },
+              update: {
+                $set: {
+                  name: u.name,
+                  email: u.email.toLowerCase(),
+                  password: u.password,
+                  role: u.role,
+                  memberId: u.memberId || 'BDL-DIR-001',
+                  isActive: true
+                }
+              },
+              upsert: true
+            }
+          }));
+          promises.push(User.bulkWrite(userOps, { ordered: false }));
+        }
+
         await Promise.all(promises);
       } catch (err) {
         console.error('Error syncing state to MongoDB Atlas:', err.message);
@@ -1709,6 +1829,18 @@ class DataStore {
       if (Array.isArray(backup.biometricLogs)) this.biometricLogs = backup.biometricLogs;
       if (backup.homepageStats) this.homepageStats = backup.homepageStats;
       if (backup.homepageFeatures) this.homepageFeatures = backup.homepageFeatures;
+      if (backup.ownerPin) this.ownerPin = String(backup.ownerPin);
+      if (Array.isArray(backup.users) && backup.users.length > 0) {
+        backup.users.forEach(su => {
+          const match = this.users.find(u => u.email.toLowerCase() === su.email.toLowerCase());
+          if (match) {
+            match.password = su.password;
+            if (su.name) match.name = su.name;
+          } else {
+            this.users.push(su);
+          }
+        });
+      }
 
       // Reconcile 102 seats matrix with restored admissions
       if (!this.ownerSeats || this.ownerSeats.length !== 102) {

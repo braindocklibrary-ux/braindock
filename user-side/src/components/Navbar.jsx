@@ -15,6 +15,7 @@ import {
   Fingerprint
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { ADMIN_PORTAL_URL } from '../config';
 
 export default function Navbar({ onOpenNotifications }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -259,7 +260,7 @@ export default function Navbar({ onOpenNotifications }) {
             
             <div className="pt-3 border-t border-slate-100">
               <a 
-                href="http://localhost:5174" 
+                href={ADMIN_PORTAL_URL} 
                 target="_blank" 
                 rel="noreferrer" 
                 className="w-full flex items-center justify-center space-x-2 bg-purple-50 text-purple-900 border border-purple-200 py-2.5 rounded-xl font-bold text-xs"

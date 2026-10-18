@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import DigitalCard from '../components/DigitalCard';
+import { API_BASE_URL } from '../config';
 
 export default function MemberDashboard() {
   const { user, updateProfile } = useAuth();
@@ -44,7 +45,7 @@ export default function MemberDashboard() {
   }, []);
 
   const fetchIssues = () => {
-    fetch('http://localhost:5000/api/issues')
+    fetch(`${API_BASE_URL}/api/issues`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
@@ -54,7 +55,7 @@ export default function MemberDashboard() {
   };
 
   const fetchReservations = () => {
-    fetch('http://localhost:5000/api/reservations')
+    fetch(`${API_BASE_URL}/api/reservations`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
@@ -64,7 +65,7 @@ export default function MemberDashboard() {
   };
 
   const fetchPayments = () => {
-    fetch('http://localhost:5000/api/payments')
+    fetch(`${API_BASE_URL}/api/payments`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
@@ -74,7 +75,7 @@ export default function MemberDashboard() {
   };
 
   const handleRenewBook = (issueId) => {
-    fetch('http://localhost:5000/api/issues/renew', {
+    fetch(`${API_BASE_URL}/api/issues/renew`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -95,7 +96,7 @@ export default function MemberDashboard() {
   };
 
   const handlePayFine = () => {
-    fetch('http://localhost:5000/api/payments/pay-fine', {
+    fetch(`${API_BASE_URL}/api/payments/pay-fine`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

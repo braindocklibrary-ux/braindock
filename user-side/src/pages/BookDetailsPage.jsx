@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import BookCard from '../components/BookCard';
 import DigitalReaderModal from '../components/DigitalReaderModal';
+import { API_BASE_URL } from '../config';
+import { fallbackBooks } from '../data/fallbackData';
 
 export default function BookDetailsPage() {
   const { id } = useParams();
@@ -24,16 +26,23 @@ export default function BookDetailsPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`http://localhost:5000/api/books/${id}`)
+    fetch(`${API_BASE_URL}/api/books/${id}`)
       .then(res => res.json())
       .then(data => {
-        if (data.success) {
+        if (data.success && data.data) {
           setBook(data.data);
           setSimilarBooks(data.similarBooks || []);
+        } else {
+          const fb = fallbackBooks.find(b => b.bookId === id);
+          if (fb) setBook(fb);
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        const fb = fallbackBooks.find(b => b.bookId === id);
+        if (fb) setBook(fb);
+        setLoading(false);
+      });
   }, [id]);
 
   if (loading) {
@@ -132,7 +141,7 @@ export default function BookDetailsPage() {
               </button>
 
               <a 
-                href={`http://localhost:5000/api/books/${book.bookId}/pdf`}
+                href={`${API_BASE_URL}/api/books/${book.bookId}/pdf`}
                 download={book.downloadPdfFilename || `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`}
                 className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 bg-purple-100 hover:bg-purple-200 text-purple-950 border border-purple-200 transition-colors"
               >
