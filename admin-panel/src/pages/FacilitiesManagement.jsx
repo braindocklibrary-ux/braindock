@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { VolumeX, Grid, Lock, CheckCircle2, Clock, MapPin, Plus } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function FacilitiesManagement() {
   const [activeTab, setActiveTab] = useState('rooms');
@@ -8,9 +9,9 @@ export default function FacilitiesManagement() {
   const [lockers, setLockers] = useState([]);
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/facilities/rooms').then(r => r.json()).then(d => d.success && setRooms(d.data));
-    fetch('http://localhost:5000/api/facilities/seats').then(r => r.json()).then(d => d.success && setSeats(d.data));
-    fetch('http://localhost:5000/api/facilities/lockers').then(r => r.json()).then(d => d.success && setLockers(d.data));
+    fetch(`${API_BASE_URL}/api/facilities/rooms`).then(r => r.json()).then(d => d.success && setRooms(d.data));
+    fetch(`${API_BASE_URL}/api/facilities/seats`).then(r => r.json()).then(d => d.success && setSeats(d.data));
+    fetch(`${API_BASE_URL}/api/facilities/lockers`).then(r => r.json()).then(d => d.success && setLockers(d.data));
   }, []);
 
   return (

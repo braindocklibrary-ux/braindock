@@ -49,9 +49,9 @@ class DataStore {
     this.seats = [...seedSeats];
     this.seatBookings = [];
 
-    // Initialize 102 Dedicated Library Seats & Admissions + TIMEWATCH Biometrics
+    // Initialize 102 Dedicated Library Seats & Admissions + TIMEWATCH Biometrics (Strictly 1..102 sorted)
     const { seats: ownerSeats, admissions, receipts, initialBiometricLogs } = generateInitial102SeatsAndAdmissions();
-    this.ownerSeats = ownerSeats;
+    this.ownerSeats = (ownerSeats || []).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
     this.admissions = admissions;
     this.receipts = receipts;
     this.biometricLogs = [...(initialBiometricLogs || [])];
@@ -145,7 +145,9 @@ class DataStore {
         const saved = JSON.parse(fs.readFileSync(PERSIST_FILE, 'utf8'));
         if (Array.isArray(saved.admissions)) this.admissions = saved.admissions;
         if (Array.isArray(saved.receipts)) this.receipts = saved.receipts;
-        if (Array.isArray(saved.ownerSeats) && saved.ownerSeats.length > 0) this.ownerSeats = saved.ownerSeats;
+        if (Array.isArray(saved.ownerSeats) && saved.ownerSeats.length > 0) {
+          this.ownerSeats = saved.ownerSeats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
+        }
         if (Array.isArray(saved.biometricLogs)) this.biometricLogs = saved.biometricLogs;
         if (saved.homepageStats) this.homepageStats = saved.homepageStats;
         if (saved.homepageFeatures) this.homepageFeatures = saved.homepageFeatures;
@@ -739,6 +741,10 @@ class DataStore {
   // ================= 102-SEAT OWNER DESK & ADMISSION SYSTEM =================
   get102Seats() {
     const now = new Date();
+    // Always enforce strict ascending numerical sequence (Desk 1, Desk 2 ... Desk 102)
+    if (Array.isArray(this.ownerSeats)) {
+      this.ownerSeats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
+    }
     // Recalculate live days remaining for occupied seats
     this.ownerSeats.forEach(seat => {
       if (seat.occupant && seat.occupant.endDate) {
@@ -1547,7 +1553,7 @@ class DataStore {
         const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures] = await Promise.all([
           Admission.find({}).lean(),
           Receipt.find({}).lean(),
-          OwnerSeat.find({}).lean(),
+          OwnerSeat.find({}).sort({ seatNumber: 1 }).lean(),
           BiometricLog.find({}).lean(),
           HomepageContent.findOne({ key: 'stats' }).lean(),
           HomepageContent.findOne({ key: 'features' }).lean()
@@ -1560,7 +1566,7 @@ class DataStore {
           this.receipts = dbReceipts;
         }
         if (Array.isArray(dbSeats) && dbSeats.length > 0) {
-          this.ownerSeats = dbSeats;
+          this.ownerSeats = dbSeats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
         }
         if (Array.isArray(dbLogs) && dbLogs.length > 0) {
           this.biometricLogs = dbLogs;
@@ -1575,7 +1581,7 @@ class DataStore {
         // Always ensure 102 seats matrix exists
         if (!this.ownerSeats || this.ownerSeats.length !== 102) {
           const { seats } = generateInitial102SeatsAndAdmissions();
-          this.ownerSeats = seats;
+          this.ownerSeats = seats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
         }
 
         // Reset all seats to Available first, then populate occupied seats from active admissions
@@ -1825,7 +1831,9 @@ class DataStore {
 
       if (Array.isArray(backup.admissions)) this.admissions = backup.admissions;
       if (Array.isArray(backup.receipts)) this.receipts = backup.receipts;
-      if (Array.isArray(backup.ownerSeats) && backup.ownerSeats.length > 0) this.ownerSeats = backup.ownerSeats;
+      if (Array.isArray(backup.ownerSeats) && backup.ownerSeats.length > 0) {
+        this.ownerSeats = backup.ownerSeats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
+      }
       if (Array.isArray(backup.biometricLogs)) this.biometricLogs = backup.biometricLogs;
       if (backup.homepageStats) this.homepageStats = backup.homepageStats;
       if (backup.homepageFeatures) this.homepageFeatures = backup.homepageFeatures;
@@ -1845,7 +1853,7 @@ class DataStore {
       // Reconcile 102 seats matrix with restored admissions
       if (!this.ownerSeats || this.ownerSeats.length !== 102) {
         const { seats } = generateInitial102SeatsAndAdmissions();
-        this.ownerSeats = seats;
+        this.ownerSeats = seats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
       }
       this.ownerSeats.forEach(s => {
         s.status = 'Available';

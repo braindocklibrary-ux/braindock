@@ -974,7 +974,7 @@ router.get('/owner/bootstrap', (req, res) => {
   res.json({
     success: true,
     data: {
-      seats: store.get102Seats(),
+      seats: (store.get102Seats() || []).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)),
       admissions: store.admissions || [],
       stats: store.getOwnerStats(),
       biometricLogs: store.getBiometricLogs ? store.getBiometricLogs({ filter: 'all' }).slice(0, 50) : [],
@@ -990,9 +990,9 @@ router.get('/owner/stats', (req, res) => {
   res.json({ success: true, data: stats });
 });
 
-// Get all 102 seats with live occupant & fee details
+// Get all 102 seats with live occupant & fee details (Strictly 1..102 numerical order)
 router.get('/owner/seats', (req, res) => {
-  const seats = store.get102Seats();
+  const seats = (store.get102Seats() || []).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
   res.json({ success: true, count: seats.length, data: seats });
 });
 

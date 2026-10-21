@@ -58,8 +58,8 @@ export default function SeatBookingPage() {
     fetch(`${API_BASE_URL}/api/seats`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.data) {
-          setSeats(data.data);
+        if (data.success && Array.isArray(data.data)) {
+          setSeats([...data.data].sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)));
         }
       })
       .catch(err => console.error('Error loading seats:', err));

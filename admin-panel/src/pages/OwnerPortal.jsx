@@ -85,8 +85,8 @@ export default function OwnerPortal() {
 
   const initialCache = getInitialOwnerCache();
 
-  // Core Data - Preloaded immediately from browser storage for instant 0ms appearance
-  const [seats, setSeats] = useState(() => initialCache?.ownerSeats || []);
+  // Core Data - Preloaded immediately from browser storage for instant 0ms appearance (Always sorted 1..102)
+  const [seats, setSeats] = useState(() => (initialCache?.ownerSeats ? [...initialCache.ownerSeats].sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)) : []));
   const [admissions, setAdmissions] = useState(() => initialCache?.admissions || []);
   const [stats, setStats] = useState(() => {
     if (initialCache?.homepageStats?.ownerStats) return initialCache.homepageStats.ownerStats;
@@ -331,7 +331,9 @@ export default function OwnerPortal() {
       if (bootstrapRes && bootstrapRes.success && bootstrapRes.data) {
         const { seats: bSeats, admissions: bAdmissions, stats: bStats, biometricLogs: bBioLogs, biometricStats: bBioStats, expiryReminders: bExp } = bootstrapRes.data;
 
-        if (Array.isArray(bSeats)) setSeats(bSeats);
+        if (Array.isArray(bSeats)) {
+          setSeats([...bSeats].sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)));
+        }
         if (Array.isArray(bAdmissions)) {
           setAdmissions(bAdmissions);
           // Keep local storage cache fresh
@@ -376,7 +378,7 @@ export default function OwnerPortal() {
         let currentAdmissions = (admRes && admRes.success && Array.isArray(admRes.data)) ? admRes.data : [];
 
         if (seatsRes && seatsRes.success && Array.isArray(seatsRes.data)) {
-          setSeats(seatsRes.data);
+          setSeats([...seatsRes.data].sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)));
         }
         if (currentAdmissions.length > 0) {
           setAdmissions(currentAdmissions);
@@ -1041,17 +1043,21 @@ export default function OwnerPortal() {
       });
   };
 
-  // Available seats list for dropdown
-  const availableSeatsList = seats.filter(s => s.status === 'Available');
+  // Available seats list for dropdown (always sequentially sorted 1..102)
+  const availableSeatsList = seats
+    .filter(s => s.status === 'Available')
+    .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
-  // Filtered Seats for Grid View
-  const filteredGridSeats = seats.filter(s => {
-    if (gridFilter === 'available') return s.status === 'Available';
-    if (gridFilter === 'occupied') return s.status === 'Occupied' || s.status === 'Expired';
-    if (gridFilter === 'pending') return s.occupant && (s.occupant.feeStatus === 'Pending' || s.occupant.pendingFee > 0);
-    if (gridFilter === 'expiring') return s.occupant && (s.occupant.daysRemaining >= 0 && s.occupant.daysRemaining <= 5);
-    return true;
-  });
+  // Filtered Seats for Grid View (always sequentially sorted 1..102)
+  const filteredGridSeats = seats
+    .filter(s => {
+      if (gridFilter === 'available') return s.status === 'Available';
+      if (gridFilter === 'occupied') return s.status === 'Occupied' || s.status === 'Expired';
+      if (gridFilter === 'pending') return s.occupant && (s.occupant.feeStatus === 'Pending' || s.occupant.pendingFee > 0);
+      if (gridFilter === 'expiring') return s.occupant && (s.occupant.daysRemaining >= 0 && s.occupant.daysRemaining <= 5);
+      return true;
+    })
+    .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
   // Filtered Admissions for Register View
   const filteredAdmissions = admissions.filter(adm => {
