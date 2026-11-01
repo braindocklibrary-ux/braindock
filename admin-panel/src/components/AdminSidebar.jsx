@@ -23,7 +23,8 @@ import {
   ExternalLink,
   ChevronRight,
   LogOut,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 
@@ -35,7 +36,8 @@ export default function AdminSidebar() {
     {
       title: '👑 Director & Owner Desk',
       items: [
-        { name: '102 Seats & Fee Portal', path: '/owner-portal', icon: ShieldCheck, badge: 'EXCLUSIVE' }
+        { name: '102 Seats & Fee Portal', path: '/owner-portal', icon: ShieldCheck, badge: 'EXCLUSIVE' },
+        { name: '102-Seat Monthly Register', path: '/owner-portal?tab=monthly-register', icon: FileSpreadsheet, badge: 'PRINT' }
       ]
     },
     {
@@ -92,8 +94,11 @@ export default function AdminSidebar() {
   ];
 
   const isActive = (path) => {
-    if (path === '/' && location.pathname === '/') return true;
-    if (path !== '/' && location.pathname.startsWith(path)) return true;
+    if (path === '/' && location.pathname === '/' && !location.search) return true;
+    if (path.includes('?')) {
+      return `${location.pathname}${location.search}` === path;
+    }
+    if (path !== '/' && location.pathname.startsWith(path) && !location.search) return true;
     return false;
   };
 

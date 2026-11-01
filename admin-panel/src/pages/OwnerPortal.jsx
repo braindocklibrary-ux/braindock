@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
   ShieldCheck, 
   Lock, 
@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
+import MasterMonthlyRegister from '../components/MasterMonthlyRegister';
 import { compressImage } from '../utils/imageCompressor';
 import { API_BASE_URL } from '../config';
 
@@ -124,7 +125,16 @@ export default function OwnerPortal() {
   });
 
   const [loading, setLoading] = useState(() => !initialCache || (initialCache.admissions || []).length === 0);
-  const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'register' | 'biometric'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromQuery = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromQuery || 'grid'); // 'grid' | 'register' | 'expiries' | 'monthly-register'
+
+  useEffect(() => {
+    const qTab = searchParams.get('tab');
+    if (qTab && qTab !== activeTab) {
+      setActiveTab(qTab);
+    }
+  }, [searchParams]);
   const [gridFilter, setGridFilter] = useState('all'); // 'all' | 'available' | 'occupied' | 'pending' | 'expiring'
   const [searchQuery, setSearchQuery] = useState('');
   const [registerFilter, setRegisterFilter] = useState('all'); // 'all' | 'pending' | 'paid' | 'expiring' | 'expired'
@@ -1432,7 +1442,21 @@ export default function OwnerPortal() {
               activeTab === 'register' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            📋 Admissions & Fees Register ({admissions.length})
+            📋 Admissions ({admissions.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('monthly-register')}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl transition-all flex items-center space-x-1.5 ${
+              activeTab === 'monthly-register' ? 'bg-[#5B1484] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>📊 Master Monthly Register</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'monthly-register' ? 'bg-white text-purple-900' : 'bg-purple-100 text-purple-800'
+            }`}>
+              1-102
+            </span>
           </button>
           <button 
             onClick={() => { setActiveTab('expiries'); fetchExpiryReminders(); }}
@@ -2177,6 +2201,18 @@ export default function OwnerPortal() {
           </div>
 
         </div>
+      )}
+
+      {/* ================= TAB 5: 102-DESK MASTER MONTHLY REGISTER & PRINT ENGINE ================= */}
+      {activeTab === 'monthly-register' && (
+        <MasterMonthlyRegister 
+          seats={seats}
+          admissions={admissions}
+          onOpenAddStudent={(seatNum) => handleOpenAdmit(seatNum)}
+          onOpenEditStudent={(adm) => handleOpenEditAdmission(adm)}
+          onRefreshData={fetchOwnerData}
+          onOpenRenew={(adm) => handleOpenRenew(adm)}
+        />
       )}
 
       {/* ================= MODAL 1: OCCUPIED SEAT INSPECTOR ================= */}

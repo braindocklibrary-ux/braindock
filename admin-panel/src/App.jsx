@@ -70,6 +70,7 @@ export default function App() {
                       <Route path="/" element={<OwnerPortal />} />
                       <Route path="/dashboard" element={<AdminDashboard />} />
                       <Route path="/owner-portal" element={<OwnerPortal />} />
+                      <Route path="/monthly-register" element={<Navigate to="/owner-portal?tab=monthly-register" replace />} />
                       <Route path="/books" element={<BooksManagement />} />
                       <Route path="/circulation" element={<CirculationManagement />} />
                       <Route path="/reservations" element={<CirculationManagement />} />
