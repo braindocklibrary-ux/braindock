@@ -5250,5 +5250,54 @@
         "tag": "100% Secure"
       }
     ]
-  }
+  },
+  "ownerPin": "2026",
+  "renewalSettings": {
+    "defaultRenewalFee": 999,
+    "offerNote": ""
+  },
+  "users": [
+    {
+      "email": "admin@braindock.com",
+      "name": "Dr. Keval Patel (Director)",
+      "password": "admin123",
+      "role": "Super Admin",
+      "memberId": "BDL-DIR-001"
+    },
+    {
+      "email": "librarian@braindock.com",
+      "name": "Ananya Sharma",
+      "password": "librarian123",
+      "role": "Librarian",
+      "memberId": "BDL-LIB-102"
+    },
+    {
+      "email": "staff@braindock.com",
+      "name": "Rajesh Varma",
+      "password": "staff123",
+      "role": "Staff",
+      "memberId": "BDL-STF-205"
+    },
+    {
+      "email": "finance@braindock.com",
+      "name": "Kavita Mehta",
+      "password": "finance123",
+      "role": "Accountant",
+      "memberId": "BDL-ACC-304"
+    },
+    {
+      "email": "member@braindock.com",
+      "name": "Aarav Mehta",
+      "password": "member123",
+      "role": "Member",
+      "memberId": "BDL-MEM-8842"
+    },
+    {
+      "email": "sneha@braindock.com",
+      "name": "Sneha Roy",
+      "password": "member123",
+      "role": "Member",
+      "memberId": "BDL-MEM-9921"
+    }
+  ]
 }

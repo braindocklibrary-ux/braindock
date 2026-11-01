@@ -138,10 +138,25 @@ export default function OwnerPortal() {
   const [simulatedPunchResult, setSimulatedPunchResult] = useState(null);
   const [simulatingPunch, setSimulatingPunch] = useState(false);
 
-  // 3-Day Expiry Reminders State
+  // 3-Day Expiry Reminders State & Configurable Renewal Fee
   const [expiryReminders, setExpiryReminders] = useState([]);
   const [expiryLoading, setExpiryLoading] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
+  const [renewalFee, setRenewalFee] = useState(() => {
+    try {
+      const savedFee = localStorage.getItem('bdl_renewal_fee');
+      if (savedFee) return Number(savedFee);
+    } catch (e) {}
+    return 999;
+  });
+  const [offerNote, setOfferNote] = useState(() => {
+    try {
+      return localStorage.getItem('bdl_renewal_note') || '';
+    } catch (e) {}
+    return '';
+  });
+  const [savingRenewalSettings, setSavingRenewalSettings] = useState(false);
+  const [studentRenewalFees, setStudentRenewalFees] = useState({});
 
   // Modals
   const [selectedSeat, setSelectedSeat] = useState(null); // When seat is clicked
@@ -358,6 +373,17 @@ export default function OwnerPortal() {
         if (Array.isArray(bBioLogs)) setBiometricLogs(bBioLogs);
         if (bBioStats) setBiometricStats(bBioStats);
         if (Array.isArray(bExp)) setExpiryReminders(bExp);
+        if (bootstrapRes.data.renewalSettings) {
+          const { defaultRenewalFee, offerNote: bNote } = bootstrapRes.data.renewalSettings;
+          if (defaultRenewalFee) {
+            setRenewalFee(Number(defaultRenewalFee));
+            try { localStorage.setItem('bdl_renewal_fee', String(defaultRenewalFee)); } catch (e) {}
+          }
+          if (bNote !== undefined) {
+            setOfferNote(bNote || '');
+            try { localStorage.setItem('bdl_renewal_note', bNote || ''); } catch (e) {}
+          }
+        }
         setLoading(false);
         return;
       }
@@ -426,9 +452,13 @@ export default function OwnerPortal() {
       });
   };
 
-  const fetchExpiryReminders = () => {
+  const fetchExpiryReminders = (customFee = renewalFee, customNote = offerNote) => {
     setExpiryLoading(true);
-    fetch(`${API_BASE_URL}/api/owner/expiry-reminders`)
+    const query = new URLSearchParams();
+    if (customFee) query.append('fee', customFee);
+    if (customNote) query.append('offerNote', customNote);
+
+    fetch(`${API_BASE_URL}/api/owner/expiry-reminders?${query.toString()}`)
       .then(r => r.json())
       .then(d => {
         if (d.success) setExpiryReminders(d.data || []);
@@ -438,6 +468,57 @@ export default function OwnerPortal() {
         console.error('Failed to load expiry reminders', e);
         setExpiryLoading(false);
       });
+  };
+
+  const handleRenewalFeeChange = (newFee, note) => {
+    const feeNum = Number(newFee);
+    setRenewalFee(feeNum);
+    if (note !== undefined) setOfferNote(note);
+    try {
+      localStorage.setItem('bdl_renewal_fee', String(feeNum));
+      if (note !== undefined) localStorage.setItem('bdl_renewal_note', note);
+    } catch (e) {}
+    // Reset individual overrides to follow the new default
+    setStudentRenewalFees({});
+    fetchExpiryReminders(feeNum, note !== undefined ? note : offerNote);
+  };
+
+  const handleSaveRenewalSettings = async () => {
+    setSavingRenewalSettings(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/owner/renewal-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultRenewalFee: Number(renewalFee), offerNote })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Default Renewal Fee of ₹${renewalFee}/mo saved permanently!`);
+      } else {
+        alert(data.message || 'Failed to save renewal settings');
+      }
+    } catch (e) {
+      alert('Error saving renewal settings');
+    } finally {
+      setSavingRenewalSettings(false);
+    }
+  };
+
+  const buildClientWhatsAppUrl = (item, fee, note = offerNote) => {
+    const cleanPhone = (item.studentPhone || '').replace(/\D/g, '');
+    const fullPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone.slice(-10)}`;
+    const diffDays = item.daysRemaining;
+    const expiryLabel = diffDays < 0 
+      ? `EXPIRED ${Math.abs(diffDays)} day(s) ago` 
+      : diffDays === 0 
+        ? 'EXPIRES TODAY' 
+        : `expiring in ${diffDays} day(s)`;
+
+    const feeText = `₹${fee || 999} / Month${note ? ` (${note})` : ''}`;
+
+    const text = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${item.studentName}*,\n\nYour library membership for *Seat #${item.seatNumber}* is ${expiryLabel} on *${item.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${item.seatNumber} (${item.shift || 'Full Day'})\n📅 *Valid Till:* ${item.endDate}\n💰 *Renewal Plan:* ${feeText}\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
+
+    return `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(text)}`;
   };
 
   // Close any active modal on Escape key
@@ -461,14 +542,21 @@ export default function OwnerPortal() {
 
   const handleSendSingleReminder = async (item) => {
     setSendingReminderId(item.admissionId);
+    const customFee = studentRenewalFees[item.admissionId] !== undefined 
+      ? Number(studentRenewalFees[item.admissionId]) 
+      : (item.renewalFee || Number(renewalFee));
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/owner/expiry-reminders/${item.admissionId}/send`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ renewalFee: customFee, offerNote })
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Reminder recorded for ${item.studentName}! Opening WhatsApp...`);
-        window.open(data.whatsAppUrl || item.whatsAppUrl, '_blank');
+        showToast(`Reminder recorded for ${item.studentName} (₹${customFee})! Opening WhatsApp...`);
+        const targetUrl = data.whatsAppUrl || buildClientWhatsAppUrl(item, customFee, offerNote);
+        window.open(targetUrl, '_blank');
         fetchExpiryReminders();
       } else {
         alert(data.message || 'Failed to dispatch reminder');
@@ -481,10 +569,17 @@ export default function OwnerPortal() {
   };
 
   const handleSendAllDueReminders = async () => {
-    if (!window.confirm('Send WhatsApp renewal reminder to all students expiring in the next 3 days?')) return;
+    const dueCount = expiryReminders.filter(e => !e.alreadySentToday).length;
+    if (!window.confirm(`Send WhatsApp renewal reminder to all ${dueCount} student(s) expiring in the next 3 days?\n\nActive Renewal Fee: ₹${renewalFee} / month`)) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/owner/expiry-reminders/send-all-due`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          renewalFee: Number(renewalFee), 
+          offerNote, 
+          feesByAdmission: studentRenewalFees 
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -970,13 +1065,17 @@ export default function OwnerPortal() {
   // Open Renew Modal
   const handleOpenRenew = (admission) => {
     setSelectedAdmissionForRenew(admission);
+    const activeFee = studentRenewalFees[admission.admissionId] !== undefined
+      ? Number(studentRenewalFees[admission.admissionId])
+      : (Number(renewalFee) || 999);
+
     setRenewForm({
       months: 1,
       feeItems: [
-        { description: `Desk #${admission.seatNumber} Renewal Fee (1 Month)`, amount: 1500 }
+        { description: `Desk #${admission.seatNumber} Renewal Fee (1 Month)`, amount: activeFee }
       ],
-      totalFee: 1500,
-      paidAmount: 1500,
+      totalFee: activeFee,
+      paidAmount: activeFee,
       paymentMode: 'UPI'
     });
     setRenewModalOpen(true);
@@ -1765,6 +1864,108 @@ export default function OwnerPortal() {
               </div>
             </div>
 
+            {/* WhatsApp Renewal Notice Offer & Price Setting Bar */}
+            <div className="mt-5 bg-white/95 backdrop-blur-sm border-2 border-amber-300/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center space-x-2.5">
+                  <span className="p-2 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-xs">
+                    <DollarSign className="w-4 h-4" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+                      <span>WhatsApp Notice Renewal Amount (Offer / Price Control)</span>
+                      <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                        Live in Message
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Jab bhi offer me fees ghatti ya badhti hai, yahan amount set karein. WhatsApp reminder message me yahi renewal amount jayega.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live Message Preview Chip */}
+                <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-900">
+                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Notice will say:</span>
+                  <span className="font-mono text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    💰 Renewal Plan: ₹{renewalFee} / Month{offerNote ? ` (${offerNote})` : ''}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-100">
+                {/* Active Fee Input */}
+                <div className="flex items-center">
+                  <span className="bg-slate-100 border border-r-0 border-slate-300 text-slate-700 font-bold px-3 py-2 rounded-l-xl text-sm">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={renewalFee}
+                    onChange={(e) => handleRenewalFeeChange(Number(e.target.value), offerNote)}
+                    placeholder="999"
+                    className="w-28 p-2 rounded-r-xl bg-white border border-slate-300 text-slate-900 font-black text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    title="Active renewal fee for WhatsApp notice"
+                  />
+                </div>
+
+                {/* Quick Preset Offer Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">Quick Offers:</span>
+                  {[
+                    { label: '₹849 (Offer)', fee: 849, note: 'Special Offer' },
+                    { label: '₹999 (Regular)', fee: 999, note: '' },
+                    { label: '₹1,200', fee: 1200, note: '' },
+                    { label: '₹1,500', fee: 1500, note: '' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.fee}
+                      type="button"
+                      onClick={() => handleRenewalFeeChange(preset.fee, preset.note)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        Number(renewalFee) === preset.fee
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                          : 'bg-white hover:bg-amber-50 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Optional Offer Tag / Note Input */}
+                <div className="flex items-center">
+                  <input
+                    type="text"
+                    value={offerNote}
+                    onChange={(e) => {
+                      const note = e.target.value;
+                      setOfferNote(note);
+                      try { localStorage.setItem('bdl_renewal_note', note); } catch (err) {}
+                    }}
+                    placeholder="Offer note (e.g. Special Offer)"
+                    className="p-2 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs font-medium w-48 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    title="Optional note added next to renewal plan, e.g. Special Offer"
+                  />
+                </div>
+
+                {/* Save as Default Button */}
+                <button
+                  type="button"
+                  onClick={handleSaveRenewalSettings}
+                  disabled={savingRenewalSettings}
+                  className="ml-auto px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Save current fee & offer note permanently to database"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>{savingRenewalSettings ? 'Saving...' : 'Save Default'}</span>
+                </button>
+              </div>
+            </div>
+
             {/* Quick Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 mt-6 border-t border-amber-200/80">
               <div className="bg-white/80 p-3.5 rounded-2xl border border-amber-200 shadow-2xs">
@@ -1811,6 +2012,7 @@ export default function OwnerPortal() {
                     <th className="py-3.5 px-4">Valid Till (Expiry)</th>
                     <th className="py-3.5 px-4">Days Left</th>
                     <th className="py-3.5 px-4">Today's Status</th>
+                    <th className="py-3.5 px-4 text-center">Renewal Fee (₹)</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1892,6 +2094,34 @@ export default function OwnerPortal() {
                           )}
                         </td>
 
+                        {/* Customizable Renewal Fee per Student */}
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="inline-flex items-center shadow-2xs">
+                            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 border border-r-0 border-slate-300 px-2 py-1.5 rounded-l-xl">
+                              ₹
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="50"
+                              value={
+                                studentRenewalFees[item.admissionId] !== undefined
+                                  ? studentRenewalFees[item.admissionId]
+                                  : (item.renewalFee || renewalFee)
+                              }
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setStudentRenewalFees(prev => ({
+                                  ...prev,
+                                  [item.admissionId]: val
+                                }));
+                              }}
+                              className="w-20 p-1.5 text-center font-mono font-bold text-xs bg-white border border-slate-300 rounded-r-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                              title="Customize renewal fee for this student in WhatsApp reminder"
+                            />
+                          </div>
+                        </td>
+
                         {/* Actions */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end space-x-2">
@@ -1928,7 +2158,7 @@ export default function OwnerPortal() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="py-12 text-center">
+                      <td colSpan="8" className="py-12 text-center">
                         <div className="max-w-sm mx-auto space-y-2">
                           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                             <CheckCircle2 className="w-6 h-6" />

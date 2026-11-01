@@ -979,7 +979,8 @@ router.get('/owner/bootstrap', (req, res) => {
       stats: store.getOwnerStats(),
       biometricLogs: store.getBiometricLogs ? store.getBiometricLogs({ filter: 'all' }).slice(0, 50) : [],
       biometricStats: store.getBiometricStats ? store.getBiometricStats() : null,
-      expiryReminders: store.getUpcomingExpiries ? store.getUpcomingExpiries() : []
+      expiryReminders: store.getUpcomingExpiries ? store.getUpcomingExpiries() : [],
+      renewalSettings: store.getRenewalSettings ? store.getRenewalSettings() : { defaultRenewalFee: 999, offerNote: '' }
     }
   });
 });
@@ -1107,9 +1108,21 @@ router.put('/owner/admissions/:id/renew', (req, res) => {
 });
 
 // ================= MEMBERSHIP EXPIRY NOTIFICATION ENGINE (LAST 3 DAYS DAILY) =================
+// Get/Update WhatsApp Notice Renewal Settings
+router.get('/owner/renewal-settings', (req, res) => {
+  const settings = store.getRenewalSettings ? store.getRenewalSettings() : { defaultRenewalFee: 999, offerNote: '' };
+  res.json({ success: true, data: settings });
+});
+
+router.put('/owner/renewal-settings', (req, res) => {
+  const result = store.updateRenewalSettings ? store.updateRenewalSettings(req.body) : { success: true };
+  res.json(result);
+});
+
 // Get all students expiring in the next 3 days (or already expired)
 router.get('/owner/expiry-reminders', (req, res) => {
-  const list = store.getUpcomingExpiries();
+  const { fee, offerNote } = req.query;
+  const list = store.getUpcomingExpiries ? store.getUpcomingExpiries(fee, offerNote) : [];
   res.json({ 
     success: true, 
     count: list.length, 
@@ -1118,29 +1131,32 @@ router.get('/owner/expiry-reminders', (req, res) => {
   });
 });
 
-// Send/Record individual student daily WhatsApp reminder
+// Send/Record individual student daily WhatsApp reminder (with customizable renewal fee)
 router.post('/owner/expiry-reminders/:id/send', (req, res) => {
-  const result = store.sendExpiryReminder(req.params.id);
+  const { renewalFee, offerNote } = req.body || {};
+  const result = store.sendExpiryReminder(req.params.id, renewalFee, offerNote);
   if (!result.success) {
     return res.status(400).json(result);
   }
   res.json(result);
 });
 
-// Batch send/record for all due students today
+// Batch send/record for all due students today (with customizable renewal fees)
 router.post('/owner/expiry-reminders/send-all-due', (req, res) => {
-  const list = store.getUpcomingExpiries();
+  const { renewalFee, offerNote, feesByAdmission } = req.body || {};
+  const list = store.getUpcomingExpiries(renewalFee, offerNote);
   const dueList = list.filter(item => !item.alreadySentToday);
   const results = [];
   
   for (const item of dueList) {
-    const res = store.sendExpiryReminder(item.admissionId);
-    if (res.success) results.push(res);
+    const studentFee = feesByAdmission?.[item.admissionId] || renewalFee;
+    const resItem = store.sendExpiryReminder(item.admissionId, studentFee, offerNote);
+    if (resItem.success) results.push(resItem);
   }
   
   res.json({
     success: true,
-    message: `Recorded daily reminder dispatch for ${results.length} student(s).`,
+    message: `Recorded daily reminder dispatch for ${results.length} student(s) at ₹${renewalFee || 999}/mo.`,
     dispatchedCount: results.length,
     items: results
   });

@@ -62,6 +62,12 @@ class DataStore {
     this.initialLoadPromise = null;
     this.ownerPin = '2026';
 
+    // WhatsApp Renewal Notice Configuration (Configurable offer & standard fees)
+    this.renewalSettings = {
+      defaultRenewalFee: 999,
+      offerNote: ''
+    };
+
     // Homepage Refined Statistics Section (Default hidden as per user request)
     this.homepageStats = {
       isVisible: false,
@@ -152,6 +158,7 @@ class DataStore {
         if (saved.homepageStats) this.homepageStats = saved.homepageStats;
         if (saved.homepageFeatures) this.homepageFeatures = saved.homepageFeatures;
         if (saved.ownerPin) this.ownerPin = String(saved.ownerPin);
+        if (saved.renewalSettings) this.renewalSettings = saved.renewalSettings;
         if (Array.isArray(saved.users) && saved.users.length > 0) {
           saved.users.forEach(su => {
             const match = this.users.find(u => u.email.toLowerCase() === su.email.toLowerCase());
@@ -1154,11 +1161,53 @@ class DataStore {
     return { success: true, admission: adm, receipt: newReceipt };
   }
 
+  // ================= RENEWAL SETTINGS & WHATSAPP NOTICE ENGINE =================
+  getRenewalSettings() {
+    return this.renewalSettings || { defaultRenewalFee: 999, offerNote: '' };
+  }
+
+  updateRenewalSettings(data = {}) {
+    if (!this.renewalSettings) {
+      this.renewalSettings = { defaultRenewalFee: 999, offerNote: '' };
+    }
+    if (data.defaultRenewalFee !== undefined) {
+      this.renewalSettings.defaultRenewalFee = Number(data.defaultRenewalFee) || 999;
+    }
+    if (data.renewalFee !== undefined) {
+      this.renewalSettings.defaultRenewalFee = Number(data.renewalFee) || 999;
+    }
+    if (data.offerNote !== undefined) {
+      this.renewalSettings.offerNote = String(data.offerNote).trim();
+    }
+    this.saveState();
+    return { 
+      success: true, 
+      message: 'Renewal message settings updated successfully!', 
+      data: this.renewalSettings 
+    };
+  }
+
+  buildExpiryReminderMessage({ studentName, seatNumber, shift, endDate, daysRemaining, renewalFee, offerNote }) {
+    const expiryLabel = daysRemaining < 0 
+      ? `EXPIRED ${Math.abs(daysRemaining)} day(s) ago` 
+      : daysRemaining === 0 
+        ? 'EXPIRES TODAY' 
+        : `expiring in ${daysRemaining} day(s)`;
+
+    const feeAmount = renewalFee || this.renewalSettings?.defaultRenewalFee || 999;
+    const note = offerNote !== undefined ? offerNote : (this.renewalSettings?.offerNote || '');
+    const planText = `₹${feeAmount} / Month${note ? ` (${note})` : ''}`;
+
+    return `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${studentName}*,\n\nYour library membership for *Seat #${seatNumber}* is ${expiryLabel} on *${endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${seatNumber} (${shift || 'Full Day'})\n📅 *Valid Till:* ${endDate}\n💰 *Renewal Plan:* ${planText}\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
+  }
+
   // Check Upcoming Expiries (Last 3 Days Daily Notification Engine)
-  getUpcomingExpiries() {
+  getUpcomingExpiries(overrideDefaultFee, overrideNote) {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const list = [];
+    const defaultFee = Number(overrideDefaultFee) || Number(this.renewalSettings?.defaultRenewalFee) || 999;
+    const offerNote = overrideNote !== undefined ? overrideNote : (this.renewalSettings?.offerNote || '');
 
     for (const adm of this.admissions) {
       if (adm.status === 'Vacated') continue;
@@ -1172,14 +1221,17 @@ class DataStore {
         const alreadySentToday = adm.lastReminderSentDate === todayStr;
         const cleanPhone = (adm.studentPhone || '').replace(/\D/g, '');
         const fullPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone.slice(-10)}`;
+        const studentFee = Number(adm.renewalFee) || defaultFee;
 
-        const expiryLabel = diffDays < 0 
-          ? `EXPIRED ${Math.abs(diffDays)} day(s) ago` 
-          : diffDays === 0 
-            ? 'EXPIRES TODAY' 
-            : `expiring in ${diffDays} day(s)`;
-
-        const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
+        const reminderMessage = this.buildExpiryReminderMessage({
+          studentName: adm.studentName,
+          seatNumber: adm.seatNumber,
+          shift: adm.shift,
+          endDate: adm.endDate,
+          daysRemaining: diffDays,
+          renewalFee: studentFee,
+          offerNote
+        });
 
         const whatsAppUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(reminderMessage)}`;
 
@@ -1195,6 +1247,8 @@ class DataStore {
           isExpired: diffDays < 0,
           alreadySentToday,
           lastReminderSentDate: adm.lastReminderSentDate || null,
+          renewalFee: studentFee,
+          offerNote,
           reminderMessage,
           whatsAppUrl
         });
@@ -1206,7 +1260,7 @@ class DataStore {
   }
 
   // Record dispatch of daily reminder message
-  sendExpiryReminder(admissionId) {
+  sendExpiryReminder(admissionId, customRenewalFee, customOfferNote) {
     const adm = this.admissions.find(a => a.admissionId === admissionId);
     if (!adm) return { success: false, message: 'Student admission not found' };
 
@@ -1220,26 +1274,37 @@ class DataStore {
       channel: 'WhatsApp'
     });
 
+    const fee = Number(customRenewalFee) || Number(adm.renewalFee) || Number(this.renewalSettings?.defaultRenewalFee) || 999;
+    if (customRenewalFee) {
+      adm.renewalFee = fee;
+    }
+
     this.saveState();
 
     const cleanPhone = (adm.studentPhone || '').replace(/\D/g, '');
     const fullPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone.slice(-10)}`;
     const end = new Date(adm.endDate);
     const diffDays = Math.ceil((end.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    const expiryLabel = diffDays < 0 
-      ? `EXPIRED ${Math.abs(diffDays)} day(s) ago` 
-      : diffDays === 0 
-        ? 'EXPIRES TODAY' 
-        : `expiring in ${diffDays} day(s)`;
+    const offerNote = customOfferNote !== undefined ? customOfferNote : (this.renewalSettings?.offerNote || '');
 
-    const reminderMessage = `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${adm.studentName}*,\n\nYour library membership for *Seat #${adm.seatNumber}* is ${expiryLabel} on *${adm.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${adm.seatNumber} (${adm.shift || 'Full Day'})\n📅 *Valid Till:* ${adm.endDate}\n💰 *Renewal Plan:* ₹${adm.totalFee || 1500} / Month\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
+    const reminderMessage = this.buildExpiryReminderMessage({
+      studentName: adm.studentName,
+      seatNumber: adm.seatNumber,
+      shift: adm.shift,
+      endDate: adm.endDate,
+      daysRemaining: diffDays,
+      renewalFee: fee,
+      offerNote
+    });
 
     const whatsAppUrl = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(reminderMessage)}`;
 
     return {
       success: true,
-      message: `Daily reminder recorded for ${adm.studentName}.`,
+      message: `Daily reminder recorded for ${adm.studentName} (Renewal Fee: ₹${fee}).`,
       whatsAppUrl,
+      reminderMessage,
+      renewalFee: fee,
       phone: fullPhone,
       studentName: adm.studentName
     };
@@ -1550,13 +1615,14 @@ class DataStore {
           this.isLoadingMongo = false;
           return false;
         }
-        const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures] = await Promise.all([
+        const [dbAdmissions, dbReceipts, dbSeats, dbLogs, dbStats, dbFeatures, dbRenewalSettings] = await Promise.all([
           Admission.find({}).lean(),
           Receipt.find({}).lean(),
           OwnerSeat.find({}).sort({ seatNumber: 1 }).lean(),
           BiometricLog.find({}).lean(),
           HomepageContent.findOne({ key: 'stats' }).lean(),
-          HomepageContent.findOne({ key: 'features' }).lean()
+          HomepageContent.findOne({ key: 'features' }).lean(),
+          HomepageContent.findOne({ key: 'renewal_settings' }).lean()
         ]);
 
         if (Array.isArray(dbAdmissions) && dbAdmissions.length > 0) {
@@ -1576,6 +1642,9 @@ class DataStore {
         }
         if (dbFeatures && dbFeatures.data) {
           this.homepageFeatures = dbFeatures.data;
+        }
+        if (dbRenewalSettings && dbRenewalSettings.data) {
+          this.renewalSettings = dbRenewalSettings.data;
         }
 
         // Always ensure 102 seats matrix exists
@@ -1696,6 +1765,7 @@ class DataStore {
         homepageStats: this.homepageStats,
         homepageFeatures: this.homepageFeatures,
         ownerPin: this.ownerPin,
+        renewalSettings: this.renewalSettings,
         users: this.users.map(u => ({
           email: u.email,
           name: u.name,
@@ -1791,6 +1861,13 @@ class DataStore {
           { upsert: true }
         ));
 
+        // Renewal notice & fee settings
+        promises.push(HomepageContent.findOneAndUpdate(
+          { key: 'renewal_settings' },
+          { key: 'renewal_settings', data: this.renewalSettings },
+          { upsert: true }
+        ));
+
         if (this.users && this.users.length > 0) {
           const userOps = this.users.map(u => ({
             updateOne: {
@@ -1838,6 +1915,7 @@ class DataStore {
       if (backup.homepageStats) this.homepageStats = backup.homepageStats;
       if (backup.homepageFeatures) this.homepageFeatures = backup.homepageFeatures;
       if (backup.ownerPin) this.ownerPin = String(backup.ownerPin);
+      if (backup.renewalSettings) this.renewalSettings = backup.renewalSettings;
       if (Array.isArray(backup.users) && backup.users.length > 0) {
         backup.users.forEach(su => {
           const match = this.users.find(u => u.email.toLowerCase() === su.email.toLowerCase());
