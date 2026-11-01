@@ -422,6 +422,32 @@ router.get('/books/:id/pdf', async (req, res) => {
   }
 });
 
+// PDF Proxy for CORS-safe loading of external book PDFs in PDF.js
+router.get('/books/pdf-proxy', async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) {
+    return res.status(400).json({ success: false, message: 'PDF URL parameter is required' });
+  }
+
+  try {
+    const fetchRes = await fetch(targetUrl);
+    if (!fetchRes.ok) {
+      return res.status(fetchRes.status).send('Failed to fetch external PDF');
+    }
+
+    res.setHeader('Content-Type', fetchRes.headers.get('content-type') || 'application/pdf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    const buffer = await fetchRes.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('PDF proxy error:', err.message);
+    res.status(500).send('Error proxying PDF: ' + err.message);
+  }
+});
+
 router.post('/books', authMiddleware, (req, res) => {
   const newBook = store.addBook(req.body);
   store.auditLogs.unshift({
@@ -725,16 +751,22 @@ router.get('/contact', authMiddleware, (req, res) => {
   res.json({ success: true, data: store.contactMessages });
 });
 
-// ================= CLOUDINARY UPLOAD ENDPOINT =================
-router.post('/upload', upload.single('image'), async (req, res) => {
+// ================= CLOUDINARY UPLOAD ENDPOINT (Images & Real PDF E-Books) =================
+router.post('/upload', (req, res, next) => {
+  upload.any()(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message });
+    next();
+  });
+}, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No image file uploaded' });
+    const file = (req.files && req.files.length > 0) ? req.files[0] : req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
     // Upload to Cloudinary using stream / buffer
-    const b64 = Buffer.from(req.file.buffer).toString('base64');
-    const dataURI = 'data:' + req.file.mimetype + ';base64,' + b64;
+    const b64 = Buffer.from(file.buffer).toString('base64');
+    const dataURI = 'data:' + file.mimetype + ';base64,' + b64;
     
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: 'braindock/uploads',
@@ -743,9 +775,10 @@ router.post('/upload', upload.single('image'), async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Image uploaded to Cloudinary successfully',
+      message: 'File uploaded successfully',
       url: result.secure_url,
-      public_id: result.public_id
+      public_id: result.public_id,
+      format: result.format || file.mimetype
     });
   } catch (err) {
     console.error('Cloudinary upload error:', err);

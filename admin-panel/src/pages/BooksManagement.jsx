@@ -12,8 +12,12 @@ import {
   Upload, 
   Sparkles,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  FileText,
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export default function BooksManagement() {
   const [books, setBooks] = useState([]);
@@ -36,19 +40,23 @@ export default function BooksManagement() {
   const [description, setDescription] = useState('');
   const [coverImage, setCoverImage] = useState('https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [readOnlineUrl, setReadOnlineUrl] = useState('');
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   useEffect(() => {
     fetchBooks();
   }, []);
 
   const fetchBooks = () => {
-    fetch('http://localhost:5000/api/books')
+    fetch(`${API_BASE_URL}/api/books`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
           setBooks(data.data);
         }
-      });
+      })
+      .catch(err => console.error("Error fetching books:", err));
   };
 
   const handleOpenAdd = () => {
@@ -62,22 +70,26 @@ export default function BooksManagement() {
     setTotalCopies(5);
     setDescription('');
     setCoverImage('https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600');
+    setPdfUrl('');
+    setReadOnlineUrl('');
     setModalOpen(true);
   };
 
   const handleOpenEdit = (b) => {
     setEditingBook(b);
-    setTitle(b.title);
-    setAuthor(b.author);
-    setIsbn(b.isbn);
-    setCategory(b.category);
-    setShelf(b.shelf);
-    setRack(b.rack);
-    setPublisher(b.publisher);
-    setPublicationYear(b.publicationYear);
-    setTotalCopies(b.totalCopies);
-    setDescription(b.description);
-    setCoverImage(b.coverImage);
+    setTitle(b.title || '');
+    setAuthor(b.author || '');
+    setIsbn(b.isbn || '');
+    setCategory(b.category || 'Computer Science & AI');
+    setShelf(b.shelf || 'CS-Shelf 1');
+    setRack(b.rack || 'Rack 04-A');
+    setPublisher(b.publisher || "O'Reilly Media");
+    setPublicationYear(b.publicationYear || 2024);
+    setTotalCopies(b.totalCopies || 5);
+    setDescription(b.description || '');
+    setCoverImage(b.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600');
+    setPdfUrl(b.pdfUrl || '');
+    setReadOnlineUrl(b.readOnlineUrl || '');
     setModalOpen(true);
   };
 
@@ -91,7 +103,7 @@ export default function BooksManagement() {
     setUploadingImage(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/upload', {
+      const res = await fetch(`${API_BASE_URL}/api/upload`, {
         method: 'POST',
         body: formData
       });
@@ -99,12 +111,41 @@ export default function BooksManagement() {
       setUploadingImage(false);
       if (data.success && data.url) {
         setCoverImage(data.url);
-        setToast("Cover image uploaded to Cloudinary!");
+        setToast("Cover image uploaded successfully!");
         setTimeout(() => setToast(null), 3000);
       }
     } catch (err) {
       setUploadingImage(false);
       setToast("Upload completed with direct link");
+    }
+  };
+
+  // Upload full book PDF document
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setUploadingPdf(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      setUploadingPdf(false);
+      if (data.success && data.url) {
+        setPdfUrl(data.url);
+        setToast("✅ Full PDF E-Book attached successfully!");
+        setTimeout(() => setToast(null), 3000);
+      } else {
+        setToast(data.message || "Upload failed");
+      }
+    } catch (err) {
+      setUploadingPdf(false);
+      setToast("Upload error. Please check file size or use direct link.");
     }
   };
 
@@ -122,11 +163,13 @@ export default function BooksManagement() {
       totalCopies: Number(totalCopies),
       availableCopies: Number(totalCopies),
       description,
-      coverImage
+      coverImage,
+      pdfUrl: pdfUrl.trim() || undefined,
+      readOnlineUrl: readOnlineUrl.trim() || undefined
     };
 
     if (editingBook) {
-      fetch(`http://localhost:5000/api/books/${editingBook.bookId}`, {
+      fetch(`${API_BASE_URL}/api/books/${editingBook.bookId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +185,7 @@ export default function BooksManagement() {
           setTimeout(() => setToast(null), 3000);
         });
     } else {
-      fetch('http://localhost:5000/api/books', {
+      fetch(`${API_BASE_URL}/api/books`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,7 +205,7 @@ export default function BooksManagement() {
 
   const handleDeleteBook = (bookId) => {
     if (!window.confirm("Are you sure you want to remove this book from the active catalogue?")) return;
-    fetch(`http://localhost:5000/api/books/${bookId}`, {
+    fetch(`${API_BASE_URL}/api/books/${bookId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('bdl_token') || 'demo'}`
@@ -295,7 +338,15 @@ export default function BooksManagement() {
                     <img src={book.coverImage} alt={book.title} className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-xs" />
                   </td>
                   <td className="p-4 font-medium max-w-xs">
-                    <span className="font-mono text-[10px] text-purple-700 font-bold block">{book.bookId}</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="font-mono text-[10px] text-purple-700 font-bold block">{book.bookId}</span>
+                      {(book.pdfUrl || book.readOnlineUrl) && (
+                        <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-bold">
+                          <FileText className="w-2.5 h-2.5" />
+                          <span>PDF</span>
+                        </span>
+                      )}
+                    </div>
                     <span className="font-bold text-slate-900 line-clamp-1">{book.title}</span>
                     <span className="font-mono text-[10px] text-slate-400">{book.isbn}</span>
                   </td>
@@ -477,6 +528,64 @@ export default function BooksManagement() {
                     <span>{uploadingImage ? 'Uploading...' : 'Upload Cloudinary'}</span>
                     <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
                   </label>
+                </div>
+              </div>
+
+              {/* Digital Book Attachment (Real Multi-Page PDF & Online Reader) */}
+              <div className="bg-purple-50/70 border border-purple-200/90 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-purple-700" />
+                    <span className="font-bold text-slate-900 text-xs">Digital Book Attachment (Real Multi-Page PDF)</span>
+                  </div>
+                  <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full border border-purple-300">
+                    Interactive Reader
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Real book ki complete PDF upload karein ya direct URL paste karein. Website par reader me sabhi pages smoothly flip honge.
+                </p>
+
+                {/* PDF File / Link */}
+                <div className="space-y-1.5">
+                  <label className="block text-slate-700 font-medium text-[11px]">Direct PDF URL or File Upload</label>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="text" 
+                      value={pdfUrl} 
+                      onChange={(e) => setPdfUrl(e.target.value)}
+                      placeholder="https://.../book.pdf or upload PDF directly"
+                      className="flex-1 p-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-mono text-[11px] focus:outline-none focus:ring-2 focus:ring-purple-600"
+                    />
+                    <label className="bg-purple-700 hover:bg-purple-800 text-white px-3.5 py-2.5 rounded-xl cursor-pointer flex items-center space-x-1.5 font-bold text-xs transition-colors shrink-0 shadow-xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingPdf ? 'Uploading...' : 'Upload PDF'}</span>
+                      <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" />
+                    </label>
+                    {pdfUrl && (
+                      <a 
+                        href={pdfUrl} 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition-colors shrink-0"
+                        title="Test / View PDF Link"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* External / Archive Online Reader Link (Optional) */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-slate-700 font-medium text-[11px]">External Reader URL / Internet Archive Mirror (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={readOnlineUrl} 
+                    onChange={(e) => setReadOnlineUrl(e.target.value)}
+                    placeholder="e.g. https://archive.org/details/..."
+                    className="w-full p-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 text-[11px] focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  />
                 </div>
               </div>
 

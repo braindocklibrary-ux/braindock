@@ -424,9 +424,10 @@ class DataStore {
       chapters,
       isDigitalArchive: true,
       hasPdf: true,
-      pdfPages: chapters.length * 15 + 10,
-      pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId || 'new'}/pdf`,
-      downloadPdfFilename: `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
+      pdfPages: Number(book.pdfPages) || (chapters.length * 15 + 10),
+      pdfUrl: book.pdfUrl || `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId || 'new'}/pdf`,
+      readOnlineUrl: book.readOnlineUrl || '',
+      downloadPdfFilename: book.downloadPdfFilename || `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
       totalCopies: Number(book.totalCopies) || 5,
       availableCopies: Number(book.availableCopies ?? book.totalCopies) || 5,
       status: book.status || 'Available',
@@ -441,7 +442,12 @@ class DataStore {
   updateBook(id, data) {
     const idx = this.books.findIndex(b => b.bookId === id);
     if (idx !== -1) {
-      this.books[idx] = { ...this.books[idx], ...data };
+      this.books[idx] = { 
+        ...this.books[idx], 
+        ...data,
+        pdfUrl: data.pdfUrl !== undefined ? data.pdfUrl : this.books[idx].pdfUrl,
+        readOnlineUrl: data.readOnlineUrl !== undefined ? data.readOnlineUrl : this.books[idx].readOnlineUrl
+      };
       return this.books[idx];
     }
     return null;
