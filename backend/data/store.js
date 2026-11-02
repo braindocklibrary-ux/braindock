@@ -2660,3 +2660,4 @@ class DataStore {
 }
 
 export const store = new DataStore();
+export default store;

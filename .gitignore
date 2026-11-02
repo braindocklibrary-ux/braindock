@@ -36,3 +36,7 @@ Thumbs.db
 # Editor directories
 .vscode/
 .idea/
+
+# WhatsApp Bot Session Data
+*baileys_auth*
+

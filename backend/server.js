@@ -15,6 +15,8 @@ import {
 } from './services/biometricAdmsService.js';
 import { store } from './data/store.js';
 import { initScheduledGoogleDriveBackup } from './services/googleDriveService.js';
+import { whatsAppBot } from './services/whatsappBot.js';
+import { expiryScheduler } from './services/expiryScheduler.js';
 
 dotenv.config();
 
@@ -138,6 +140,12 @@ async function startServer() {
 
   // Initialize Automated Google Drive Cloud Backup Service
   initScheduledGoogleDriveBackup();
+
+  // Initialize Automated WhatsApp Web QR Bot & Expiry Scheduler
+  setTimeout(() => {
+    whatsAppBot.initWhatsAppBot().catch(e => console.warn('[WhatsApp Bot Boot] Init notice:', e.message));
+    expiryScheduler.startScheduler();
+  }, 3500);
 
   // 24/7 Keep-Alive Heartbeat (Prevents Render Free-Tier Container Sleep)
   const renderAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL;

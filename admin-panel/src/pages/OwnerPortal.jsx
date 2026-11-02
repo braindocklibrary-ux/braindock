@@ -54,7 +54,11 @@ import {
   ExternalLink,
   FileSpreadsheet,
   FileCode,
-  CheckCircle
+  CheckCircle,
+  Smartphone,
+  Bot,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
@@ -511,6 +515,144 @@ export default function OwnerPortal() {
       alert('Error saving renewal settings');
     } finally {
       setSavingRenewalSettings(false);
+    }
+  };
+
+  // ================= WHATSAPP AUTOMATION BOT STATE & HANDLERS =================
+  const [botStatus, setBotStatus] = useState('disconnected'); // 'disconnected' | 'connecting' | 'qr_ready' | 'connected'
+  const [botInfo, setBotInfo] = useState({ connectedNumber: null, qrCodeDataUrl: null, lastConnectedAt: null });
+  const [schedulerSettings, setSchedulerSettings] = useState({
+    autoDispatchEnabled: true,
+    dispatchTimeString: '09:30',
+    delayBetweenMsgsSec: 4
+  });
+  const [botModalOpen, setBotModalOpen] = useState(false);
+  const [connectingBot, setConnectingBot] = useState(false);
+  const [dispatchingNow, setDispatchingNow] = useState(false);
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testPhone, setTestPhone] = useState('6356006100');
+  const [testMessage, setTestMessage] = useState('🔔 *Brain Dock Library* - Automated WhatsApp Bot Test! 📚\nYour library WhatsApp automation session is 100% active and working smoothly.');
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const fetchBotStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/status`);
+      const data = await res.json();
+      if (data.success) {
+        if (data.bot) {
+          setBotStatus(data.bot.status);
+          setBotInfo(data.bot);
+        }
+        if (data.scheduler) {
+          setSchedulerSettings(data.scheduler);
+        }
+      }
+    } catch (e) {}
+  };
+
+  // Poll status when in 'expiries' tab or when QR modal is active
+  useEffect(() => {
+    if (activeTab === 'expiries') {
+      fetchBotStatus();
+      const interval = setInterval(fetchBotStatus, botStatus === 'qr_ready' ? 2500 : 8000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, botStatus]);
+
+  const handleConnectBot = async () => {
+    setConnectingBot(true);
+    setBotModalOpen(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/connect`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.bot) {
+        setBotStatus(data.bot.status);
+        setBotInfo(data.bot);
+      }
+    } catch (e) {
+      alert('Error initializing WhatsApp bot connection.');
+    } finally {
+      setConnectingBot(false);
+    }
+  };
+
+  const handleDisconnectBot = async () => {
+    if (!window.confirm('Are you sure you want to unlink WhatsApp from the server?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/disconnect`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('WhatsApp session unlinked.');
+        fetchBotStatus();
+      }
+    } catch (e) {
+      alert('Error unlinking WhatsApp.');
+    }
+  };
+
+  const handleTriggerDispatchNow = async () => {
+    const dueCount = expiryReminders.filter(e => !e.alreadySentToday).length;
+    if (dueCount === 0) {
+      alert('Sabhi expiring students ko aaj ka message already bhej diya gaya hai!');
+      return;
+    }
+    if (!window.confirm(`Kya aap sabhi ${dueCount} due students ko abhi automatic WhatsApp message bhejna chahte hain?`)) return;
+
+    setDispatchingNow(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/trigger-dispatch`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`🎉 ${data.message}`);
+        fetchExpiryReminders();
+        fetchBotStatus();
+      } else {
+        alert(data.message || data.error || 'Failed to trigger batch dispatch.');
+      }
+    } catch (e) {
+      alert('Error triggering batch dispatch.');
+    } finally {
+      setDispatchingNow(false);
+    }
+  };
+
+  const handleSaveSchedulerSettings = async (newSettings) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/scheduler-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSchedulerSettings(data.settings);
+        showToast('✅ WhatsApp Auto-Dispatch settings saved!');
+      }
+    } catch (e) {
+      alert('Error saving auto-dispatch settings.');
+    }
+  };
+
+  const handleSendTestMessage = async (e) => {
+    e.preventDefault();
+    setSendingTest(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/whatsapp/send-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: testPhone, message: testMessage })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`✅ Test message delivered to +91 ${testPhone}!`);
+        setTestModalOpen(false);
+      } else {
+        alert(data.error || 'Test message failed to send.');
+      }
+    } catch (e) {
+      alert('Network error sending test message.');
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -2012,6 +2154,150 @@ export default function OwnerPortal() {
                 <span className="text-[10px] text-emerald-600 font-semibold">Protected from duplicate spam</span>
               </div>
             </div>
+          </div>
+
+          {/* ================= TAREEEQA 3: WHATSAPP WEB QR AUTOMATION BOT ENGINE ================= */}
+          <div className="bg-gradient-to-br from-purple-950 via-slate-900 to-indigo-950 border-2 border-purple-500/40 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+            
+            {/* Background glowing accent */}
+            <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              
+              {/* Bot Identity & Status */}
+              <div className="space-y-2 max-w-xl">
+                <div className="flex items-center space-x-3">
+                  <span className={`p-2.5 rounded-2xl ${botStatus === 'connected' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-purple-600 text-white'} shadow-md`}>
+                    <Bot className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <div className="flex items-center space-x-2.5">
+                      <h3 className="text-lg font-black tracking-tight text-white">
+                        WhatsApp Web Auto-Bot (100% Free Self-Hosted)
+                      </h3>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                        botStatus === 'connected'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : botStatus === 'qr_ready'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                      }`}>
+                        {botStatus === 'connected' ? '🟢 Online & Linked' : botStatus === 'qr_ready' ? '🟡 Scan QR Code' : '⚪ Standby / Offline'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-purple-200/80 font-medium">
+                      Bina kisi manual click ke, library ke phone se roz subah automatic reminder bhejne wala engine.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-1 text-xs text-slate-300 space-y-1">
+                  {botStatus === 'connected' ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center space-x-1.5 text-emerald-300 font-semibold bg-emerald-950/60 px-3 py-1 rounded-xl border border-emerald-800/80">
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Linked Device: {botInfo.connectedNumber || 'Library WhatsApp Phone'}</span>
+                      </span>
+                      <span className="inline-flex items-center space-x-1.5 text-purple-300 font-semibold bg-purple-950/60 px-3 py-1 rounded-xl border border-purple-800/80">
+                        <CalendarClock className="w-3.5 h-3.5" />
+                        <span>Daily Auto-Dispatch: {schedulerSettings.autoDispatchEnabled ? `ON at ${schedulerSettings.dispatchTimeString}` : 'OFF'}</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-slate-400 leading-relaxed">
+                      💡 <strong>Setup Step:</strong> Neeche diye gaye <strong>"Link Library WhatsApp (Scan QR)"</strong> button par click karein aur library ke phone se QR code scan karein. Ek baar scan hote hi bot roz subah expiry messages automatic bhej dega.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Bot Control Buttons */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {botStatus === 'connected' ? (
+                  <>
+                    <button
+                      onClick={handleTriggerDispatchNow}
+                      disabled={dispatchingNow}
+                      className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-md shadow-emerald-900/30 transition-all cursor-pointer disabled:opacity-50"
+                      title="Send WhatsApp renewal notice to all due students right now via Bot"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${dispatchingNow ? 'animate-bounce' : ''}`} />
+                      <span>{dispatchingNow ? 'Sending Batch...' : '⚡ Run Auto-Dispatch Now'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setTestModalOpen(true)}
+                      className="py-2.5 px-3.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+                      title="Send a sample WhatsApp message to verify connection"
+                    >
+                      <Send className="w-3.5 h-3.5 text-purple-300" />
+                      <span>Test Message</span>
+                    </button>
+
+                    <button
+                      onClick={handleDisconnectBot}
+                      className="py-2.5 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold text-xs flex items-center space-x-1.5 transition-colors cursor-pointer"
+                      title="Unlink library WhatsApp phone"
+                    >
+                      <Power className="w-3.5 h-3.5" />
+                      <span>Unlink</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleConnectBot}
+                    disabled={connectingBot}
+                    className="py-3 px-5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black text-xs flex items-center space-x-2 shadow-lg shadow-purple-900/40 transition-all cursor-pointer"
+                  >
+                    <QrCode className={`w-4 h-4 ${connectingBot ? 'animate-spin' : ''}`} />
+                    <span>{connectingBot ? 'Generating QR Code...' : '📲 Link Library WhatsApp (Scan QR)'}</span>
+                  </button>
+                )}
+              </div>
+
+            </div>
+
+            {/* Bottom Row: Scheduler Settings Inline Bar */}
+            <div className="mt-5 pt-4 border-t border-purple-500/20 flex flex-wrap items-center justify-between gap-4 text-xs">
+              <div className="flex flex-wrap items-center gap-4">
+                
+                {/* Auto Dispatch Toggle */}
+                <label className="flex items-center space-x-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={schedulerSettings.autoDispatchEnabled}
+                    onChange={(e) => handleSaveSchedulerSettings({ ...schedulerSettings, autoDispatchEnabled: e.target.checked })}
+                    className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                  />
+                  <span className="font-bold text-white">Daily Automatic Dispatch Active</span>
+                </label>
+
+                {/* Dispatch Time Selector */}
+                <div className="flex items-center space-x-2 bg-slate-950/60 border border-purple-500/30 px-3 py-1.5 rounded-xl">
+                  <Clock className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-slate-300 text-[11px] font-semibold">Scheduled Time:</span>
+                  <input
+                    type="time"
+                    value={schedulerSettings.dispatchTimeString || '09:30'}
+                    onChange={(e) => handleSaveSchedulerSettings({ ...schedulerSettings, dispatchTimeString: e.target.value })}
+                    className="bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                  />
+                </div>
+
+                {/* Anti-spam delay indicator */}
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  🛡️ Smart Throttle: 4-sec gap between messages to prevent spam detection
+                </span>
+              </div>
+
+              {botStatus === 'connected' && (
+                <div className="flex items-center space-x-2 text-[11px] text-emerald-300 font-mono">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>Engine Running 24/7 on Server</span>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Students List Table */}
@@ -3745,6 +4031,168 @@ export default function OwnerPortal() {
 
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: WHATSAPP BOT QR CODE SCANNER MODAL ================= */}
+      {botModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/85 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setBotModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 text-slate-800 space-y-5 shadow-2xl relative">
+            <button 
+              onClick={() => setBotModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+              title="Close (ESC)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-1">
+              <span className="text-[10px] uppercase font-mono text-purple-800 font-bold bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                Tareeqa 3 • WhatsApp Multi-Device Engine
+              </span>
+              <h3 className="text-xl font-black text-slate-900 mt-2">
+                Link Library WhatsApp Phone
+              </h3>
+              <p className="text-xs text-slate-500">
+                Apne library ke mobile WhatsApp se yeh QR Code scan karein.
+              </p>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="bg-slate-50 border-2 border-purple-200 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[260px] text-center space-y-3">
+              {botStatus === 'connected' ? (
+                <div className="space-y-3 py-6">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-md">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+                  <h4 className="text-base font-black text-slate-900">WhatsApp Successfully Linked!</h4>
+                  <p className="text-xs text-emerald-700 font-medium">
+                    Connected Number: <strong>{botInfo.connectedNumber || 'Library Official'}</strong>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Ab roz subah expiring students ko automatic WhatsApp reminder messages chale jayenge.
+                  </p>
+                  <button
+                    onClick={() => setBotModalOpen(false)}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                  >
+                    Done (Close)
+                  </button>
+                </div>
+              ) : botInfo.qrCodeDataUrl ? (
+                <div className="space-y-3 flex flex-col items-center">
+                  <div className="p-2.5 bg-white rounded-2xl shadow-md border border-purple-300">
+                    <img 
+                      src={botInfo.qrCodeDataUrl} 
+                      alt="WhatsApp Web QR Code" 
+                      className="w-52 h-52 block rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2 text-[11px] text-purple-700 font-mono font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-purple-600 animate-ping"></span>
+                    <span>Waiting for camera scan...</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center space-y-3 py-8">
+                  <RefreshCw className="w-8 h-8 text-purple-600 animate-spin" />
+                  <p className="text-xs font-bold text-slate-700">Generating Secure QR Code...</p>
+                  <p className="text-[11px] text-slate-400">Connecting to WhatsApp Multi-Device Server</p>
+                </div>
+              )}
+            </div>
+
+            {/* 3 Simple Instructions */}
+            {botStatus !== 'connected' && (
+              <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-4 text-xs space-y-2 text-slate-700">
+                <p className="font-bold text-purple-950 flex items-center space-x-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-purple-700" />
+                  <span>Phone se scan karne ke steps:</span>
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-600 font-medium">
+                  <li>Library ke phone me <strong>WhatsApp</strong> kholein.</li>
+                  <li>Upar 3 dots ya Settings par tap karein ➔ <strong>Linked Devices</strong>.</li>
+                  <li><strong>"Link a Device"</strong> par click karein aur is QR code ko scan karein.</li>
+                </ol>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: SEND TEST WHATSAPP MESSAGE ================= */}
+      {testModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setTestModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 text-slate-800 space-y-4 shadow-2xl relative">
+            <button 
+              onClick={() => setTestModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] uppercase font-mono text-purple-800 font-bold bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                Delivery Test
+              </span>
+              <h3 className="text-lg font-black text-slate-900 mt-1">
+                Send Test WhatsApp Message
+              </h3>
+              <p className="text-xs text-slate-500">
+                Verify karein ki linked WhatsApp session sahi tarah se message bhej raha hai.
+              </p>
+            </div>
+
+            <form onSubmit={handleSendTestMessage} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Recipient Mobile Number (+91)</label>
+                <input 
+                  type="text" 
+                  value={testPhone} 
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="e.g. 6356006100"
+                  className="w-full p-2.5 rounded-xl bg-white border border-slate-300 font-mono font-bold text-slate-900 focus:ring-2 focus:ring-purple-600 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Message Body</label>
+                <textarea 
+                  rows="4"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs focus:ring-2 focus:ring-purple-600 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setTestModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingTest}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-md disabled:opacity-50"
+                >
+                  <Send className={`w-3.5 h-3.5 ${sendingTest ? 'animate-bounce' : ''}`} />
+                  <span>{sendingTest ? 'Delivering...' : 'Send Test WhatsApp'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

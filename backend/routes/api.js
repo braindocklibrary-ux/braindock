@@ -9,6 +9,8 @@ import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
 import { uploadBackupToGoogleDrive, getGoogleDriveBackupStatus } from '../services/googleDriveService.js';
+import { whatsAppBot } from '../services/whatsappBot.js';
+import { expiryScheduler } from '../services/expiryScheduler.js';
 import mongoose from 'mongoose';
 
 const router = express.Router();
@@ -1165,12 +1167,22 @@ router.get('/owner/expiry-reminders', (req, res) => {
 });
 
 // Send/Record individual student daily WhatsApp reminder (with customizable renewal fee)
-router.post('/owner/expiry-reminders/:id/send', (req, res) => {
+router.post('/owner/expiry-reminders/:id/send', async (req, res) => {
   const { renewalFee, offerNote } = req.body || {};
   const result = store.sendExpiryReminder(req.params.id, renewalFee, offerNote);
   if (!result.success) {
     return res.status(400).json(result);
   }
+
+  // If WhatsApp bot is connected, dispatch directly in background
+  if (whatsAppBot.getStatus().status === 'connected') {
+    const botRes = await whatsAppBot.sendTextMessage(result.phone, result.reminderMessage);
+    if (botRes.success) {
+      result.directBotDelivered = true;
+      result.message = `✅ WhatsApp automatically delivered to ${result.studentName} (+${result.phone})!`;
+    }
+  }
+
   res.json(result);
 });
 
@@ -1193,6 +1205,51 @@ router.post('/owner/expiry-reminders/send-all-due', (req, res) => {
     dispatchedCount: results.length,
     items: results
   });
+});
+
+// ================= AUTOMATED WHATSAPP BOT & DAILY SCHEDULER ROUTES =================
+
+// Get bot status and scheduler settings
+router.get('/whatsapp/status', (req, res) => {
+  res.json({
+    success: true,
+    bot: whatsAppBot.getStatus(),
+    scheduler: expiryScheduler.getSettings()
+  });
+});
+
+// Trigger connection or QR generation
+router.post('/whatsapp/connect', async (req, res) => {
+  const status = await whatsAppBot.initWhatsAppBot();
+  res.json({ success: true, bot: status });
+});
+
+// Disconnect and wipe session
+router.post('/whatsapp/disconnect', async (req, res) => {
+  const result = await whatsAppBot.disconnectWhatsAppBot();
+  res.json(result);
+});
+
+// Send test message
+router.post('/whatsapp/send-test', async (req, res) => {
+  const { phone, message } = req.body || {};
+  if (!phone || !message) {
+    return res.status(400).json({ success: false, message: 'Recipient phone number and test message required.' });
+  }
+  const result = await whatsAppBot.sendTextMessage(phone, message);
+  res.json(result);
+});
+
+// Trigger manual batch dispatch now
+router.post('/whatsapp/trigger-dispatch', async (req, res) => {
+  const result = await expiryScheduler.executeDispatchBatch({ isManualTrigger: true });
+  res.json(result);
+});
+
+// Update auto-scheduler settings
+router.put('/whatsapp/scheduler-settings', (req, res) => {
+  const updated = expiryScheduler.updateSettings(req.body || {});
+  res.json({ success: true, settings: updated });
 });
 
 // Vacate seat
