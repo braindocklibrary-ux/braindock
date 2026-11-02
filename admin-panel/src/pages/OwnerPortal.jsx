@@ -58,7 +58,8 @@ import {
   Smartphone,
   Bot,
   Wifi,
-  WifiOff
+  WifiOff,
+  Power
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
