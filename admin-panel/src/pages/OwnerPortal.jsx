@@ -534,6 +534,7 @@ export default function OwnerPortal() {
   const [testPhone, setTestPhone] = useState('6356006100');
   const [testMessage, setTestMessage] = useState('🔔 *Brain Dock Library* - Automated WhatsApp Bot Test! 📚\nYour library WhatsApp automation session is 100% active and working smoothly.');
   const [sendingTest, setSendingTest] = useState(false);
+  const [previewMessageItem, setPreviewMessageItem] = useState(null);
 
   const fetchBotStatus = async () => {
     try {
@@ -2436,6 +2437,16 @@ export default function OwnerPortal() {
                         {/* Actions */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end space-x-2">
+                            {/* Preview Message Button */}
+                            <button
+                              onClick={() => setPreviewMessageItem(item)}
+                              className="py-1.5 px-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs flex items-center space-x-1 transition-colors cursor-pointer"
+                              title="Preview exact WhatsApp message text that goes to this student"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Preview</span>
+                            </button>
+
                             {/* WhatsApp Button */}
                             <button
                               onClick={() => handleSendSingleReminder(item)}
@@ -4194,6 +4205,81 @@ export default function OwnerPortal() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: WHATSAPP MESSAGE LIVE PREVIEW ================= */}
+      {previewMessageItem && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setPreviewMessageItem(null); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 text-slate-800 space-y-4 shadow-2xl relative">
+            <button 
+              onClick={() => setPreviewMessageItem(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2.5">
+              <span className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                <MessageCircle className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Exact WhatsApp Message Preview
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Yeh exact message is student ke mobile (+91 {previewMessageItem.studentPhone}) par jayega:
+                </p>
+              </div>
+            </div>
+
+            {/* Simulated WhatsApp Chat Bubble */}
+            <div className="bg-[#EFEAE2] p-4 rounded-2xl border border-slate-300 shadow-inner space-y-2">
+              <div className="bg-[#DCF8C6] p-4 rounded-2xl rounded-tr-none shadow-sm text-xs font-sans text-slate-900 leading-relaxed whitespace-pre-line border border-[#C5E9AC] max-w-md ml-auto">
+                <div className="font-bold text-emerald-950 mb-1 flex items-center justify-between border-b border-emerald-300/50 pb-1">
+                  <span>🔔 Brain Dock Library - Renewal Alert</span>
+                  <span className="text-[10px] text-slate-500 font-mono font-normal">Official Notice</span>
+                </div>
+                {`Dear *${previewMessageItem.studentName}*,
+
+Your library membership for *Seat #${previewMessageItem.seatNumber}* is ${previewMessageItem.daysRemaining < 0 ? `EXPIRED ${Math.abs(previewMessageItem.daysRemaining)} day(s) ago` : previewMessageItem.daysRemaining === 0 ? 'EXPIRES TODAY' : `expiring in ${previewMessageItem.daysRemaining} day(s)`} on *${previewMessageItem.endDate}*.
+
+⚠️ *Seat Protection Notice:*
+To ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.
+
+📌 *Seat:* Seat #${previewMessageItem.seatNumber} (${previewMessageItem.shift || 'Full Day'})
+📅 *Valid Till:* ${previewMessageItem.endDate}
+💰 *Renewal Plan:* ₹${studentRenewalFees[previewMessageItem.admissionId] !== undefined ? studentRenewalFees[previewMessageItem.admissionId] : (previewMessageItem.renewalFee || renewalFee)} / Month${offerNote ? ` (${offerNote})` : ''}
+
+📍 *Brain Dock Library*
+2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601
+Helpline: +91 63 5600 6100
+Thank you!`}
+                <div className="text-[10px] text-slate-400 text-right mt-1 font-mono">
+                  09:30 AM ✓✓
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+              <span className="text-slate-500 font-medium">
+                Recipient: <strong>{previewMessageItem.studentName}</strong> (Seat #{previewMessageItem.seatNumber})
+              </span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${previewMessageItem.studentName}*,\n\nYour library membership for *Seat #${previewMessageItem.seatNumber}* is ${previewMessageItem.daysRemaining < 0 ? `EXPIRED ${Math.abs(previewMessageItem.daysRemaining)} day(s) ago` : previewMessageItem.daysRemaining === 0 ? 'EXPIRES TODAY' : `expiring in ${previewMessageItem.daysRemaining} day(s)`} on *${previewMessageItem.endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${previewMessageItem.seatNumber} (${previewMessageItem.shift || 'Full Day'})\n📅 *Valid Till:* ${previewMessageItem.endDate}\n💰 *Renewal Plan:* ₹${studentRenewalFees[previewMessageItem.admissionId] !== undefined ? studentRenewalFees[previewMessageItem.admissionId] : (previewMessageItem.renewalFee || renewalFee)} / Month${offerNote ? ` (${offerNote})` : ''}\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`);
+                  showToast('Message text copied to clipboard!');
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"
+              >
+                Copy Text
+              </button>
+            </div>
+
           </div>
         </div>
       )}
