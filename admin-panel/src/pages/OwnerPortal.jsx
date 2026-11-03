@@ -64,6 +64,7 @@ import {
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
 import MasterMonthlyRegister from '../components/MasterMonthlyRegister';
+import CameraCaptureCropModal from '../components/CameraCaptureCropModal';
 import { compressImage } from '../utils/imageCompressor';
 import { API_BASE_URL } from '../config';
 
@@ -207,7 +208,32 @@ export default function OwnerPortal() {
   const [secPinMsg, setSecPinMsg] = useState(null);
   const [secPinErr, setSecPinErr] = useState(null);
 
+  // Calculate duration dates helper (auto-computes end date from start date and months)
+  const calculateMembershipEndDate = (startDateStr, months = 1) => {
+    if (!startDateStr) return '';
+    try {
+      const d = new Date(startDateStr);
+      if (isNaN(d.getTime())) return '';
+      d.setMonth(d.getMonth() + Number(months || 1));
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Helper: auto-format Aadhaar number as 4-4-4 digits (XXXX XXXX XXXX)
+  const formatAadhaarNumber = (val) => {
+    if (!val) return '';
+    const digits = String(val).replace(/\D/g, '').slice(0, 12);
+    const parts = [];
+    for (let i = 0; i < digits.length; i += 4) {
+      parts.push(digits.slice(i, i + 4));
+    }
+    return parts.join(' ');
+  };
+
   // Comprehensive Admission Form Initial State (Sections 01 to 05)
+  const todayStr = new Date().toISOString().split('T')[0];
   const initialAdmForm = {
     // 01 Personal Details
     studentName: '',
@@ -233,8 +259,8 @@ export default function OwnerPortal() {
     membershipType: 'Monthly',
     shift: 'Full Day (24x7)',
     durationMonths: 1,
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
+    startDate: todayStr,
+    endDate: calculateMembershipEndDate(todayStr, 1),
     seatNumber: '',
     biometricEnrollmentId: '',
     lockerNumber: '',
@@ -250,13 +276,16 @@ export default function OwnerPortal() {
     idProofNo: '',
     aadhaarNo: '',
     studentPhoto: '',
+    aadhaarFront: '',
+    aadhaarBack: '',
 
-    // Fee & Payment (Itemized with dynamic + rows)
+    // Fee & Payment (Itemized with dynamic + rows) - ₹850 Desk Fee + ₹500 Security Deposit = ₹1350
     feeItems: [
-      { description: 'Dedicated Study Desk & Facility Pass', amount: 1500 }
+      { description: 'Dedicated Study Desk & Facility Pass (Monthly Fee)', amount: 850 },
+      { description: 'Security Deposit (Refundable)', amount: 500 }
     ],
-    totalFee: 1500,
-    paidAmount: 1500,
+    totalFee: 1350,
+    paidAmount: 1350,
     paymentMode: 'UPI (GPay / PhonePe)',
     transactionRef: '',
     feeDueDate: '',
@@ -268,6 +297,16 @@ export default function OwnerPortal() {
   const [imageCompressInfo, setImageCompressInfo] = useState(null);
   const [compressing, setCompressing] = useState(false);
   const [deleteConfirmModal, setDeleteConfirmModal] = useState(null);
+
+  // Live Camera Capture & Interactive Cropping Modal State
+  const [cropModalConfig, setCropModalConfig] = useState({
+    isOpen: false,
+    target: 'studentPhoto',
+    title: 'Student Profile Photo',
+    aspectRatio: 1
+  });
+  // Full-screen document preview lightbox
+  const [documentLightbox, setDocumentLightbox] = useState(null);
 
   // Collect Payment Form State
   const [payForm, setPayForm] = useState({
@@ -1000,16 +1039,22 @@ export default function OwnerPortal() {
     setImageCompressInfo(null);
     setPreselectedSeatNum(seatNum);
     const chosen = seatNum || (availableSeatsList[0]?.seatNumber || 1);
+    const sDate = new Date().toISOString().split('T')[0];
+    const eDate = calculateMembershipEndDate(sDate, 1);
     setAdmForm({
       ...initialAdmForm,
       seatNumber: chosen,
       biometricEnrollmentId: chosen,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: sDate,
+      endDate: eDate,
       feeItems: [
-        { description: `Dedicated Study Desk #${chosen} & Facility Pass`, amount: 1500 }
+        { description: `Dedicated Study Desk #${chosen} & Facility Pass (Monthly Fee)`, amount: 850 },
+        { description: 'Security Deposit (Refundable)', amount: 500 }
       ],
-      totalFee: 1500,
-      paidAmount: 1500,
+      totalFee: 1350,
+      paidAmount: 1350,
+      aadhaarFront: '',
+      aadhaarBack: '',
       transactionRef: `UPI/${Date.now().toString().slice(-6)}`
     });
     setAdmissionModalOpen(true);
@@ -1020,6 +1065,24 @@ export default function OwnerPortal() {
     setEditingAdmissionId(admission.admissionId);
     setImageCompressInfo(null);
     setPreselectedSeatNum(admission.seatNumber);
+    const sDate = admission.startDate || new Date().toISOString().split('T')[0];
+    const eDate = admission.endDate || calculateMembershipEndDate(sDate, admission.durationMonths || 1);
+
+    // Keep itemized fee breakdown separate (₹850 monthly fee + ₹500 security deposit)
+    let items = (admission.feeItems && Array.isArray(admission.feeItems) && admission.feeItems.length > 0)
+      ? admission.feeItems
+      : null;
+
+    if (!items) {
+      const tot = Number(admission.totalFee) || 1350;
+      const dep = Number(admission.deposit) || (tot === 1350 ? 500 : 0);
+      const deskFee = tot - dep;
+      items = [
+        { description: `Dedicated Study Desk #${admission.seatNumber || ''} & Facility Pass (Monthly Fee)`, amount: deskFee > 0 ? deskFee : tot },
+        ...(dep > 0 ? [{ description: 'Security Deposit (Refundable)', amount: dep }] : [])
+      ];
+    }
+
     setAdmForm({
       studentName: admission.studentName || '',
       parentsName: admission.parentsName || '',
@@ -1039,9 +1102,9 @@ export default function OwnerPortal() {
       targetExam: admission.targetExam || '',
       membershipType: admission.membershipType || 'Monthly',
       shift: admission.shift || 'Full Day (24x7)',
-      durationMonths: 1,
-      startDate: admission.startDate || new Date().toISOString().split('T')[0],
-      endDate: admission.endDate || '',
+      durationMonths: Number(admission.durationMonths) || 1,
+      startDate: sDate,
+      endDate: eDate,
       seatNumber: admission.seatNumber || '',
       biometricEnrollmentId: admission.biometricEnrollmentId || admission.seatNumber || '',
       lockerNumber: admission.lockerNumber || '',
@@ -1050,14 +1113,14 @@ export default function OwnerPortal() {
       emergencyPhone: admission.emergencyPhone || admission.guardianPhone || '',
       guardianPhone: admission.guardianPhone || admission.emergencyPhone || '',
       idProofType: admission.idProofType || 'Aadhaar Card',
-      idProofNo: admission.idProofNo || admission.aadhaarNo || '',
-      aadhaarNo: admission.aadhaarNo || admission.idProofNo || '',
+      idProofNo: formatAadhaarNumber(admission.idProofNo || admission.aadhaarNo || ''),
+      aadhaarNo: formatAadhaarNumber(admission.aadhaarNo || admission.idProofNo || ''),
       studentPhoto: admission.studentPhoto || '',
-      feeItems: (admission.feeItems && Array.isArray(admission.feeItems) && admission.feeItems.length > 0)
-        ? admission.feeItems
-        : [{ description: `Dedicated Study Desk #${admission.seatNumber || ''} & Facility Pass`, amount: admission.totalFee || 1500 }],
-      totalFee: admission.totalFee || 1500,
-      paidAmount: admission.paidAmount || 1500,
+      aadhaarFront: admission.aadhaarFront || admission.idProofFront || '',
+      aadhaarBack: admission.aadhaarBack || admission.idProofBack || '',
+      feeItems: items,
+      totalFee: admission.totalFee || 1350,
+      paidAmount: admission.paidAmount || 1350,
       paymentMode: admission.paymentMode || 'UPI (GPay / PhonePe)',
       transactionRef: admission.transactionRef || '',
       feeDueDate: admission.feeDueDate || '',
@@ -1066,7 +1129,79 @@ export default function OwnerPortal() {
     setAdmissionModalOpen(true);
   };
 
-  // Smart Client-Side Photo Compression Handler
+  // Document Gallery File Picker Ref
+  const docFilePickerRef = useRef(null);
+  const [activeDocTarget, setActiveDocTarget] = useState({ field: 'studentPhoto', title: 'Student Profile Photo', aspectRatio: 1 });
+
+  // Open Direct Camera & Crop Modal for any document
+  const handleOpenDocCameraModal = (field, title, aspectRatio) => {
+    setCropModalConfig({
+      isOpen: true,
+      target: field,
+      title,
+      aspectRatio,
+      initialImage: null
+    });
+  };
+
+  // Open Gallery File Picker for any document (transitions into cropper)
+  const handleOpenDocGallery = (field, title, aspectRatio) => {
+    setActiveDocTarget({ field, title, aspectRatio });
+    if (docFilePickerRef.current) {
+      docFilePickerRef.current.value = '';
+      docFilePickerRef.current.click();
+    }
+  };
+
+  // When a file is chosen from Gallery, load as Data URL and open cropper
+  const handleDocGalleryFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPG, PNG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCropModalConfig({
+        isOpen: true,
+        target: activeDocTarget.field,
+        title: activeDocTarget.title,
+        aspectRatio: activeDocTarget.aspectRatio,
+        initialImage: event.target.result
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Remove a document field
+  const handleRemoveDocField = (field) => {
+    setAdmForm(prev => ({ ...prev, [field]: '' }));
+    if (field === 'studentPhoto') {
+      setImageCompressInfo(null);
+    }
+  };
+
+  // Save Cropped Image from CameraCaptureCropModal
+  const handleDocCropSave = (dataUrl, meta) => {
+    if (!cropModalConfig.target) return;
+    setAdmForm(prev => ({
+      ...prev,
+      [cropModalConfig.target]: dataUrl
+    }));
+    if (cropModalConfig.target === 'studentPhoto') {
+      setImageCompressInfo({
+        compressedKB: meta.compressedKB,
+        savings: 70
+      });
+    }
+    showToast(`${cropModalConfig.title} cropped & attached successfully! (${meta.compressedKB} KB)`);
+  };
+
+  // Smart Client-Side Photo Compression Handler (Legacy Fallback)
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1312,7 +1447,7 @@ export default function OwnerPortal() {
     })
     .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
-  // Filtered Admissions for Register View
+  // Filtered Admissions for Register View (Always Kram-Wise sorted 1..102 by Seat Number)
   const filteredAdmissions = admissions.filter(adm => {
     const matchesSearch = 
       adm.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1327,28 +1462,60 @@ export default function OwnerPortal() {
     if (registerFilter === 'expiring') return adm.daysRemaining >= 0 && adm.daysRemaining <= 5 && adm.status !== 'Vacated';
     if (registerFilter === 'expired') return adm.status === 'Expired' || adm.daysRemaining < 0;
     return true;
-  });
+  }).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
-  // Calculate duration dates helper
+  // Calculate duration dates & separate fee breakdown helper
   const handleDurationChange = (months) => {
     const m = Number(months);
-    const start = new Date(admForm.startDate || new Date());
-    const end = new Date(start);
-    end.setMonth(end.getMonth() + m);
+    const startStr = admForm.startDate || new Date().toISOString().split('T')[0];
+    const endStr = calculateMembershipEndDate(startStr, m);
     
-    // Fee tier calculation: 1mo = 1500, 3mo = 4200, 6mo = 8000, 12mo = 15000
-    let fee = 1500 * m;
-    if (m === 3) fee = 4200;
-    if (m === 6) fee = 8000;
-    if (m === 12) fee = 15000;
+    // Monthly library pass is ₹850/mo. Deposit is ₹500 (kept separate, refundable)
+    const deskMonthlyFee = 850 * m;
+    const hasDeposit = (admForm.feeItems || []).some(it => (it.description || '').toLowerCase().includes('deposit'));
+    const depositAmount = hasDeposit ? 500 : 0;
+    const fee = deskMonthlyFee + depositAmount;
+
+    const deskDesc = `Dedicated Study Desk #${admForm.seatNumber || ''} & Facility Pass (${m} Month${m > 1 ? 's' : ''})`;
+    const updatedFeeItems = [
+      { description: deskDesc, amount: deskMonthlyFee },
+      ...(hasDeposit ? [{ description: 'Security Deposit (Refundable)', amount: depositAmount }] : [])
+    ];
 
     setAdmForm(prev => ({
       ...prev,
       durationMonths: m,
+      endDate: endStr,
+      feeItems: updatedFeeItems,
       totalFee: fee,
       paidAmount: fee
     }));
   };
+
+  // Total Security Deposits KPI metric (across all active students)
+  const totalSecurityDeposits = useMemo(() => {
+    let manualOverrides = {};
+    try {
+      const saved = localStorage.getItem('bdl_register_overrides');
+      if (saved) manualOverrides = JSON.parse(saved);
+    } catch (e) {}
+
+    const activeAdms = admissions.filter(a => a.status !== 'Vacated');
+    return activeAdms.reduce((sum, adm) => {
+      const overrideKey = `${adm.seatNumber}_deposit`;
+      if (manualOverrides[overrideKey] === false) return sum;
+      if (manualOverrides[overrideKey] === true) return sum + (Number(adm.deposit) || 500);
+
+      if (adm.deposit && Number(adm.deposit) > 0) return sum + Number(adm.deposit);
+      if (adm.securityDeposit && Number(adm.securityDeposit) > 0) return sum + Number(adm.securityDeposit);
+      if (Array.isArray(adm.feeItems)) {
+        const depItem = adm.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit'));
+        if (depItem && Number(depItem.amount) > 0) return sum + Number(depItem.amount);
+      }
+      if (adm.depositPaid) return sum + 500;
+      return sum;
+    }, 0);
+  }, [admissions]);
 
   // If Locked by Passkey Gate
   if (!isUnlocked) {
@@ -1513,8 +1680,8 @@ export default function OwnerPortal() {
         </div>
       </div>
 
-      {/* 6 High-Impact Operational KPI Metrics */}
-      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      {/* 7 High-Impact Operational KPI Metrics (Including Security Deposits) */}
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
         
         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Total Seats</span>
@@ -1543,6 +1710,12 @@ export default function OwnerPortal() {
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Fees Collected</span>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">₹{stats.totalFeeCollected?.toLocaleString()}</h3>
           <span className="text-[11px] font-medium text-emerald-600">Reconciled in bank</span>
+        </div>
+
+        <div className="bg-white border border-purple-200/90 p-5 rounded-2xl shadow-xs bg-purple-50/20">
+          <span className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider block">Total Deposits</span>
+          <h3 className="text-2xl font-bold text-purple-950 mt-1">₹{totalSecurityDeposits?.toLocaleString()}</h3>
+          <span className="text-[11px] font-medium text-purple-600">Refundable balance</span>
         </div>
 
         <div className={`p-5 rounded-2xl shadow-xs transition-all ${stats.totalFeePending > 0 ? 'bg-amber-50/40 border border-amber-200' : 'bg-white border border-slate-200/80'}`}>
@@ -1871,6 +2044,35 @@ export default function OwnerPortal() {
                                   {adm.studentPhone}
                                 </a>
                               </div>
+                              {adm.aadhaarNo && (
+                                <p className="text-[9.5px] text-slate-500 font-mono mt-0.5">
+                                  UID: <span className="font-semibold text-slate-700">{formatAadhaarNumber(adm.aadhaarNo)}</span>
+                                </p>
+                              )}
+                              <div className="flex items-center space-x-1.5 mt-1">
+                                {adm.aadhaarFront && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocumentLightbox({ title: `${adm.studentName} - Aadhaar Front`, url: adm.aadhaarFront })}
+                                    className="px-1.5 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-[9px] font-bold border border-blue-200 flex items-center space-x-0.5 cursor-pointer"
+                                    title="View Aadhaar Front"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    <span>Front</span>
+                                  </button>
+                                )}
+                                {adm.aadhaarBack && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocumentLightbox({ title: `${adm.studentName} - Aadhaar Back`, url: adm.aadhaarBack })}
+                                    className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded text-[9px] font-bold border border-emerald-200 flex items-center space-x-0.5 cursor-pointer"
+                                    title="View Aadhaar Back"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    <span>Back</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -1909,6 +2111,20 @@ export default function OwnerPortal() {
                         <td className="p-4 font-mono">
                           <span className="font-bold text-slate-900">₹{adm.paidAmount}</span>
                           <span className="text-slate-400"> / ₹{adm.totalFee}</span>
+                          {(() => {
+                            const dep = (adm.deposit && Number(adm.deposit) > 0)
+                              ? Number(adm.deposit)
+                              : (adm.feeItems?.find(it => (it.description || '').toLowerCase().includes('deposit'))?.amount || (Number(adm.totalFee) === 1350 ? 500 : 0));
+                            const desk = (Number(adm.totalFee) || 0) - dep;
+                            if (dep > 0) {
+                              return (
+                                <span className="block text-[9.5px] text-purple-700 font-sans font-semibold mt-0.5 leading-tight">
+                                  Fee: ₹{desk > 0 ? desk : adm.totalFee} + Dep: ₹{dep}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {isPending && (
                             <span className="block text-[10px] font-bold text-amber-700">
                               Due: ₹{adm.pendingFee}
@@ -3017,8 +3233,12 @@ export default function OwnerPortal() {
                     <input 
                       type="date" 
                       value={admForm.startDate}
-                      onChange={(e) => setAdmForm({ ...admForm, startDate: e.target.value })}
-                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        const newEnd = calculateMembershipEndDate(newStart, admForm.durationMonths || 1);
+                        setAdmForm({ ...admForm, startDate: newStart, endDate: newEnd });
+                      }}
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                     />
                   </div>
 
@@ -3028,9 +3248,27 @@ export default function OwnerPortal() {
                       type="date" 
                       value={admForm.endDate}
                       onChange={(e) => setAdmForm({ ...admForm, endDate: e.target.value })}
-                      placeholder="Auto-calculated if blank"
-                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
+                      placeholder="Auto-calculated"
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                     />
+                  </div>
+                </div>
+
+                {/* Live Computed Membership Validity Preview Banner */}
+                <div className="bg-purple-50/90 border border-purple-200/90 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-purple-700 text-white flex items-center justify-center shrink-0">
+                      <Calendar className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold text-purple-950 block">Active Membership Validity Window</span>
+                      <span className="text-[10px] text-purple-700">Duration: {admForm.durationMonths || 1} Month(s)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 text-xs font-mono font-black text-purple-950 bg-white px-3 py-1.5 rounded-lg border border-purple-200 shadow-2xs">
+                    <span>{admForm.startDate || 'YYYY-MM-DD'}</span>
+                    <span className="text-purple-400 font-sans">➔</span>
+                    <span className="text-purple-700">{admForm.endDate || calculateMembershipEndDate(admForm.startDate, admForm.durationMonths || 1) || 'YYYY-MM-DD'}</span>
                   </div>
                 </div>
 
@@ -3085,6 +3323,8 @@ export default function OwnerPortal() {
                     >
                       <option value="Father">Father</option>
                       <option value="Mother">Mother</option>
+                      <option value="Husband">Husband</option>
+                      <option value="Wife">Wife</option>
                       <option value="Brother">Brother</option>
                       <option value="Sister">Sister</option>
                       <option value="Guardian">Guardian</option>
@@ -3105,113 +3345,316 @@ export default function OwnerPortal() {
                 </div>
               </div>
 
-              {/* ================= 05 IDENTITY / DOCUMENT DETAILS & SMART COMPRESSOR ================= */}
-              <div className="space-y-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
-                <div className="flex items-center space-x-2 pb-1 border-b border-purple-100">
-                  <span className="bg-purple-700 text-white font-mono font-bold px-2 py-0.5 rounded text-[11px]">
-                    05
+              {/* ================= 05 IDENTITY & DOCUMENT DETAILS (DUAL-SIDED AADHAAR + LIVE CAMERA & CROPPING) ================= */}
+              <div className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
+                <div className="flex items-center justify-between pb-1 border-b border-purple-100">
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-purple-700 text-white font-mono font-bold px-2 py-0.5 rounded text-[11px]">
+                      05
+                    </span>
+                    <h3 className="font-bold text-slate-900 uppercase tracking-wide text-xs">
+                      Identity Details & Document Attachments
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-purple-700 font-medium hidden sm:inline">
+                    Live camera capture & gallery crop support
                   </span>
-                  <h3 className="font-bold text-slate-900 uppercase tracking-wide text-xs">
-                    Identity / Document & Student Photo (With Auto-Compressor)
-                  </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Left Column: ID Proof details */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">ID Proof Type</label>
-                      <select 
-                        value={admForm.idProofType}
-                        onChange={(e) => setAdmForm({ ...admForm, idProofType: e.target.value })}
-                        className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
-                      >
-                        <option value="Aadhaar Card">Aadhaar Card</option>
-                        <option value="Driving Licence">Driving Licence</option>
-                        <option value="Voter ID Card">Voter ID Card</option>
-                        <option value="Passport">Passport</option>
-                        <option value="College / University ID">College / University ID</option>
-                        <option value="Other">Other Government ID</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-semibold mb-1">ID Proof Number</label>
-                      <input 
-                        type="text" 
-                        value={admForm.idProofNo || admForm.aadhaarNo}
-                        onChange={(e) => setAdmForm({ ...admForm, idProofNo: e.target.value, aadhaarNo: e.target.value })}
-                        placeholder="e.g. 4821 9912 3014"
-                        className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono text-xs"
-                      />
-                    </div>
+                {/* ID Proof Type & Formatted ID Number */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">ID Proof Type</label>
+                    <select 
+                      value={admForm.idProofType}
+                      onChange={(e) => setAdmForm({ ...admForm, idProofType: e.target.value })}
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
+                    >
+                      <option value="Aadhaar Card">Aadhaar Card (12 Digits)</option>
+                      <option value="Driving Licence">Driving Licence</option>
+                      <option value="Voter ID Card">Voter ID Card</option>
+                      <option value="Passport">Passport</option>
+                      <option value="College / University ID">College / University ID</option>
+                      <option value="Other">Other Government ID</option>
+                    </select>
                   </div>
 
-                  {/* Right Column: Student Photo Upload with Smart Compressor */}
-                  <div className="space-y-2">
+                  <div>
                     <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                      <span>Student Photo</span>
-                      <span className="text-[10px] text-purple-700 font-normal">Auto-compressed for instant loading</span>
+                      <span>ID Proof Number</span>
+                      {admForm.idProofType === 'Aadhaar Card' && (
+                        <span className="text-[10px] text-purple-700 font-mono font-bold">Auto-spaced: 4-4-4</span>
+                      )}
                     </label>
+                    <input 
+                      type="text" 
+                      value={admForm.idProofType === 'Aadhaar Card' ? formatAadhaarNumber(admForm.idProofNo || admForm.aadhaarNo) : (admForm.idProofNo || admForm.aadhaarNo)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const formatted = admForm.idProofType === 'Aadhaar Card' ? formatAadhaarNumber(raw) : raw;
+                        setAdmForm({ ...admForm, idProofNo: formatted, aadhaarNo: formatted });
+                      }}
+                      placeholder={admForm.idProofType === 'Aadhaar Card' ? "XXXX XXXX XXXX (e.g. 4821 9912 3014)" : "Enter ID Number"}
+                      maxLength={admForm.idProofType === 'Aadhaar Card' ? 14 : 30}
+                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 font-mono font-bold text-xs tracking-wider"
+                    />
+                  </div>
+                </div>
+
+                {/* 3 Upload Cards: Student Photo, Aadhaar Front, Aadhaar Back */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200/60">
+                  
+                  {/* Card 1: Student Profile Photo (1:1 Ratio) */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                        <User className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Student Photo</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded font-bold">1:1 Square</span>
+                    </div>
 
                     {admForm.studentPhoto ? (
-                      <div className="flex items-center space-x-3 p-3 bg-white border-2 border-purple-200 rounded-2xl shadow-2xs">
-                        <img 
-                          src={admForm.studentPhoto} 
-                          alt="Student Preview" 
-                          className="w-16 h-16 rounded-xl object-cover border border-purple-200 shrink-0" 
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-slate-900 text-xs truncate">
-                            {admForm.studentName || 'Student Photo'}
-                          </p>
-                          {imageCompressInfo && (
-                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              ⚡ Compressed: {imageCompressInfo.compressedKB} KB ({imageCompressInfo.savings}% saved)
-                            </span>
-                          )}
-                          <div className="mt-1.5 flex items-center space-x-2">
-                            <label className="text-[11px] text-purple-700 font-bold hover:underline cursor-pointer">
-                              Change
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handlePhotoUpload} 
-                                className="hidden" 
-                              />
-                            </label>
-                            <span className="text-slate-300">•</span>
-                            <button 
-                              type="button" 
-                              onClick={handleRemovePhoto}
-                              className="text-[11px] text-rose-600 hover:underline font-semibold"
-                            >
-                              Remove
-                            </button>
-                          </div>
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-purple-200 aspect-square max-h-36 mx-auto bg-slate-50 flex items-center justify-center">
+                          <img 
+                            src={admForm.studentPhoto} 
+                            alt="Student" 
+                            className="w-full h-full object-cover" 
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setDocumentLightbox({ title: `${admForm.studentName || 'Student'} - Photo`, url: admForm.studentPhoto })}
+                            className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white rounded-lg cursor-pointer"
+                            title="View Full Size"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-center space-x-2 text-[10px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('studentPhoto', 'Student Profile Photo', 1)}
+                            className="text-purple-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('studentPhoto', 'Student Profile Photo', 1)}
+                            className="text-purple-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDocField('studentPhoto')}
+                            className="text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
                         </div>
                       </div>
                     ) : (
-                      <label className="border-2 border-dashed border-purple-300 hover:border-purple-500 rounded-2xl p-4 bg-purple-50/40 hover:bg-purple-50/70 transition-all flex flex-col items-center justify-center cursor-pointer text-center group">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handlePhotoUpload} 
-                          className="hidden" 
-                        />
-                        <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mb-1.5 group-hover:scale-110 transition-transform">
-                          <Camera className="w-5 h-5" />
+                      <div className="border-2 border-dashed border-purple-200 hover:border-purple-400 rounded-xl p-3 bg-purple-50/20 text-center flex flex-col items-center justify-center space-y-2 min-h-[140px]">
+                        <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center">
+                          <Camera className="w-4 h-4" />
                         </div>
-                        <p className="font-bold text-slate-900 text-xs">
-                          {compressing ? 'Compressing Image...' : 'Click to Upload Student Photo'}
-                        </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          JPG, PNG, WebP • Auto-compressed to lightweight profile format
-                        </p>
-                      </label>
+                        <p className="text-[11px] font-bold text-slate-800">Passport Photo</p>
+                        <div className="flex items-center space-x-1.5 pt-1 w-full">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('studentPhoto', 'Student Profile Photo', 1)}
+                            className="flex-1 py-1.5 px-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('studentPhoto', 'Student Profile Photo', 1)}
+                            className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors border border-slate-300"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
+
+                  {/* Card 2: Aadhaar Card Front Side (1.58:1 Ratio) */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                        <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Aadhaar Front</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-bold">Front Side</span>
+                    </div>
+
+                    {admForm.aadhaarFront ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-blue-200 aspect-16/10 max-h-36 mx-auto bg-slate-50 flex items-center justify-center">
+                          <img 
+                            src={admForm.aadhaarFront} 
+                            alt="Aadhaar Front" 
+                            className="w-full h-full object-cover" 
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setDocumentLightbox({ title: `${admForm.studentName || 'Student'} - Aadhaar Front`, url: admForm.aadhaarFront })}
+                            className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white rounded-lg cursor-pointer"
+                            title="View Full Size"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-center space-x-2 text-[10px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('aadhaarFront', 'Aadhaar Card - Front Side', 1.58)}
+                            className="text-blue-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('aadhaarFront', 'Aadhaar Card - Front Side', 1.58)}
+                            className="text-blue-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDocField('aadhaarFront')}
+                            className="text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-blue-200 hover:border-blue-400 rounded-xl p-3 bg-blue-50/20 text-center flex flex-col items-center justify-center space-y-2 min-h-[140px]">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-800">Aadhaar Card (Front)</p>
+                        <div className="flex items-center space-x-1.5 pt-1 w-full">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('aadhaarFront', 'Aadhaar Card - Front Side', 1.58)}
+                            className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('aadhaarFront', 'Aadhaar Card - Front Side', 1.58)}
+                            className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors border border-slate-300"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card 3: Aadhaar Card Back Side (1.58:1 Ratio) */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-800 flex items-center space-x-1">
+                        <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Aadhaar Back</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">Back Side</span>
+                    </div>
+
+                    {admForm.aadhaarBack ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border border-emerald-200 aspect-16/10 max-h-36 mx-auto bg-slate-50 flex items-center justify-center">
+                          <img 
+                            src={admForm.aadhaarBack} 
+                            alt="Aadhaar Back" 
+                            className="w-full h-full object-cover" 
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setDocumentLightbox({ title: `${admForm.studentName || 'Student'} - Aadhaar Back`, url: admForm.aadhaarBack })}
+                            className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black/80 backdrop-blur-xs text-white rounded-lg cursor-pointer"
+                            title="View Full Size"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-center space-x-2 text-[10px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('aadhaarBack', 'Aadhaar Card - Back Side', 1.58)}
+                            className="text-emerald-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('aadhaarBack', 'Aadhaar Card - Back Side', 1.58)}
+                            className="text-emerald-700 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDocField('aadhaarBack')}
+                            className="text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-emerald-200 hover:border-emerald-400 rounded-xl p-3 bg-emerald-50/20 text-center flex flex-col items-center justify-center space-y-2 min-h-[140px]">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-800">Aadhaar Card (Back)</p>
+                        <div className="flex items-center space-x-1.5 pt-1 w-full">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocCameraModal('aadhaarBack', 'Aadhaar Card - Back Side', 1.58)}
+                            className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors"
+                          >
+                            <Camera className="w-3 h-3" />
+                            <span>Camera</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocGallery('aadhaarBack', 'Aadhaar Card - Back Side', 1.58)}
+                            className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-colors border border-slate-300"
+                          >
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Gallery</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
+
               </div>
 
               {/* ================= 06 FEE & PAYMENT DETAILS (DYNAMIC ITEMIZED ROWS) ================= */}
@@ -4290,6 +4733,68 @@ Thank you!`}
         isOpen={receiptModalOpen} 
         onClose={() => setReceiptModalOpen(false)} 
       />
+
+      {/* Hidden Gallery Input for Documents */}
+      <input 
+        ref={docFilePickerRef}
+        type="file" 
+        accept="image/*" 
+        onChange={handleDocGalleryFileSelected} 
+        className="hidden" 
+      />
+
+      {/* Live Camera Capture & Interactive Cropping Modal */}
+      <CameraCaptureCropModal
+        isOpen={cropModalConfig.isOpen}
+        title={cropModalConfig.title}
+        aspectRatio={cropModalConfig.aspectRatio}
+        initialImage={cropModalConfig.initialImage}
+        onClose={() => setCropModalConfig(prev => ({ ...prev, isOpen: false, initialImage: null }))}
+        onSave={handleDocCropSave}
+      />
+
+      {/* Full-Screen Document Lightbox Modal */}
+      {documentLightbox && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-in fade-in"
+          onClick={() => setDocumentLightbox(null)}
+        >
+          <div 
+            className="max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-3xl p-4 text-white shadow-2xl relative" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+              <h4 className="font-bold text-sm text-slate-100 flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <span>{documentLightbox.title}</span>
+              </h4>
+              <button 
+                type="button"
+                onClick={() => setDocumentLightbox(null)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-hidden rounded-xl bg-black flex items-center justify-center p-2">
+              <img 
+                src={documentLightbox.url} 
+                alt={documentLightbox.title} 
+                className="max-h-[70vh] max-w-full object-contain rounded-lg"
+              />
+            </div>
+            <div className="text-center pt-3">
+              <button
+                type="button"
+                onClick={() => setDocumentLightbox(null)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -1,6 +1,17 @@
 import React from 'react';
 import { Printer, X, Scissors } from 'lucide-react';
 
+// Format Aadhaar number with 4-4-4 spacing
+const formatAadhaarNumber = (val) => {
+  if (!val) return '';
+  const digits = String(val).replace(/\D/g, '').slice(0, 12);
+  const parts = [];
+  for (let i = 0; i < digits.length; i += 4) {
+    parts.push(digits.slice(i, i + 4));
+  }
+  return parts.join(' ');
+};
+
 export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
   // Close on Escape key
   React.useEffect(() => {
@@ -194,8 +205,10 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
               <strong className="text-slate-800 text-[9px] block truncate">{receipt.shift || 'Full Day (24x7)'}</strong>
             </div>
             <div>
-              <span className="text-slate-500 block text-[7.5px] uppercase font-bold">Plan Duration:</span>
-              <strong className="text-slate-800 text-[9px] block">{receipt.plan || 'Monthly'}</strong>
+              <span className="text-slate-500 block text-[7.5px] uppercase font-bold">Aadhaar / ID No:</span>
+              <strong className="text-slate-800 font-mono text-[9px] block">
+                {receipt.aadhaarNo ? formatAadhaarNumber(receipt.aadhaarNo) : (receipt.idProofNo ? formatAadhaarNumber(receipt.idProofNo) : 'Verified')}
+              </strong>
             </div>
             <div className="col-span-2">
               <span className="text-slate-500 block text-[7.5px] uppercase font-bold">Membership Validity:</span>

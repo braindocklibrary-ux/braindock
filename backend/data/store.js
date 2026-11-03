@@ -906,6 +906,10 @@ class DataStore {
       aadhaarNo: data.aadhaarNo || data.idProofNo || '',
       photoAttached: !!data.studentPhoto,
       studentPhoto: data.studentPhoto || '', // compressed image data URL
+      aadhaarFront: data.aadhaarFront || data.idProofFront || '',
+      aadhaarBack: data.aadhaarBack || data.idProofBack || '',
+      feeItems,
+      deposit: Number(data.deposit) || (feeItems.find(it => (it.description || '').toLowerCase().includes('deposit'))?.amount || 0),
 
       totalFee,
       paidAmount,
@@ -1390,6 +1394,10 @@ class DataStore {
       adm.studentPhoto = data.studentPhoto;
       adm.photoAttached = !!data.studentPhoto;
     }
+    if (data.aadhaarFront !== undefined) adm.aadhaarFront = data.aadhaarFront;
+    if (data.aadhaarBack !== undefined) adm.aadhaarBack = data.aadhaarBack;
+    if (data.idProofFront !== undefined) adm.aadhaarFront = data.idProofFront;
+    if (data.idProofBack !== undefined) adm.aadhaarBack = data.idProofBack;
 
     // 06 Financials / Fees & Payment Sync
     if (data.deposit !== undefined) adm.deposit = Number(data.deposit) || 0;
@@ -1412,6 +1420,10 @@ class DataStore {
     if (data.transactionRef !== undefined) adm.transactionRef = data.transactionRef;
     if (data.feeItems && Array.isArray(data.feeItems) && data.feeItems.length > 0) {
       adm.feeItems = data.feeItems;
+      const depItem = data.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit'));
+      if (depItem && Number(depItem.amount) > 0) {
+        adm.deposit = Number(depItem.amount);
+      }
     }
 
     // Biometric PIN
