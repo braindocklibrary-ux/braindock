@@ -208,14 +208,23 @@ export default function OwnerPortal() {
   const [secPinMsg, setSecPinMsg] = useState(null);
   const [secPinErr, setSecPinErr] = useState(null);
 
-  // Calculate duration dates helper (auto-computes end date from start date and months)
+  // Calculate duration dates helper (auto-computes end date from start date and months - calendar-safe)
   const calculateMembershipEndDate = (startDateStr, months = 1) => {
     if (!startDateStr) return '';
     try {
-      const d = new Date(startDateStr);
-      if (isNaN(d.getTime())) return '';
-      d.setMonth(d.getMonth() + Number(months || 1));
-      return d.toISOString().split('T')[0];
+      const parts = startDateStr.split('-').map(Number);
+      if (parts.length !== 3 || parts.some(isNaN)) return '';
+      const [year, month, day] = parts;
+      const targetDate = new Date(year, month - 1 + Number(months || 1), day);
+      const expectedMonth = ((month - 1 + Number(months || 1)) % 12 + 12) % 12;
+      if (targetDate.getMonth() !== expectedMonth) {
+        // month overflowed (e.g. Oct 31 -> Nov 30), clamp to last day of target month
+        targetDate.setDate(0);
+      }
+      const y = targetDate.getFullYear();
+      const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const d = String(targetDate.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     } catch (e) {
       return '';
     }
@@ -1466,7 +1475,7 @@ export default function OwnerPortal() {
 
   // Calculate duration dates & separate fee breakdown helper
   const handleDurationChange = (months) => {
-    const m = Number(months);
+    const m = Number(months) || 1;
     const startStr = admForm.startDate || new Date().toISOString().split('T')[0];
     const endStr = calculateMembershipEndDate(startStr, m);
     
@@ -1475,6 +1484,11 @@ export default function OwnerPortal() {
     const hasDeposit = (admForm.feeItems || []).some(it => (it.description || '').toLowerCase().includes('deposit'));
     const depositAmount = hasDeposit ? 500 : 0;
     const fee = deskMonthlyFee + depositAmount;
+
+    let mType = 'Monthly';
+    if (m === 3) mType = 'Quarterly';
+    else if (m === 6) mType = 'Half-Yearly';
+    else if (m === 12) mType = 'Annual';
 
     const deskDesc = `Dedicated Study Desk #${admForm.seatNumber || ''} & Facility Pass (${m} Month${m > 1 ? 's' : ''})`;
     const updatedFeeItems = [
@@ -1485,6 +1499,7 @@ export default function OwnerPortal() {
     setAdmForm(prev => ({
       ...prev,
       durationMonths: m,
+      membershipType: mType,
       endDate: endStr,
       feeItems: updatedFeeItems,
       totalFee: fee,
@@ -3162,12 +3177,20 @@ export default function OwnerPortal() {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                   <div>
                     <label className="block text-slate-700 font-semibold mb-1">Membership Type</label>
                     <select 
                       value={admForm.membershipType}
-                      onChange={(e) => setAdmForm({ ...admForm, membershipType: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let m = admForm.durationMonths || 1;
+                        if (val === 'Monthly') m = 1;
+                        else if (val === 'Quarterly') m = 3;
+                        else if (val === 'Half-Yearly') m = 6;
+                        else if (val === 'Annual') m = 12;
+                        handleDurationChange(m);
+                      }}
                       className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                     >
                       <option value="Monthly">Monthly</option>
@@ -3175,6 +3198,24 @@ export default function OwnerPortal() {
                       <option value="Half-Yearly">Half-Yearly</option>
                       <option value="Annual">Annual</option>
                       <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                      <span>Plan Duration *</span>
+                      <span className="text-[10px] text-purple-700 font-mono font-bold">₹850/mo</span>
+                    </label>
+                    <select 
+                      value={admForm.durationMonths || 1}
+                      onChange={(e) => handleDurationChange(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-white border border-purple-300 text-purple-950 font-bold text-xs focus:ring-2 focus:ring-purple-400"
+                    >
+                      <option value="1">1 Month (Desk: ₹850)</option>
+                      <option value="2">2 Months (Desk: ₹1,700)</option>
+                      <option value="3">3 Months - Quarterly (Desk: ₹2,550)</option>
+                      <option value="6">6 Months - Half-Yearly (Desk: ₹5,100)</option>
+                      <option value="12">12 Months - Annual (Desk: ₹10,200)</option>
                     </select>
                   </div>
 
@@ -3229,27 +3270,29 @@ export default function OwnerPortal() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Membership Start Date</label>
+                    <label className="block text-slate-700 font-semibold mb-1">Membership Start Date *</label>
                     <input 
                       type="date" 
                       value={admForm.startDate}
                       onChange={(e) => {
                         const newStart = e.target.value;
                         const newEnd = calculateMembershipEndDate(newStart, admForm.durationMonths || 1);
-                        setAdmForm({ ...admForm, startDate: newStart, endDate: newEnd });
+                        setAdmForm(prev => ({ ...prev, startDate: newStart, endDate: newEnd }));
                       }}
                       className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Valid Until (End Date)</label>
+                    <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                      <span>Valid Until (End Date)</span>
+                      <span className="text-[10px] text-emerald-700 font-bold font-mono">Auto-calculated</span>
+                    </label>
                     <input 
                       type="date" 
                       value={admForm.endDate}
                       onChange={(e) => setAdmForm({ ...admForm, endDate: e.target.value })}
-                      placeholder="Auto-calculated"
-                      className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
+                      className="w-full p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-300 text-emerald-950 font-mono font-bold text-xs"
                     />
                   </div>
                 </div>
