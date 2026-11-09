@@ -418,13 +418,25 @@ router.get('/books/:id/pdf', async (req, res) => {
   const isDownload = req.query.download === 'true';
   const cleanFilename = (book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_');
 
+  // Resolve canonical direct PDF URL
+  let directPdfUrl = book.pdfUrl;
+  if (!directPdfUrl || directPdfUrl.includes('/api/books/')) {
+    const iaId = book.bookId?.startsWith('IA-') 
+      ? book.bookId.replace('IA-', '') 
+      : (book.embedReaderUrl?.match(/archive\.org\/embed\/([a-zA-Z0-9._-]+)/)?.[1]);
+    if (iaId) {
+      directPdfUrl = `https://archive.org/download/${iaId}/${iaId}.pdf`;
+    }
+  }
+
   // If book has an authentic original scanned PDF, stream it inline so browser reader can render directly
-  if (book.pdfUrl && book.pdfUrl.startsWith('http') && !book.pdfUrl.includes('/api/books/')) {
+  if (directPdfUrl && directPdfUrl.startsWith('http') && !directPdfUrl.includes('/api/books/')) {
     try {
-      const fetchRes = await fetch(book.pdfUrl, {
+      const fetchRes = await fetch(directPdfUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        },
+        redirect: 'follow'
       });
       if (fetchRes.ok) {
         res.setHeader('Content-Type', 'application/pdf');
@@ -436,8 +448,8 @@ router.get('/books/:id/pdf', async (req, res) => {
           'Content-Disposition',
           isDownload ? `attachment; filename="${cleanFilename}_Complete_Edition.pdf"` : `inline; filename="${cleanFilename}_Complete_Edition.pdf"`
         );
-        const buffer = await fetchRes.arrayBuffer();
-        return res.send(Buffer.from(buffer));
+        const { Readable } = await import('stream');
+        return Readable.fromWeb(fetchRes.body).pipe(res);
       }
     } catch (e) {
       console.warn(`External PDF fetch failed for ${book.bookId}, falling back to generator:`, e.message);

@@ -18,27 +18,54 @@ export function streamBookPdf(book, chapters, res, isDownload = false) {
   });
 
   const cleanFilename = (book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_');
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  if (typeof res.setHeader === 'function') {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
 
-  // By default serve inline so browser PDF viewer & PDF.js render directly in page without downloading
-  if (isDownload) {
-    res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}_Complete_Edition.pdf"`);
-  } else {
-    res.setHeader('Content-Disposition', `inline; filename="${cleanFilename}_Complete_Edition.pdf"`);
+    // By default serve inline so browser PDF viewer & PDF.js render directly in page without downloading
+    if (isDownload) {
+      res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}_Complete_Edition.pdf"`);
+    } else {
+      res.setHeader('Content-Disposition', `inline; filename="${cleanFilename}_Complete_Edition.pdf"`);
+    }
   }
 
   doc.pipe(res);
 
-  // Helper to safely write text without crashing on unexpected unicode glyphs
-  const safeText = (txt) => {
+  // Helper to safely write text without crashing on unexpected unicode glyphs or producing Mojibake
+  const cleanAsciiText = (txt) => {
     if (!txt) return '';
-    // Replace non-ascii chars that standard Helvetica doesn't support with readable representations
-    return String(txt).replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/[\u2013\u2014]/g, '-');
+    let s = String(txt)
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-');
+
+    // If text contains non-ASCII characters (e.g. Gujarati, Devanagari, Urdu):
+    if (/[^\x00-\x7F]/.test(s)) {
+      // 1. Extract English / Latin readable title from parentheses if available
+      const parenMatch = s.match(/\(([^)]+)\)/);
+      if (parenMatch && /[a-zA-Z]/.test(parenMatch[1])) {
+        return parenMatch[1].trim();
+      }
+
+      // 2. Extract Latin character sequences
+      const latinWords = s.match(/[a-zA-Z0-9\s.,'":;?!/-]+/g);
+      if (latinWords) {
+        const extracted = latinWords.join(' ').replace(/\s+/g, ' ').trim();
+        if (extracted.length > 5) return extracted;
+      }
+
+      // If purely Indic without Latin, return empty string to prevent Helvetica Mojibake corruption
+      return '';
+    }
+
+    return s.trim();
   };
+
+  const safeText = (txt) => cleanAsciiText(txt);
 
   // ==========================================
   // PAGE 1: FORMAL COVER PAGE
@@ -129,25 +156,18 @@ export function streamBookPdf(book, chapters, res, isDownload = false) {
     );
     doc.moveDown(0.3);
 
-    doc.fontSize(16).fillColor('#0f172a').font('Helvetica-Bold').text(safeText(chap.title), {
+    const chapterTitle = cleanAsciiText(chap.title) || `Module ${idx + 1}: Core Study Text`;
+    doc.fontSize(16).fillColor('#0f172a').font('Helvetica-Bold').text(chapterTitle, {
       lineGap: 3
     });
     doc.moveDown(0.4);
     doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
     doc.moveDown(1);
 
-    // Primary Text / Historical Script
-    if (chap.originalText) {
-      doc.fontSize(11).fillColor('#1e293b').font('Helvetica').text(safeText(chap.originalText), {
-        align: 'justify',
-        lineGap: 4
-      });
-      doc.moveDown(1.2);
-    }
-
-    // Extended In-depth fullText
-    if (chap.fullText) {
-      doc.fontSize(10).fillColor('#334155').font('Helvetica').text(safeText(chap.fullText), {
+    // Primary Text / Extended In-depth treatise (clean Latin text only)
+    const primaryText = cleanAsciiText(chap.fullText) || cleanAsciiText(chap.originalText);
+    if (primaryText && primaryText.length > 10) {
+      doc.fontSize(10.5).fillColor('#1e293b').font('Helvetica').text(primaryText, {
         align: 'justify',
         lineGap: 3.5
       });
@@ -155,26 +175,35 @@ export function streamBookPdf(book, chapters, res, isDownload = false) {
     }
 
     // Translation & Scholarly Commentary
-    if (chap.englishTranslation && chap.englishTranslation !== chap.originalText) {
-      doc.fontSize(10).fillColor('#4c1d95').font('Helvetica-Bold').text('Scholarly Analysis & Interpretation:');
-      doc.moveDown(0.3);
-      doc.fontSize(9.5).fillColor('#475569').font('Helvetica-Oblique').text(safeText(chap.englishTranslation), {
-        align: 'justify',
-        lineGap: 3
-      });
-      doc.moveDown(1.2);
+    if (chap.englishTranslation) {
+      const cleanCommentary = cleanAsciiText(chap.englishTranslation) || chap.englishTranslation.replace(/[^\x00-\x7F]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleanCommentary && cleanCommentary.length > 5) {
+        doc.fontSize(10).fillColor('#4c1d95').font('Helvetica-Bold').text('Scholarly Analysis & English Translation:');
+        doc.moveDown(0.3);
+        doc.fontSize(9.5).fillColor('#334155').font('Helvetica').text(cleanCommentary, {
+          align: 'justify',
+          lineGap: 3
+        });
+        doc.moveDown(1.2);
+      }
     }
 
     // Key Takeaways & Study Points
     if (chap.keyTakeaways && chap.keyTakeaways.length > 0) {
-      doc.fontSize(10).fillColor('#1e1b4b').font('Helvetica-Bold').text('Key Takeaways & Core Concepts:');
-      doc.moveDown(0.4);
-      chap.keyTakeaways.forEach(point => {
-        doc.fontSize(9).fillColor('#334155').font('Helvetica').text(`  *  ${safeText(point)}`, {
-          lineGap: 2.5
+      const cleanPoints = chap.keyTakeaways
+        .map(p => cleanAsciiText(p) || p.replace(/[^\x00-\x7F]/g, ' ').trim())
+        .filter(p => p && p.length > 3);
+
+      if (cleanPoints.length > 0) {
+        doc.fontSize(10).fillColor('#1e1b4b').font('Helvetica-Bold').text('Key Takeaways & Core Concepts:');
+        doc.moveDown(0.4);
+        cleanPoints.forEach(point => {
+          doc.fontSize(9).fillColor('#334155').font('Helvetica').text(`  *  ${point}`, {
+            lineGap: 2.5
+          });
         });
-      });
-      doc.moveDown(1);
+        doc.moveDown(1);
+      }
     }
   });
 
