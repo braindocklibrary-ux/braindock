@@ -378,7 +378,7 @@ router.get('/books/:id', async (req, res) => {
   const cleanDescription = stripHtml(book.description || '');
 
   // Detect and preserve live embed flipbook reader
-  let embedReaderUrl = book.embedReaderUrl || null;
+  let embedReaderUrl = book.embedReaderUrl || (book.readOnlineUrl && book.readOnlineUrl.includes('archive.org') ? book.readOnlineUrl.replace('/details/', '/embed/') : null);
   let pdfUrl = book.pdfUrl || null;
 
   if (book.bookId?.startsWith('IA-')) {
@@ -396,7 +396,7 @@ router.get('/books/:id', async (req, res) => {
     embedReaderUrl,
     pdfUrl,
     chapters,
-    pdfPages: chapters.length * 15 + 10,
+    pdfPages: Number(book.pdfPages) || (chapters.length * 15 + 10),
     downloadPdfFilename: book.downloadPdfFilename || `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`
   };
 
@@ -414,6 +414,11 @@ router.get('/books/:id/pdf', async (req, res) => {
     book = await getGlobalBookById(req.params.id);
   }
   if (!book) return res.status(404).json({ success: false, message: 'Book not found' });
+
+  // If book has an authentic original scanned PDF, redirect or serve directly
+  if (book.pdfUrl && book.pdfUrl.startsWith('http') && !book.pdfUrl.includes('/api/books/')) {
+    return res.redirect(book.pdfUrl);
+  }
 
   const chapters = getFullChaptersForBook(book);
   try {

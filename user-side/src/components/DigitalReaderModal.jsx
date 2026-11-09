@@ -30,6 +30,19 @@ import { API_BASE_URL } from '../config';
 const PDFJS_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+// Resolve Archive.org live 3D Flipbook & Original Scanned Book Embed URL
+const resolveArchiveEmbedUrl = (b) => {
+  if (!b) return null;
+  if (b.embedReaderUrl) return b.embedReaderUrl;
+  if (b.readOnlineUrl && b.readOnlineUrl.includes('archive.org')) {
+    return b.readOnlineUrl.replace('/details/', '/embed/');
+  }
+  if (b.bookId?.startsWith('IA-')) {
+    return `https://archive.org/embed/${b.bookId.replace('IA-', '')}`;
+  }
+  return null;
+};
+
 export default function DigitalReaderModal({ book, onClose }) {
   if (!book) return null;
 
@@ -39,8 +52,9 @@ export default function DigitalReaderModal({ book, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Reading mode: 'interactive' (PDF.js Real Canvas Multi-Page) | 'native-pdf' (Browser PDF embed) | 'flipbook' (Archive.org) | 'chapters' (Text summary)
-  const [viewMode, setViewMode] = useState('interactive');
+  // Default to 'flipbook' (Original Complete Book with all pages) if archive embed URL exists, else 'interactive'
+  const initialEmbed = resolveArchiveEmbedUrl(book);
+  const [viewMode, setViewMode] = useState(initialEmbed ? 'flipbook' : 'interactive');
   
   // Theme for reading: 'dark' | 'cream' | 'white'
   const [theme, setTheme] = useState('dark');
@@ -71,6 +85,10 @@ export default function DigitalReaderModal({ book, onClose }) {
       .then(data => {
         if (isMounted && data.success && data.data) {
           setLoadedBook(data.data);
+          const embed = resolveArchiveEmbedUrl(data.data);
+          if (embed && !initialEmbed) {
+            setViewMode('flipbook');
+          }
         }
       })
       .catch(() => {});
@@ -78,6 +96,7 @@ export default function DigitalReaderModal({ book, onClose }) {
   }, [book.bookId]);
 
   const activeBook = loadedBook || book;
+  const archiveEmbedUrl = resolveArchiveEmbedUrl(activeBook);
 
   // Extract clean PDF URL (without localhost:5000)
   const getCleanPdfUrl = () => {
@@ -109,17 +128,6 @@ export default function DigitalReaderModal({ book, onClose }) {
     }
     return url;
   };
-
-  // Determine Archive.org live embed URL if applicable
-  let archiveEmbedUrl = null;
-  if (activeBook.embedReaderUrl) {
-    archiveEmbedUrl = activeBook.embedReaderUrl;
-  } else if (activeBook.readOnlineUrl && activeBook.readOnlineUrl.includes('archive.org')) {
-    archiveEmbedUrl = activeBook.readOnlineUrl;
-  } else if (activeBook.bookId?.startsWith('IA-')) {
-    const iaId = activeBook.bookId.replace('IA-', '');
-    archiveEmbedUrl = `https://archive.org/embed/${iaId}`;
-  }
 
   // Chapters & Contents for text fallback mode
   const chapters = (activeBook.chapters && activeBook.chapters.length > 0)
@@ -425,9 +433,9 @@ export default function DigitalReaderModal({ book, onClose }) {
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-900/60 text-purple-300 border border-purple-700/50 shrink-0">
                   {activeBook.language || 'Complete Book'}
                 </span>
-                {totalPages > 0 && viewMode === 'interactive' && (
+                {(activeBook.pdfPages || totalPages > 0) && (
                   <span className="hidden sm:inline-block text-[10px] bg-emerald-950/70 text-emerald-400 border border-emerald-800/60 font-mono px-2 py-0.5 rounded-full">
-                    {totalPages} Total Pages
+                    {activeBook.pdfPages ? `${activeBook.pdfPages} Total Pages` : `${totalPages} Total Pages`}
                   </span>
                 )}
               </div>
@@ -439,16 +447,30 @@ export default function DigitalReaderModal({ book, onClose }) {
 
           {/* Center: Mode Switcher */}
           <div className="flex bg-slate-900 p-0.5 rounded-xl border border-slate-800 text-xs">
+            {archiveEmbedUrl && (
+              <button
+                type="button"
+                onClick={() => setViewMode('flipbook')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  viewMode === 'flipbook' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Read Complete Original Scanned Book (All Pages)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Original Book (All Pages)</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => setViewMode('interactive')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
-                viewMode === 'interactive' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => setViewMode('chapters')}
+              className={`px-2.5 py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer flex items-center space-x-1 ${
+                viewMode === 'chapters' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Real Interactive Multi-Page PDF Reader"
+              title="Chapter Synopsis & Commentary"
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Full Book (All Pages)</span>
+              <BookMarked className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Chapters & Synopsis</span>
             </button>
 
             <button
@@ -463,31 +485,19 @@ export default function DigitalReaderModal({ book, onClose }) {
               <span className="hidden sm:inline">Browser PDF</span>
             </button>
 
-            {archiveEmbedUrl && (
+            {!archiveEmbedUrl && (
               <button
                 type="button"
-                onClick={() => setViewMode('flipbook')}
-                className={`px-2.5 py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer flex items-center space-x-1 ${
-                  viewMode === 'flipbook' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                onClick={() => setViewMode('interactive')}
+                className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  viewMode === 'interactive' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Archive.org 3D Flipbook"
+                title="Canvas Vector Reader"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">3D Flipbook</span>
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Canvas View</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setViewMode('chapters')}
-              className={`px-2.5 py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer flex items-center space-x-1 ${
-                viewMode === 'chapters' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-              }`}
-              title="Chapter Synopsis & Commentary"
-            >
-              <BookMarked className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Synopsis</span>
-            </button>
           </div>
 
           {/* Right Controls: Zoom, Theme, Download, Fullscreen, Close */}
@@ -816,11 +826,33 @@ export default function DigitalReaderModal({ book, onClose }) {
           {/* ================= VIEW MODE 3: ARCHIVE.ORG 3D FLIPBOOK ================= */}
           {viewMode === 'flipbook' && archiveEmbedUrl && (
             <div className="w-full h-full relative bg-slate-950 flex flex-col">
+              <div className="px-4 py-2 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="font-semibold text-purple-200">
+                    📖 Original Complete Archive Edition {activeBook.pdfPages ? `(${activeBook.pdfPages} Pages)` : ''}
+                  </span>
+                  <span className="hidden sm:inline text-slate-400">• Full Interactive 3D BookReader with Zoom, Flip & Search</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <a 
+                    href={activeBook.readOnlineUrl || archiveEmbedUrl.replace('/embed/', '/details/')}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 hover:text-white border border-purple-700/50 flex items-center space-x-1.5 transition-all text-[11px] font-semibold"
+                    title="Open full-screen reader in new tab"
+                  >
+                    <span>Full Tab View</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
               <iframe 
                 src={archiveEmbedUrl}
-                className="w-full h-full border-0 bg-slate-950" 
+                className="w-full h-full flex-1 border-0 bg-slate-950" 
                 allowFullScreen 
-                title={activeBook.title}
+                allow="fullscreen"
+                title={`${activeBook.title} Complete Original Book`}
               />
             </div>
           )}
@@ -936,13 +968,15 @@ export default function DigitalReaderModal({ book, onClose }) {
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-semibold text-slate-300">
-              {viewMode === 'interactive' && totalPages > 0 
-                ? `Reading Page ${currentPage} of ${totalPages} (Full Book Edition)`
-                : 'Complete Book Reader Active'}
+              {viewMode === 'flipbook'
+                ? `Original Complete Book Edition • All ${activeBook.pdfPages || '300+'} Pages Loaded • 100% In-Browser Reading`
+                : (viewMode === 'interactive' && totalPages > 0 
+                  ? `Reading Page ${currentPage} of ${totalPages} (Full Book Edition)`
+                  : 'Complete Digital Reading Sanctuary Active')}
             </span>
             <span className="hidden sm:inline">•</span>
             <span className="hidden sm:inline text-slate-400">
-              Keyboard: ← Prev Page • → Next Page • Home / End
+              Zero Download Required • Interactive Library Reader
             </span>
           </div>
 
@@ -954,16 +988,17 @@ export default function DigitalReaderModal({ book, onClose }) {
                 rel="noreferrer"
                 className="text-purple-400 hover:text-purple-300 flex items-center space-x-1 text-xs font-semibold"
               >
-                <span>External Mirror</span>
+                <span>Archive Library Mirror</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
             <button
               onClick={handleDownloadPdf}
-              className="text-purple-400 hover:text-purple-300 font-bold cursor-pointer flex items-center space-x-1"
+              className="text-slate-400 hover:text-purple-300 transition-colors text-xs font-medium cursor-pointer flex items-center space-x-1"
+              title="Save an offline copy if desired"
             >
               <Download className="w-3 h-3" />
-              <span>Download PDF</span>
+              <span>Offline Copy</span>
             </button>
           </div>
 

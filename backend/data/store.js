@@ -31,15 +31,18 @@ class DataStore {
     this.users = [...seedUsers];
     this.books = [...seedBooks, ...ancientWorldClassics].map(b => {
       const fullChapters = getFullChaptersForBook(b);
+      const embedUrl = b.embedReaderUrl || (b.readOnlineUrl && b.readOnlineUrl.includes('archive.org') ? b.readOnlineUrl.replace('/details/', '/embed/') : null);
       return {
         ...b,
         chapters: fullChapters,
         isDigitalArchive: true,
         isDigital: true,
         hasPdf: true,
-        pdfPages: fullChapters.length * 15 + 10,
-        pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${b.bookId}/pdf`,
-        downloadPdfFilename: `${(b.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
+        pdfPages: Number(b.pdfPages) || (fullChapters.length * 15 + 10),
+        pdfUrl: b.pdfUrl || `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${b.bookId}/pdf`,
+        embedReaderUrl: embedUrl,
+        readOnlineUrl: b.readOnlineUrl || (embedUrl ? embedUrl.replace('/embed/', '/details/') : null),
+        downloadPdfFilename: b.downloadPdfFilename || `${(b.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`,
         status: 'Online Available'
       };
     });
@@ -407,12 +410,15 @@ class DataStore {
     const book = this.books.find(b => b.bookId === id || b._id === id);
     if (!book) return null;
     const chapters = getFullChaptersForBook(book);
+    const embedUrl = book.embedReaderUrl || (book.readOnlineUrl && book.readOnlineUrl.includes('archive.org') ? book.readOnlineUrl.replace('/details/', '/embed/') : null);
     return {
       ...book,
       chapters,
-      pdfPages: chapters.length * 15 + 10,
-      pdfUrl: `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId}/pdf`,
-      downloadPdfFilename: `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`
+      pdfPages: Number(book.pdfPages) || (chapters.length * 15 + 10),
+      pdfUrl: book.pdfUrl || `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId}/pdf`,
+      embedReaderUrl: embedUrl,
+      readOnlineUrl: book.readOnlineUrl || (embedUrl ? embedUrl.replace('/embed/', '/details/') : null),
+      downloadPdfFilename: book.downloadPdfFilename || `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`
     };
   }
 

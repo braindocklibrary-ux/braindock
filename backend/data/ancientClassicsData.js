@@ -5,6 +5,9 @@ export const ancientWorldClassics = [
   // ================= 1. GUJARATI CLASSICS =================
   {
     bookId: 'BDL-CL-GUJ-001',
+    embedReaderUrl: 'https://archive.org/embed/in.ernet.dli.2015.537849',
+    readOnlineUrl: 'https://archive.org/details/in.ernet.dli.2015.537849',
+    pdfUrl: 'https://archive.org/download/in.ernet.dli.2015.537849/2015.537849.Sarswatichandra-Bhag-1.pdf',
     title: 'Saraswatichandra (Complete 4 Parts)',
     originalScriptTitle: 'સરસ્વતીચંદ્ર (સમગ્ર ૪ ભાગ)',
     author: 'Govardhanram Madhavram Tripathi',
@@ -57,6 +60,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-GUJ-002',
+    embedReaderUrl: 'https://archive.org/embed/in.ernet.dli.2015.537442',
+    readOnlineUrl: 'https://archive.org/details/in.ernet.dli.2015.537442',
+    pdfUrl: 'https://archive.org/download/in.ernet.dli.2015.537442/2015.537442.Saurashtrani-Rasdhar.pdf',
     title: 'Saurashtra Ni Rasdhar (Volumes 1 to 5)',
     originalScriptTitle: 'સૌરાષ્ટ્રની રસધાર (સંપૂર્ણ ભાગ ૧ થી ૫)',
     author: 'Jhaverchand Meghani (Rashtriya Shayar)',
@@ -99,6 +105,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-GUJ-003',
+    embedReaderUrl: 'https://archive.org/embed/kanhadadepraband00padmuoft',
+    readOnlineUrl: 'https://archive.org/details/kanhadadepraband00padmuoft',
+    pdfUrl: 'https://archive.org/download/kanhadadepraband00padmuoft/kanhadadepraband00padmuoft.pdf',
     title: 'Kanhadade Prabandha (Historical Epic)',
     originalScriptTitle: 'કાન્હડદે પ્રબંધ (ઐતિહાસિક મહાકાવ્ય)',
     author: 'Kavi Padmanabha (કવિ પદ્મનાભ)',
@@ -136,6 +145,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-GUJ-004',
+    embedReaderUrl: 'https://archive.org/embed/in.ernet.dli.2015.420888',
+    readOnlineUrl: 'https://archive.org/details/in.ernet.dli.2015.420888',
+    pdfUrl: 'https://archive.org/download/in.ernet.dli.2015.420888/2015.420888.Bhadrambhadra.pdf',
     title: 'Bhadrambhadra (Classic Satire)',
     originalScriptTitle: 'ભદ્રંભદ્ર (હાસ્ય અને વ્યંગ નવલકથા)',
     author: 'Ramanbhai Nilkanth (રમણભાઈ નીલકંઠ)',
@@ -175,6 +187,9 @@ export const ancientWorldClassics = [
   // ================= 2. SANSKRIT ANCIENT CLASSICS =================
   {
     bookId: 'BDL-CL-SAN-001',
+    embedReaderUrl: 'https://archive.org/embed/shreemed-bhagwat-gita-20220406_20220406_0356',
+    readOnlineUrl: 'https://archive.org/details/shreemed-bhagwat-gita-20220406_20220406_0356',
+    pdfUrl: 'https://archive.org/download/shreemed-bhagwat-gita-20220406_20220406_0356/Shreemed%20Bhagwat%20Gita%2020220406.pdf',
     title: 'Srimad Bhagavad Gita (Original Sanskrit & Commentary)',
     originalScriptTitle: 'श्रीमद्भगवद्गीता (सार्थ संस्कृत मूल एवं व्याख्या)',
     author: 'Maharishi Ved Vyasa (महर्षि वेदव्यास)',
@@ -217,6 +232,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-SAN-002',
+    embedReaderUrl: 'https://archive.org/embed/abhijnanasakunta00kali',
+    readOnlineUrl: 'https://archive.org/details/abhijnanasakunta00kali',
+    pdfUrl: 'https://archive.org/download/abhijnanasakunta00kali/abhijnanasakunta00kali.pdf',
     title: 'Abhijnanasakuntalam (The Recognition of Shakuntala)',
     originalScriptTitle: 'अभिज्ञानशाकुन्तलम् (महाकवि कालिदास विरचित नाटक)',
     author: 'Mahakavi Kalidasa (महाकवि कालिदास)',
@@ -254,6 +272,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-SAN-003',
+    embedReaderUrl: 'https://archive.org/embed/kautilya-arthashastra-in-hindi-vol-1-to-3',
+    readOnlineUrl: 'https://archive.org/details/kautilya-arthashastra-in-hindi-vol-1-to-3',
+    pdfUrl: 'https://archive.org/download/kautilya-arthashastra-in-hindi-vol-1-to-3/Kautilya%20Arthashastra%20in%20Hindi%20Vol%201%20to%203.pdf',
     title: 'Kautilya Arthashastra (Ancient Statecraft & Economics)',
     originalScriptTitle: 'कौटिलीयम् अर्थशास्त्रम् (राजनीति एवं शासन-सिद्धान्त)',
     author: 'Chanakya (Kautilya / Vishnugupta)',
@@ -293,6 +314,9 @@ export const ancientWorldClassics = [
   // ================= 3. HINDI HISTORICAL CLASSICS =================
   {
     bookId: 'BDL-CL-HIN-001',
+    embedReaderUrl: 'https://archive.org/embed/Godan-Hindi',
+    readOnlineUrl: 'https://archive.org/details/Godan-Hindi',
+    pdfUrl: 'https://archive.org/download/Godan-Hindi/Godan.pdf',
     title: 'Godan (The Gift of a Cow)',
     originalScriptTitle: 'गोदान (उपन्यास सम्राट मुंशी प्रेमचंद)',
     author: 'Munshi Premchand',
@@ -330,6 +354,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-HIN-002',
+    embedReaderUrl: 'https://archive.org/embed/Madhushala-Hindi-HarvanshraiBachchan',
+    readOnlineUrl: 'https://archive.org/details/Madhushala-Hindi-HarvanshraiBachchan',
+    pdfUrl: 'https://archive.org/download/Madhushala-Hindi-HarvanshraiBachchan/Madhushala.pdf',
     title: 'Madhushala (The Tavern of Life)',
     originalScriptTitle: 'मधुशाला (हरिवंश राय बच्चन)',
     author: 'Harivansh Rai Bachchan',
@@ -367,6 +394,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-HIN-003',
+    embedReaderUrl: 'https://archive.org/embed/ramcharitmanas_202204',
+    readOnlineUrl: 'https://archive.org/details/ramcharitmanas_202204',
+    pdfUrl: 'https://archive.org/download/ramcharitmanas_202204/Ramcharitmanas.pdf',
     title: 'Ramcharitmanas (The Lake of Rama\'s Deeds)',
     originalScriptTitle: 'श्रीरामचरितमानस (गोस्वामी तुलसीदास)',
     author: 'Goswami Tulsidas',
@@ -406,6 +436,9 @@ export const ancientWorldClassics = [
   // ================= 4. URDU & PERSIAN CLASSICS =================
   {
     bookId: 'BDL-CL-URD-001',
+    embedReaderUrl: 'https://archive.org/embed/diwan-e-ghalib-urdu',
+    readOnlineUrl: 'https://archive.org/details/diwan-e-ghalib-urdu',
+    pdfUrl: 'https://archive.org/download/diwan-e-ghalib-urdu/Diwan-e-Ghalib.pdf',
     title: 'Diwan-e-Ghalib (Complete Urdu Ghazals)',
     originalScriptTitle: 'دیوانِ غالب (مکمل اردو کلام)',
     author: 'Mirza Asadullah Khan Ghalib',
@@ -443,6 +476,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-PER-001',
+    embedReaderUrl: 'https://archive.org/embed/rubaiyatofomarkh00fitz',
+    readOnlineUrl: 'https://archive.org/details/rubaiyatofomarkh00fitz',
+    pdfUrl: 'https://archive.org/download/rubaiyatofomarkh00fitz/rubaiyatofomarkh00fitz.pdf',
     title: 'The Rubaiyat of Omar Khayyam',
     originalScriptTitle: 'رباعیات عمر خیام (متن فارسی و ترجمه انگلیسی)',
     author: 'Omar Khayyam (Trans. Edward FitzGerald)',
@@ -482,6 +518,9 @@ export const ancientWorldClassics = [
   // ================= 5. WESTERN & OLD WORLD PHILOSOPHY (GREEK / LATIN / ENGLISH) =================
   {
     bookId: 'BDL-CL-ENG-001',
+    embedReaderUrl: 'https://archive.org/embed/meditationsofmar00marc',
+    readOnlineUrl: 'https://archive.org/details/meditationsofmar00marc',
+    pdfUrl: 'https://archive.org/download/meditationsofmar00marc/meditationsofmar00marc.pdf',
     title: 'Meditations',
     originalScriptTitle: 'Τὰ εἰς ἑαυτόν (Marcus Aurelius Antoninus)',
     author: 'Marcus Aurelius',
@@ -524,6 +563,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-ENG-002',
+    embedReaderUrl: 'https://archive.org/embed/therepublicofpla00platiala',
+    readOnlineUrl: 'https://archive.org/details/therepublicofpla00platiala',
+    pdfUrl: 'https://archive.org/download/therepublicofpla00platiala/therepublicofpla00platiala.pdf',
     title: 'The Republic (Dialogues on Justice and Society)',
     originalScriptTitle: 'Πολιτεία (Plato)',
     author: 'Plato',
@@ -561,6 +603,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-ENG-003',
+    embedReaderUrl: 'https://archive.org/embed/the-art-of-war-by-sun-tzu',
+    readOnlineUrl: 'https://archive.org/details/the-art-of-war-by-sun-tzu',
+    pdfUrl: 'https://archive.org/download/the-art-of-war-by-sun-tzu/The_Art_of_War_Sun_Tzu.pdf',
     title: 'The Art of War',
     originalScriptTitle: '孫子兵法 (Sun Tzu)',
     author: 'Sun Tzu',
@@ -598,6 +643,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-ENG-004',
+    embedReaderUrl: 'https://archive.org/embed/prince00machuoft',
+    readOnlineUrl: 'https://archive.org/details/prince00machuoft',
+    pdfUrl: 'https://archive.org/download/prince00machuoft/prince00machuoft.pdf',
     title: 'The Prince (Il Principe)',
     originalScriptTitle: 'Il Principe (Niccolò Machiavelli)',
     author: 'Niccolò Machiavelli',
@@ -635,6 +683,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-ENG-005',
+    embedReaderUrl: 'https://archive.org/embed/iliadofhomer00homeuoft',
+    readOnlineUrl: 'https://archive.org/details/iliadofhomer00homeuoft',
+    pdfUrl: 'https://archive.org/download/iliadofhomer00homeuoft/iliadofhomer00homeuoft.pdf',
     title: 'The Iliad and The Odyssey (Homer\'s Complete Epics)',
     originalScriptTitle: 'Ἰλιάς & Ὀδύσσεια (Ὅμηρος)',
     author: 'Homer (Trans. Alexander Pope & Robert Fagles)',
@@ -672,6 +723,9 @@ export const ancientWorldClassics = [
   },
   {
     bookId: 'BDL-CL-ENG-006',
+    embedReaderUrl: 'https://archive.org/embed/warandpeace00tolsgoog',
+    readOnlineUrl: 'https://archive.org/details/warandpeace00tolsgoog',
+    pdfUrl: 'https://archive.org/download/warandpeace00tolsgoog/warandpeace00tolsgoog.pdf',
     title: 'War and Peace (Complete Volumes 1-4)',
     originalScriptTitle: 'Война и мир (Лев Толстой)',
     author: 'Leo Tolstoy',
