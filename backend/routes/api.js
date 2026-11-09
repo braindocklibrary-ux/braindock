@@ -415,14 +415,37 @@ router.get('/books/:id/pdf', async (req, res) => {
   }
   if (!book) return res.status(404).json({ success: false, message: 'Book not found' });
 
-  // If book has an authentic original scanned PDF, redirect or serve directly
+  const isDownload = req.query.download === 'true';
+  const cleanFilename = (book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  // If book has an authentic original scanned PDF, stream it inline so browser reader can render directly
   if (book.pdfUrl && book.pdfUrl.startsWith('http') && !book.pdfUrl.includes('/api/books/')) {
-    return res.redirect(book.pdfUrl);
+    try {
+      const fetchRes = await fetch(book.pdfUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      if (fetchRes.ok) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader(
+          'Content-Disposition',
+          isDownload ? `attachment; filename="${cleanFilename}_Complete_Edition.pdf"` : `inline; filename="${cleanFilename}_Complete_Edition.pdf"`
+        );
+        const buffer = await fetchRes.arrayBuffer();
+        return res.send(Buffer.from(buffer));
+      }
+    } catch (e) {
+      console.warn(`External PDF fetch failed for ${book.bookId}, falling back to generator:`, e.message);
+    }
   }
 
   const chapters = getFullChaptersForBook(book);
   try {
-    const isDownload = req.query.download === 'true';
     streamBookPdf(book, chapters, res, isDownload);
   } catch (err) {
     console.error('Error generating PDF:', err.message);
@@ -438,12 +461,17 @@ router.get('/books/pdf-proxy', async (req, res) => {
   }
 
   try {
-    const fetchRes = await fetch(targetUrl);
+    const fetchRes = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
     if (!fetchRes.ok) {
       return res.status(fetchRes.status).send('Failed to fetch external PDF');
     }
 
     res.setHeader('Content-Type', fetchRes.headers.get('content-type') || 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Cache-Control', 'public, max-age=86400');
