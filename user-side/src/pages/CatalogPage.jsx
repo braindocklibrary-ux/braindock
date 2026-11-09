@@ -18,13 +18,25 @@ import DigitalReaderModal from '../components/DigitalReaderModal';
 import { API_BASE_URL } from '../config';
 import { fallbackBooks } from '../data/fallbackData';
 
+// Safe string converter that handles arrays, objects, null, undefined without ever crashing
+const sanitizeString = (val) => {
+  if (Array.isArray(val)) {
+    return val.filter(Boolean).map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(', ');
+  }
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'object') {
+    return val.name || val.value || val.title || '';
+  }
+  return String(val);
+};
+
 // Calculate search relevance score so exact and closest title matches ALWAYS appear first (#1)
 const calculateRelevanceScore = (book, query) => {
-  if (!query) return 0;
-  const q = query.toLowerCase().trim();
-  const title = (book.title || '').toLowerCase().trim();
-  const author = (book.author || '').toLowerCase().trim();
-  const originalTitle = (book.originalScriptTitle || '').toLowerCase().trim();
+  if (!book || !query) return 0;
+  const q = sanitizeString(query).toLowerCase().trim();
+  const title = sanitizeString(book.title).toLowerCase().trim();
+  const author = sanitizeString(book.author).toLowerCase().trim();
+  const originalTitle = sanitizeString(book.originalScriptTitle).toLowerCase().trim();
   
   let score = 0;
 
@@ -73,7 +85,8 @@ const calculateRelevanceScore = (book, query) => {
   score += Math.max(0, 300 - lenDiff * 5);
 
   // 7. Boost if has authentic cover
-  if (book.coverImage && !book.coverImage.includes('unsplash.com')) {
+  const cover = sanitizeString(book.coverImage);
+  if (cover && !cover.includes('unsplash.com')) {
     score += 150;
   }
 
@@ -126,9 +139,9 @@ export default function CatalogPage() {
       if (data.success && data.data && data.data.length > 0) {
         setBooks(prev => {
           const existingIds = new Set(prev.map(b => b.bookId));
-          const existingTitles = new Set(prev.map(b => (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
+          const existingTitles = new Set(prev.map(b => sanitizeString(b.title).toLowerCase().replace(/[^a-z0-9]/g, '')));
           const uniqueNew = data.data.filter(b => {
-            const tKey = (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const tKey = sanitizeString(b.title).toLowerCase().replace(/[^a-z0-9]/g, '');
             return !existingIds.has(b.bookId) && (!tKey || !existingTitles.has(tKey));
           });
           return [...prev, ...uniqueNew];
@@ -296,7 +309,7 @@ export default function CatalogPage() {
     const uniqueBooks = [];
     for (const b of [...localBooks, ...globalBooks]) {
       const id = b.bookId;
-      const titleKey = (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const titleKey = sanitizeString(b.title).toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!seen.has(id) && (!titleKey || !seen.has(titleKey))) {
         seen.add(id);
         if (titleKey) seen.add(titleKey);
@@ -318,10 +331,10 @@ export default function CatalogPage() {
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         filtered = filtered.filter(b => 
-          b.title.toLowerCase().includes(q) || 
-          b.author.toLowerCase().includes(q) ||
-          (b.tags && b.tags.some(t => t.toLowerCase().includes(q))) ||
-          (b.description && b.description.toLowerCase().includes(q))
+          sanitizeString(b.title).toLowerCase().includes(q) || 
+          sanitizeString(b.author).toLowerCase().includes(q) ||
+          (b.tags && b.tags.some(t => sanitizeString(t).toLowerCase().includes(q))) ||
+          (b.description && sanitizeString(b.description).toLowerCase().includes(q))
         );
       }
       finalBooks = filtered;
