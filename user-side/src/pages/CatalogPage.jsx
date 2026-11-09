@@ -233,16 +233,8 @@ export default function CatalogPage() {
   };
 
   const handleDownloadPdf = (book) => {
-    setToastMessage(`Downloading E-Book / PDF for "${book.title}"...`);
-    const downloadUrl = book.pdfUrl || `${API_BASE_URL}/api/books/${book.bookId}/pdf`;
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.target = '_blank';
-    link.download = book.downloadPdfFilename || `${book.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => setToastMessage(null), 3500);
+    // Open directly in online reader instead of downloading
+    setActiveReaderBook(book);
   };
 
   const languagesList = [
@@ -588,18 +580,13 @@ export default function CatalogPage() {
                           Online E-Book
                         </span>
                       </td>
-                      <td className="p-4 text-right space-x-2">
+                      <td className="p-4 text-right">
                         <button
                           onClick={() => handleReadOnline(book)}
-                          className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-[11px] transition-colors"
+                          className="px-4 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center space-x-1"
                         >
-                          Read Online
-                        </button>
-                        <button
-                          onClick={() => handleDownloadPdf(book)}
-                          className="px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold text-[11px] transition-colors"
-                        >
-                          PDF
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Read Online</span>
                         </button>
                       </td>
                     </tr>

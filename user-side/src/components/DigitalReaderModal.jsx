@@ -94,11 +94,15 @@ export default function DigitalReaderModal({ book, onClose }) {
 
   const pdfUrl = getCleanPdfUrl();
 
-  // Route remote URLs through backend proxy to eliminate CORS
+  // Route external third-party URLs through backend proxy to eliminate CORS
   const getProxiedPdfUrl = (url) => {
     if (!url) return url;
+    // Don't proxy internal API endpoints or same host
+    if (url.startsWith('/') || (API_BASE_URL && url.startsWith(API_BASE_URL)) || url.includes('/api/books/')) {
+      return url;
+    }
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      // If external or different origin, route via backend proxy
+      // If external third-party origin, route via backend proxy
       if (typeof window !== 'undefined' && !url.includes(window.location.host) && !url.includes('localhost:5000')) {
         return `${API_BASE_URL}/api/books/pdf-proxy?url=${encodeURIComponent(url)}`;
       }
@@ -565,25 +569,11 @@ export default function DigitalReaderModal({ book, onClose }) {
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
 
-            {/* Download PDF */}
-            <button
-              onClick={handleDownloadPdf}
-              disabled={downloading}
-              className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center space-x-1.5 shadow-md transition-all cursor-pointer"
-              title="Download Full PDF Edition"
-            >
-              {downloadDone ? (
-                <>
-                  <FileCheck2 className="w-3.5 h-3.5 text-emerald-300" />
-                  <span className="hidden sm:inline">Saved!</span>
-                </>
-              ) : (
-                <>
-                  <Download className={`w-3.5 h-3.5 ${downloading ? 'animate-bounce' : ''}`} />
-                  <span className="hidden sm:inline">Download</span>
-                </>
-              )}
-            </button>
+            {/* Online Reading Mode Status Badge */}
+            <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-purple-950/60 border border-purple-700/60 text-purple-200 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Online Reading Active</span>
+            </div>
 
             {/* Close Button */}
             <button 
@@ -806,17 +796,11 @@ export default function DigitalReaderModal({ book, onClose }) {
                     href={pdfUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-purple-400 hover:text-purple-300 font-semibold flex items-center space-x-1"
+                    className="px-3 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-bold flex items-center space-x-1.5 transition-colors"
                   >
-                    <span>Open in New Tab</span>
+                    <span>Read in Dedicated Tab</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
-                  <button 
-                    onClick={handleDownloadPdf}
-                    className="px-3 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-bold"
-                  >
-                    Download File
-                  </button>
                 </div>
               </div>
 

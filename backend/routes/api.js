@@ -407,7 +407,7 @@ router.get('/books/:id', async (req, res) => {
   res.json({ success: true, data: enrichedBook, similarBooks });
 });
 
-// Download Complete Book PDF Document (Real Multi-Page A4 PDF)
+// Stream & Read Complete Book PDF Document (Inline in Browser Reader)
 router.get('/books/:id/pdf', async (req, res) => {
   let book = store.getBookById(req.params.id);
   if (!book && (req.params.id.startsWith('IA-') || req.params.id.startsWith('OL-'))) {
@@ -417,7 +417,8 @@ router.get('/books/:id/pdf', async (req, res) => {
 
   const chapters = getFullChaptersForBook(book);
   try {
-    streamBookPdf(book, chapters, res);
+    const isDownload = req.query.download === 'true';
+    streamBookPdf(book, chapters, res, isDownload);
   } catch (err) {
     console.error('Error generating PDF:', err.message);
     res.status(500).json({ success: false, message: 'Failed to generate PDF document.' });

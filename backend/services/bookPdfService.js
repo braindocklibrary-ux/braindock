@@ -4,7 +4,7 @@ import PDFDocument from 'pdfkit';
  * Generates and streams a professional, multi-page, complete PDF document for any book in the library.
  * Includes Title/Cover Page, Table of Contents, Detailed Chapters, Notes, and Page Numbers.
  */
-export function streamBookPdf(book, chapters, res) {
+export function streamBookPdf(book, chapters, res, isDownload = false) {
   const doc = new PDFDocument({
     margin: 50,
     size: 'A4',
@@ -19,7 +19,17 @@ export function streamBookPdf(book, chapters, res) {
 
   const cleanFilename = (book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_');
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}_Complete_Edition.pdf"`);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, Content-Type');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+
+  // By default serve inline so browser PDF viewer & PDF.js render directly in page without downloading
+  if (isDownload) {
+    res.setHeader('Content-Disposition', `attachment; filename="${cleanFilename}_Complete_Edition.pdf"`);
+  } else {
+    res.setHeader('Content-Disposition', `inline; filename="${cleanFilename}_Complete_Edition.pdf"`);
+  }
 
   doc.pipe(res);
 

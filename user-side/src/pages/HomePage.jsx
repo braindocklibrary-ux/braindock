@@ -25,6 +25,7 @@ import {
   Monitor
 } from 'lucide-react';
 import BookCard from '../components/BookCard';
+import DigitalReaderModal from '../components/DigitalReaderModal';
 import { API_BASE_URL } from '../config';
 import { fallbackBooks } from '../data/fallbackData';
 
@@ -53,6 +54,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [books, setBooks] = useState(fallbackBooks);
   const [activeTab, setActiveTab] = useState('featured');
+  const [activeReaderBook, setActiveReaderBook] = useState(null);
   const [faqOpen, setFaqOpen] = useState(null);
   const [statsConfig, setStatsConfig] = useState({ isVisible: false, items: [] });
   const [featuresConfig, setFeaturesConfig] = useState(null);
@@ -440,7 +442,11 @@ export default function HomePage() {
           {/* Book Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {displayedBooks.map(book => (
-              <BookCard key={book.bookId} book={book} />
+              <BookCard 
+                key={book.bookId} 
+                book={book} 
+                onReadOnline={(b) => setActiveReaderBook(b)}
+              />
             ))}
           </div>
 
@@ -825,6 +831,14 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Interactive In-Browser Digital E-Book Reader Modal (No Download) */}
+      {activeReaderBook && (
+        <DigitalReaderModal 
+          book={activeReaderBook} 
+          onClose={() => setActiveReaderBook(null)} 
+        />
+      )}
 
     </div>
   );

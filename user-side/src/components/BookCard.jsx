@@ -1,27 +1,28 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { Star, BookOpen, Download, Sparkles, Globe, FileText } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Star, BookOpen, Sparkles, Globe, FileText } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
-export default function BookCard({ book, onReadOnline, onDownloadPdf }) {
+export default function BookCard({ book, onReadOnline }) {
+  const navigate = useNavigate();
+
   const handleRead = (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (onReadOnline) {
       onReadOnline(book);
-    } else if (book.readOnlineUrl) {
-      window.open(book.readOnlineUrl, '_blank');
+    } else {
+      navigate(`/books/${book.bookId}?read=1`);
     }
   };
 
-  const handlePdf = (e) => {
+  const handleOpenReader = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onDownloadPdf) {
-      onDownloadPdf(book);
+    if (onReadOnline) {
+      onReadOnline(book);
     } else {
-      const url = book.pdfUrl || `${API_BASE_URL}/api/books/${book.bookId}/pdf`;
-      window.open(url, '_blank');
+      navigate(`/books/${book.bookId}?read=1`);
     }
   };
 
@@ -99,26 +100,26 @@ export default function BookCard({ book, onReadOnline, onDownloadPdf }) {
           <span className="text-emerald-700 font-bold text-[11px]">Free</span>
         </div>
 
-        {/* Action Buttons: 100% Online Read & PDF */}
+        {/* Action Buttons: 100% Online Read (No File Download) */}
         <div className="space-y-1.5 pt-1">
           <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={handleRead}
-              className="flex items-center justify-center space-x-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-bold text-xs py-2 px-2.5 rounded-xl transition-all shadow-xs"
+              className="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-bold text-xs py-2.5 px-2.5 rounded-xl transition-all shadow-xs cursor-pointer"
               title="Read Online in Browser"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Read Online</span>
             </button>
 
-            <button 
-              onClick={handlePdf}
-              className="flex items-center justify-center space-x-1 bg-purple-100/70 hover:bg-purple-200 text-purple-950 font-bold text-xs py-2 px-2.5 rounded-xl transition-colors border border-purple-200"
-              title="Download PDF or Manuscript"
+            <Link 
+              to={`/books/${book.bookId}?read=1`}
+              className="flex items-center justify-center space-x-1 bg-purple-100/70 hover:bg-purple-200 text-purple-950 font-bold text-xs py-2.5 px-2.5 rounded-xl transition-colors border border-purple-200 cursor-pointer"
+              title="Open Digital Book Reader"
             >
-              <Download className="w-3.5 h-3.5 text-purple-700" />
-              <span>PDF / E-Book</span>
-            </button>
+              <FileText className="w-3.5 h-3.5 text-purple-700" />
+              <span>Full Reader</span>
+            </Link>
           </div>
 
           <Link 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Star, 
@@ -17,12 +17,19 @@ import { fallbackBooks } from '../data/fallbackData';
 
 export default function BookDetailsPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [book, setBook] = useState(null);
   const [similarBooks, setSimilarBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [isReaderOpen, setIsReaderOpen] = useState(false);
+  const [isReaderOpen, setIsReaderOpen] = useState(searchParams.get('read') === '1');
   const [toastMessage, setToastMessage] = useState(null);
+
+  useEffect(() => {
+    if (searchParams.get('read') === '1') {
+      setIsReaderOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setLoading(true);
@@ -130,24 +137,24 @@ export default function BookDetailsPage() {
               </div>
             </div>
 
-            {/* Action Buttons: Read Online & PDF Download */}
+            {/* Action Buttons: 100% Online Reader (No File Download) */}
             <div className="w-full max-w-[280px] mt-4 space-y-2">
               <button 
                 onClick={() => setIsReaderOpen(true)}
-                className="w-full py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-purple-glow hover:shadow-lg transition-all"
+                className="w-full py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-purple-glow hover:shadow-lg transition-all cursor-pointer"
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Read Full Book Online</span>
               </button>
 
-              <a 
-                href={`${API_BASE_URL}/api/books/${book.bookId}/pdf`}
-                download={book.downloadPdfFilename || `${(book.title || 'Book').replace(/[^a-zA-Z0-9_-]/g, '_')}_Complete_Edition.pdf`}
-                className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 bg-purple-100 hover:bg-purple-200 text-purple-950 border border-purple-200 transition-colors"
+              <button 
+                type="button"
+                onClick={() => setIsReaderOpen(true)}
+                className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center space-x-2 bg-purple-100 hover:bg-purple-200 text-purple-950 border border-purple-200 transition-colors cursor-pointer"
               >
-                <Download className="w-4 h-4 text-purple-700" />
-                <span>Download Complete PDF (A4)</span>
-              </a>
+                <Sparkles className="w-4 h-4 text-purple-700" />
+                <span>Interactive Digital Reader</span>
+              </button>
 
               <button 
                 onClick={() => {
