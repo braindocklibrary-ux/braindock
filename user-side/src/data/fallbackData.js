@@ -274,9 +274,9 @@ export const fallbackBooks = [
   },
   {
     bookId: 'BDL-CL-URD-001',
-    embedReaderUrl: 'https://archive.org/embed/diwan-e-ghalib-urdu',
-    readOnlineUrl: 'https://archive.org/details/diwan-e-ghalib-urdu',
-    pdfUrl: 'https://archive.org/download/diwan-e-ghalib-urdu/diwan-e-ghalib-urdu.pdf',
+    embedReaderUrl: 'https://archive.org/embed/divanighaliburdu',
+    readOnlineUrl: 'https://archive.org/details/divanighaliburdu',
+    pdfUrl: 'https://archive.org/download/divanighaliburdu/divanighaliburdu.pdf',
     pdfPages: 220,
     title: 'Diwan-e-Ghalib (Complete Urdu Ghazals)',
     originalScriptTitle: 'دیوانِ غالب (مکمل اردو کلام)',

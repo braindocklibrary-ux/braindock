@@ -34,12 +34,65 @@ export default function CatalogPage() {
   const [toastMessage, setToastMessage] = useState(null);
   const [activeReaderBook, setActiveReaderBook] = useState(null);
 
+  // Infinite Scroll & Lazy Loading State
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef(null);
+
   // Autocomplete Suggestions State
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const searchContainerRef = useRef(null);
+
+  // Infinite Scroll / Lazy Loading function to seamlessly load endless books
+  const loadMoreBooks = async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+
+    try {
+      const nextPage = page + 1;
+      let url = `${API_BASE_URL}/api/books/global-search?page=${nextPage}&limit=16`;
+      if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      if (selectedLanguage !== 'All') url += `&language=${encodeURIComponent(selectedLanguage)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.success && data.data && data.data.length > 0) {
+        setBooks(prev => {
+          const existingIds = new Set(prev.map(b => b.bookId));
+          const uniqueNew = data.data.filter(b => !existingIds.has(b.bookId));
+          return [...prev, ...uniqueNew];
+        });
+        setPage(nextPage);
+      } else {
+        setHasMore(false);
+      }
+    } catch (e) {
+      console.warn('Error lazy loading more books:', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // IntersectionObserver for automatic smooth lazy loading as user scrolls
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      const first = entries[0];
+      if (first.isIntersecting && hasMore && !loadingMore && !loading) {
+        loadMoreBooks();
+      }
+    }, { threshold: 0.1, rootMargin: '350px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, page, search, selectedLanguage]);
 
   // Debounced Suggestions Fetching
   useEffect(() => {
@@ -134,6 +187,8 @@ export default function CatalogPage() {
 
   const fetchBooks = async () => {
     setLoading(true);
+    setPage(1);
+    setHasMore(true);
     let localBooks = [];
 
     try {
@@ -215,6 +270,8 @@ export default function CatalogPage() {
     setSelectedCategory('All');
     setSelectedLanguage('All');
     setSortBy('popular');
+    setPage(1);
+    setHasMore(true);
     setSearchParams({});
     fetch(`${API_BASE_URL}/api/books`)
       .then(res => res.json())
@@ -596,6 +653,27 @@ export default function CatalogPage() {
             </div>
           </div>
         )}
+
+        {/* Endless Catalog Lazy Loading Sentinel */}
+        <div ref={sentinelRef} className="py-10 flex flex-col items-center justify-center">
+          {loadingMore && (
+            <div className="flex items-center space-x-3 px-6 py-3 bg-purple-50 text-purple-900 rounded-2xl border border-purple-200/90 shadow-sm animate-pulse">
+              <div className="w-5 h-5 border-2 border-purple-700 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xs font-bold tracking-wide">
+                📚 Lazy-loading more authentic volumes from World Library Archive...
+              </span>
+            </div>
+          )}
+          {!loadingMore && hasMore && books.length >= 8 && (
+            <button
+              onClick={loadMoreBooks}
+              className="px-6 py-2.5 rounded-2xl bg-white hover:bg-purple-50 text-purple-700 font-bold border border-purple-200 text-xs shadow-xs transition-all flex items-center space-x-2 cursor-pointer hover:shadow-md"
+            >
+              <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
+              <span>Load More Books (Endless Library)</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Interactive In-Browser Digital E-Book Reader */}

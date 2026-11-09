@@ -245,12 +245,30 @@ router.get('/books', (req, res) => {
 // Global World Archive Search (Internet Archive + Open Library 30M+ Books)
 router.get('/books/global-search', async (req, res) => {
   try {
-    const query = req.query.search || req.query.q || '';
+    let query = (req.query.search || req.query.q || '').trim();
     const language = req.query.language || 'All';
     const limit = parseInt(req.query.limit) || 24;
+    const page = parseInt(req.query.page) || 1;
 
-    if (!query || query.trim().length === 0) {
-      return res.json({ success: true, count: 0, data: [], source: 'Global World Archive' });
+    // Endless catalog browsing topics so the user can scroll indefinitely without books ending
+    const ENDLESS_TOPICS = [
+      'gujarati literature',
+      'hindi classics',
+      'sanskrit epics',
+      'indian history',
+      'world philosophy',
+      'classic literature',
+      'science technology',
+      'poetry classics',
+      'psychology mind',
+      'ancient history',
+      'mathematics astronomy',
+      'world mythology'
+    ];
+
+    if (!query || query.length === 0) {
+      const topicIndex = (page - 1) % ENDLESS_TOPICS.length;
+      query = ENDLESS_TOPICS[topicIndex];
     }
 
     const results = await searchGlobalBooks(query, { language, limit });
@@ -258,6 +276,8 @@ router.get('/books/global-search', async (req, res) => {
       success: true,
       count: results.length,
       data: results,
+      page,
+      hasMore: true,
       source: 'Global World Archive (Open Library + Internet Archive)'
     });
   } catch (err) {
