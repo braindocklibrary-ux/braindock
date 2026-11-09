@@ -52,9 +52,9 @@ export default function DigitalReaderModal({ book, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Default to 'flipbook' (Original Complete Book with all pages) if archive embed URL exists, else 'chapters'
+  // Default to 'flipbook' (Original 3D Scanned Book) if archive embed URL exists, else 'interactive' (Live Book with Next/Prev page flip)
   const initialEmbed = resolveArchiveEmbedUrl(book);
-  const [viewMode, setViewMode] = useState(initialEmbed ? 'flipbook' : 'chapters');
+  const [viewMode, setViewMode] = useState(initialEmbed ? 'flipbook' : 'interactive');
   
   // Theme for reading: 'dark' | 'cream' | 'white'
   const [theme, setTheme] = useState('dark');
@@ -448,23 +448,23 @@ export default function DigitalReaderModal({ book, onClose }) {
                 className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
                   viewMode === 'flipbook' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                 }`}
-                title="Read Complete Original Scanned Book (All Pages)"
+                title="Read Complete Original Scanned Book (3D Archive Reader)"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Original Book (All Pages)</span>
+                <span>Original 3D Book</span>
               </button>
             )}
 
             <button
               type="button"
-              onClick={() => setViewMode('chapters')}
-              className={`px-2.5 py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer flex items-center space-x-1 ${
-                viewMode === 'chapters' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => setViewMode('interactive')}
+              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
+                viewMode === 'interactive' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Chapter Synopsis & Commentary"
+              title="Interactive Live Page-by-Page Book Reader (Turn & Flip Pages)"
             >
-              <BookMarked className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Chapters & Synopsis</span>
+              <BookOpen className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Live Book (Turn Pages)</span>
             </button>
 
             <button
@@ -481,14 +481,14 @@ export default function DigitalReaderModal({ book, onClose }) {
 
             <button
               type="button"
-              onClick={() => setViewMode('interactive')}
-              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center space-x-1.5 ${
-                viewMode === 'interactive' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+              onClick={() => setViewMode('chapters')}
+              className={`px-2.5 py-1.5 rounded-lg font-semibold text-[11px] transition-all cursor-pointer flex items-center space-x-1 ${
+                viewMode === 'chapters' ? 'bg-purple-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'
               }`}
-              title="Canvas Vector Reader"
+              title="Chapter Synopsis & Commentary"
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Canvas View</span>
+              <BookMarked className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Chapters & Synopsis</span>
             </button>
           </div>
 
@@ -829,12 +829,12 @@ export default function DigitalReaderModal({ book, onClose }) {
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
-                    onClick={() => setViewMode('chapters')}
+                    onClick={() => setViewMode('interactive')}
                     className="px-2.5 py-1 rounded-lg bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-700/60 font-semibold text-[11px] flex items-center space-x-1 cursor-pointer transition-all"
-                    title="Switch to detailed text & chapters reader"
+                    title="Switch to live interactive page-by-page reader"
                   >
-                    <BookMarked className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Read Chapters</span>
+                    <BookOpen className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>Live Page Reader</span>
                   </button>
                   <button
                     type="button"
