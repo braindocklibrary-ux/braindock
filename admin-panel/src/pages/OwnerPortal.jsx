@@ -1302,19 +1302,49 @@ export default function OwnerPortal() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          // Optimistically free up seat and preserve student record
+          setAdmissions(prev => prev.map(a => {
+            if (a.admissionId === deleteConfirmModal.admissionId) {
+              return {
+                ...a,
+                previousSeatNumber: a.seatNumber != null ? a.seatNumber : a.previousSeatNumber,
+                seatNumber: null,
+                seatLabel: a.seatNumber ? `Vacated (Seat #${a.seatNumber})` : 'Seat Freed / Vacated',
+                status: 'Vacated',
+                isDeleted: true
+              };
+            }
+            return a;
+          }));
+
+          setSeats(prev => prev.map(s => {
+            if (s.seatNumber === deleteConfirmModal.seatNumber || s.occupant?.admissionId === deleteConfirmModal.admissionId) {
+              return { ...s, status: 'Available', occupant: null };
+            }
+            return s;
+          }));
+
           try {
             const cached = localStorage.getItem('bdl_owner_full_backup');
             if (cached) {
               const parsed = JSON.parse(cached);
               if (parsed && Array.isArray(parsed.admissions)) {
-                parsed.admissions = parsed.admissions.filter(a => a.admissionId !== deleteConfirmModal.admissionId);
+                const targetIdx = parsed.admissions.findIndex(a => a.admissionId === deleteConfirmModal.admissionId);
+                if (targetIdx !== -1) {
+                  parsed.admissions[targetIdx].previousSeatNumber = parsed.admissions[targetIdx].seatNumber != null ? parsed.admissions[targetIdx].seatNumber : parsed.admissions[targetIdx].previousSeatNumber;
+                  parsed.admissions[targetIdx].seatNumber = null;
+                  parsed.admissions[targetIdx].seatLabel = 'Seat Freed / Vacated';
+                  parsed.admissions[targetIdx].status = 'Vacated';
+                  parsed.admissions[targetIdx].isDeleted = true;
+                }
                 localStorage.setItem('bdl_owner_full_backup', JSON.stringify(parsed));
               }
             }
           } catch (e) {}
+
           setDeleteConfirmModal(null);
           fetchOwnerData();
-          showToast(data.message || 'Admission deleted and seat vacated.');
+          showToast(data.message || `Seat #${deleteConfirmModal.seatNumber} is now empty & available! Student details (${deleteConfirmModal.studentName}) safely retained.`);
         } else {
           alert(data.message || 'Failed to delete admission');
         }
@@ -1367,10 +1397,16 @@ export default function OwnerPortal() {
       ? Number(studentRenewalFees[admission.admissionId])
       : (Number(renewalFee) || 999);
 
+    // Contiguous Renewal Cycle: Starts seamlessly from previous cycle endDate (or startDate / today)
+    const renewalStart = admission.endDate || admission.startDate || todayStr;
+    const renewalEnd = calculateMembershipEndDate(renewalStart, 1);
+
     setRenewForm({
       months: 1,
+      startDate: renewalStart,
+      endDate: renewalEnd,
       feeItems: [
-        { description: `Desk #${admission.seatNumber} Renewal Fee (1 Month)`, amount: activeFee }
+        { description: `Desk #${admission.seatNumber || admission.previousSeatNumber || ''} Renewal Fee (1 Month)`, amount: activeFee }
       ],
       totalFee: activeFee,
       paidAmount: activeFee,
@@ -1457,12 +1493,22 @@ export default function OwnerPortal() {
     .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
   // Filtered Admissions for Register View (Always Kram-Wise sorted 1..102 by Seat Number)
+  const parseSeatNum = (val) => {
+    if (val == null || val === '') return 999999;
+    const num = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+    return isNaN(num) ? 999999 : num;
+  };
+
   const filteredAdmissions = admissions.filter(adm => {
-    const matchesSearch = 
-      adm.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      adm.studentPhone.includes(searchQuery) ||
-      String(adm.seatNumber).includes(searchQuery) ||
-      (adm.targetExam && adm.targetExam.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = (searchQuery || '').toLowerCase().trim();
+    const matchesSearch = !q || (
+      (adm.studentName || '').toLowerCase().includes(q) ||
+      (adm.studentPhone || '').includes(q) ||
+      String(adm.seatNumber || '').includes(q) ||
+      String(adm.previousSeatNumber || '').includes(q) ||
+      (adm.admissionId || '').toLowerCase().includes(q) ||
+      (adm.targetExam && adm.targetExam.toLowerCase().includes(q))
+    );
 
     if (!matchesSearch) return false;
 
@@ -1470,8 +1516,14 @@ export default function OwnerPortal() {
     if (registerFilter === 'paid') return adm.feeStatus === 'Paid' && adm.pendingFee === 0;
     if (registerFilter === 'expiring') return adm.daysRemaining >= 0 && adm.daysRemaining <= 5 && adm.status !== 'Vacated';
     if (registerFilter === 'expired') return adm.status === 'Expired' || adm.daysRemaining < 0;
+    if (registerFilter === 'vacated') return adm.status === 'Vacated' || adm.seatNumber == null;
     return true;
-  }).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
+  }).sort((a, b) => {
+    const seatA = parseSeatNum(a.seatNumber != null ? a.seatNumber : a.previousSeatNumber);
+    const seatB = parseSeatNum(b.seatNumber != null ? b.seatNumber : b.previousSeatNumber);
+    if (seatA !== seatB) return seatA - seatB;
+    return (a.studentName || '').localeCompare(b.studentName || '');
+  });
 
   // Calculate duration dates & separate fee breakdown helper
   const handleDurationChange = (months) => {
@@ -1983,7 +2035,8 @@ export default function OwnerPortal() {
                 { id: 'pending', label: `Pending Fee (${admissions.filter(a => a.pendingFee > 0).length})` },
                 { id: 'expiring', label: `Expiring Soon (${stats.expiringSoonCount})` },
                 { id: 'paid', label: `Fully Paid (${admissions.filter(a => a.pendingFee === 0).length})` },
-                { id: 'expired', label: `Expired (${stats.expiredCount})` }
+                { id: 'expired', label: `Expired (${stats.expiredCount})` },
+                { id: 'vacated', label: `Vacated / Freed (${admissions.filter(a => a.status === 'Vacated' || a.seatNumber == null).length})` }
               ].map(f => (
                 <button
                   key={f.id}
@@ -2003,6 +2056,7 @@ export default function OwnerPortal() {
             <table className="min-w-[720px] w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-slate-600 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
                 <tr>
+                  <th className="p-4 w-12 text-center">#</th>
                   <th className="p-4">Seat #</th>
                   <th className="p-4">Student & Contact</th>
                   <th className="p-4">Exam / Course</th>
@@ -2017,22 +2071,33 @@ export default function OwnerPortal() {
               <tbody className="divide-y divide-slate-100">
                 {filteredAdmissions.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="p-8 text-center text-slate-400">
+                    <td colSpan="10" className="p-8 text-center text-slate-400">
                       No student records found matching filter criteria.
                     </td>
                   </tr>
                 ) : (
-                  filteredAdmissions.map(adm => {
+                  filteredAdmissions.map((adm, index) => {
                     const isPending = adm.pendingFee > 0;
-                    const isExpiring = adm.daysRemaining >= 0 && adm.daysRemaining <= 5;
-                    const isExpired = adm.daysRemaining < 0;
+                    const isExpiring = adm.daysRemaining >= 0 && adm.daysRemaining <= 5 && adm.status !== 'Vacated';
+                    const isExpired = adm.daysRemaining < 0 && adm.status !== 'Vacated';
+                    const isVacated = adm.status === 'Vacated' || adm.seatNumber == null;
 
                     return (
-                      <tr key={adm.admissionId} className="hover:bg-slate-50/70 transition-colors">
+                      <tr key={adm.admissionId || index} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-4 text-center font-mono font-bold text-slate-400 text-xs">
+                          {index + 1}
+                        </td>
+
                         <td className="p-4 font-mono font-bold text-slate-900">
-                          <span className="bg-purple-50 text-purple-800 px-2 py-0.5 rounded font-extrabold border border-purple-200">
-                            Seat #{adm.seatNumber}
-                          </span>
+                          {adm.seatNumber != null ? (
+                            <span className="bg-purple-50 text-purple-800 px-2 py-0.5 rounded font-extrabold border border-purple-200">
+                              Seat #{adm.seatNumber}
+                            </span>
+                          ) : (
+                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-300">
+                              Vacated {adm.previousSeatNumber ? `(#${adm.previousSeatNumber})` : ''}
+                            </span>
+                          )}
                         </td>
 
                         <td className="p-4">
@@ -2112,15 +2177,21 @@ export default function OwnerPortal() {
                         </td>
 
                         <td className="p-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-                            isExpired 
-                              ? 'bg-rose-100 text-rose-800' 
-                              : isExpiring 
-                              ? 'bg-amber-100 text-amber-900' 
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}>
-                            {isExpired ? 'Expired' : `${adm.daysRemaining} Days`}
-                          </span>
+                          {isVacated ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-slate-100 text-slate-600 border border-slate-300">
+                              Vacated / Freed
+                            </span>
+                          ) : (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                              isExpired 
+                                ? 'bg-rose-100 text-rose-800' 
+                                : isExpiring 
+                                ? 'bg-amber-100 text-amber-900' 
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {isExpired ? 'Expired' : `${adm.daysRemaining} Days`}
+                            </span>
+                          )}
                         </td>
 
                         <td className="p-4 font-mono">
@@ -2198,11 +2269,11 @@ export default function OwnerPortal() {
                           {/* Delete Form Button */}
                           <button
                             onClick={() => handleDeleteAdmission(adm)}
-                            className="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] border border-rose-200 transition-colors inline-flex items-center space-x-1"
-                            title="Delete Admission Record"
+                            className="px-2 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] border border-rose-200 transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                            title={adm.seatNumber != null ? "Vacate Seat & Keep Student Record" : "Delete Record"}
                           >
                             <Trash2 className="w-3 h-3" />
-                            <span>Delete</span>
+                            <span>{adm.seatNumber != null ? 'Vacate / Delete' : 'Delete'}</span>
                           </button>
                         </td>
                       </tr>
@@ -3871,16 +3942,27 @@ export default function OwnerPortal() {
               <Trash2 className="w-6 h-6" />
             </div>
 
-            <div className="text-center space-y-1">
+            <div className="text-center space-y-2">
               <h3 className="text-lg font-bold text-slate-900">
-                Delete Admission Record?
+                Vacate Seat & Cancel Admission?
               </h3>
-              <p className="text-xs text-slate-500">
-                Are you sure you want to delete the admission form for <span className="font-bold text-slate-900">{deleteConfirmModal.studentName}</span> (Seat #{deleteConfirmModal.seatNumber})?
+              <p className="text-xs text-slate-600">
+                Are you sure you want to vacate Seat #{deleteConfirmModal.seatNumber || deleteConfirmModal.previousSeatNumber} for <span className="font-bold text-slate-900">{deleteConfirmModal.studentName}</span>?
               </p>
-              <p className="text-[11px] text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-200 mt-2">
-                ⚠️ This action will immediately vacate <b>Seat #{deleteConfirmModal.seatNumber}</b> and permanently remove their admission form.
-              </p>
+              <div className="text-[11px] text-emerald-800 bg-emerald-50 p-3 rounded-2xl border border-emerald-200 mt-2 text-left space-y-1.5">
+                <p className="font-bold flex items-center space-x-1.5">
+                  <span>✅ Seat #{deleteConfirmModal.seatNumber || deleteConfirmModal.previousSeatNumber || 'N/A'} is freed immediately</span>
+                </p>
+                <p className="text-[10.5px] text-slate-600">
+                  Seat becomes Available for new admissions.
+                </p>
+                <p className="font-bold text-purple-900 pt-1 border-t border-emerald-100 flex items-center space-x-1.5">
+                  <span>👤 Name & Mobile Number Preserved</span>
+                </p>
+                <p className="text-[10.5px] text-slate-600">
+                  Student <b>{deleteConfirmModal.studentName}</b> ({deleteConfirmModal.studentPhone}) will stay saved in records and search history!
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center space-x-3 pt-2">
@@ -3894,9 +3976,9 @@ export default function OwnerPortal() {
               <button 
                 type="button" 
                 onClick={confirmDeleteAdmission}
-                className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-xs transition-colors"
+                className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
               >
-                Permanently Delete
+                Free Seat (Keep Details)
               </button>
             </div>
           </div>
@@ -4038,7 +4120,7 @@ export default function OwnerPortal() {
                   onChange={(e) => {
                     const m = Number(e.target.value);
                     const fee = m === 3 ? 4200 : (m === 6 ? 8000 : 1500 * m);
-                    const deskDesc = `Desk #${selectedAdmissionForRenew.seatNumber} Renewal (${m} Month${m > 1 ? 's' : ''})`;
+                    const deskDesc = `Desk #${selectedAdmissionForRenew.seatNumber || selectedAdmissionForRenew.previousSeatNumber || ''} Renewal (${m} Month${m > 1 ? 's' : ''})`;
                     const currentItems = [...(renewForm.feeItems || [])];
                     if (currentItems.length > 0) {
                       currentItems[0] = { ...currentItems[0], description: deskDesc, amount: fee };
@@ -4046,7 +4128,8 @@ export default function OwnerPortal() {
                       currentItems.push({ description: deskDesc, amount: fee });
                     }
                     const sum = currentItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-                    setRenewForm({ ...renewForm, months: m, feeItems: currentItems, totalFee: sum, paidAmount: sum });
+                    const newEnd = calculateMembershipEndDate(renewForm.startDate, m);
+                    setRenewForm({ ...renewForm, months: m, endDate: newEnd, feeItems: currentItems, totalFee: sum, paidAmount: sum });
                   }}
                   className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                 >
@@ -4055,6 +4138,32 @@ export default function OwnerPortal() {
                   <option value={3}>Extend by 3 Months (₹4,200)</option>
                   <option value={6}>Extend by 6 Months (₹8,000)</option>
                 </select>
+              </div>
+
+              {/* Contiguous Renewal Cycle Indicator */}
+              <div className="bg-purple-50/80 p-3 rounded-2xl border border-purple-200 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-purple-900 font-bold flex items-center space-x-1">
+                    <span>🔄 Contiguous Cycle (Auto-Continuous)</span>
+                  </span>
+                  <span className="text-[10px] bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full font-bold">
+                    Starts from Cycle Date
+                  </span>
+                </div>
+                <div className="flex items-center justify-between font-mono text-xs bg-white p-2.5 rounded-xl border border-purple-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-sans">Starting Date (Cycle)</span>
+                    <span className="font-bold text-slate-900">{renewForm.startDate}</span>
+                  </div>
+                  <span className="text-purple-600 font-bold text-base">➔</span>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 block font-sans">New Expiry Date</span>
+                    <span className="font-bold text-purple-800">{renewForm.endDate}</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-purple-700 leading-tight">
+                  * Renewal period connects seamlessly to previous expiration ({renewForm.startDate}), guaranteeing exact monthly billing continuity without resetting to today's date.
+                </p>
               </div>
 
               {/* Dynamic Itemized Renewal Rows */}

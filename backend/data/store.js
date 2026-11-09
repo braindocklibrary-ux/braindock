@@ -789,10 +789,12 @@ class DataStore {
 
     // Update days remaining
     list.forEach(adm => {
-      const end = new Date(adm.endDate);
-      adm.daysRemaining = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-      if (adm.daysRemaining < 0 && adm.status === 'Active') {
-        adm.status = 'Expired';
+      if (adm.endDate) {
+        const end = new Date(adm.endDate);
+        adm.daysRemaining = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        if (adm.daysRemaining < 0 && adm.status === 'Active') {
+          adm.status = 'Expired';
+        }
       }
     });
 
@@ -806,18 +808,35 @@ class DataStore {
       list = list.filter(a => a.status === 'Expired' || a.daysRemaining < 0);
     } else if (filter === 'active') {
       list = list.filter(a => a.status === 'Active' && a.daysRemaining >= 0);
+    } else if (filter === 'vacated') {
+      list = list.filter(a => a.status === 'Vacated' || a.seatNumber == null);
     }
 
     if (search && search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter(a => 
-        a.studentName.toLowerCase().includes(q) ||
-        a.studentPhone.includes(q) ||
-        String(a.seatNumber).includes(q) ||
-        a.admissionId.toLowerCase().includes(q) ||
+        (a.studentName || '').toLowerCase().includes(q) ||
+        (a.studentPhone || '').includes(q) ||
+        String(a.seatNumber || '').includes(q) ||
+        String(a.previousSeatNumber || '').includes(q) ||
+        (a.admissionId || '').toLowerCase().includes(q) ||
         (a.targetExam && a.targetExam.toLowerCase().includes(q))
       );
     }
+
+    // Kram-wise natural serial sorting: 1, 2, 3 ... 102 by seatNumber, then vacated by previousSeatNumber or studentName
+    const parseSeat = (val) => {
+      if (val == null || val === '') return 999999;
+      const num = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+      return isNaN(num) ? 999999 : num;
+    };
+
+    list.sort((a, b) => {
+      const seatA = parseSeat(a.seatNumber != null ? a.seatNumber : a.previousSeatNumber);
+      const seatB = parseSeat(b.seatNumber != null ? b.seatNumber : b.previousSeatNumber);
+      if (seatA !== seatB) return seatA - seatB;
+      return (a.studentName || '').localeCompare(b.studentName || '');
+    });
 
     return list;
   }
@@ -1092,50 +1111,92 @@ class DataStore {
     return { success: true, admission: adm, receipt: newReceipt };
   }
 
-  renewAdmission(admissionId, { months, totalFee, paidAmount, paymentMode, transactionRef, feeItems }) {
+  renewAdmission(admissionId, { months, totalFee, paidAmount, paymentMode, transactionRef, feeItems, startDate, endDate }) {
     const adm = this.admissions.find(a => a.admissionId === admissionId);
     if (!adm) return { success: false, message: 'Admission record not found' };
 
     const renewMonths = Number(months || 1);
     const renewFeeItems = Array.isArray(feeItems) && feeItems.length > 0
       ? feeItems.map(item => ({
-          description: String(item.description || '').trim() || `Desk #${adm.seatNumber} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
+          description: String(item.description || '').trim() || `Desk #${adm.seatNumber || adm.previousSeatNumber || ''} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
           amount: Number(item.amount) || 0
         }))
-      : [{ description: `Desk #${adm.seatNumber} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`, amount: Number(totalFee || 1500) }];
+      : [{ description: `Desk #${adm.seatNumber || adm.previousSeatNumber || ''} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`, amount: Number(totalFee || 1500) }];
 
     const calculatedTotal = renewFeeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const fee = calculatedTotal > 0 ? calculatedTotal : Number(totalFee || 1500);
     const paid = Number(paidAmount != null ? paidAmount : fee);
     const pending = Math.max(0, fee - paid);
 
-    // Push end date forward from current end date (or today if already expired)
-    const currentEnd = new Date(adm.endDate);
-    const baseDate = currentEnd > new Date() ? currentEnd : new Date();
-    baseDate.setMonth(baseDate.getMonth() + renewMonths);
-    adm.endDate = baseDate.toISOString().split('T')[0];
+    // Contiguous Renewal: Always continue seamlessly from the previous cycle end date!
+    // E.g. If initial start date was 23/11/2026, expiring 23/12/2026, renewing 1 month will
+    // start on 23/12/2026 and end on 23/01/2027 (NOT the day the renew button is clicked).
+    const addMonthsToDateStr = (dateStr, monthsToAdd = 1) => {
+      if (!dateStr) return '';
+      try {
+        const parts = String(dateStr).split('T')[0].split('-').map(Number);
+        if (parts.length !== 3 || parts.some(isNaN)) return '';
+        const [year, month, day] = parts;
+        const target = new Date(year, month - 1 + Number(monthsToAdd), day);
+        const expectedMonth = ((month - 1 + Number(monthsToAdd)) % 12 + 12) % 12;
+        if (target.getMonth() !== expectedMonth) {
+          target.setDate(0); // clamp to last day of expected month
+        }
+        const y = target.getFullYear();
+        const m = String(target.getMonth() + 1).padStart(2, '0');
+        const d = String(target.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      } catch (e) {
+        return '';
+      }
+    };
 
+    const renewalStartDate = startDate || adm.endDate || adm.startDate || new Date().toISOString().split('T')[0];
+    const newEndDate = endDate || addMonthsToDateStr(renewalStartDate, renewMonths);
+
+    adm.lastRenewedFrom = renewalStartDate;
+    adm.endDate = newEndDate;
     adm.totalFee += fee;
     adm.paidAmount += paid;
     adm.pendingFee = Math.max(0, adm.totalFee - adm.paidAmount);
     adm.feeStatus = adm.pendingFee === 0 ? 'Paid' : 'Pending';
     adm.status = 'Active';
 
-    // Update days remaining
-    const days = Math.ceil((baseDate.getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
+    // Update days remaining relative to current wall-clock date
+    const endObj = new Date(newEndDate);
+    const days = Math.ceil((endObj.getTime() - new Date().getTime()) / (24 * 60 * 60 * 1000));
     adm.daysRemaining = days;
 
-    // Sync seat
-    const seat = this.ownerSeats.find(s => s.seatNumber === adm.seatNumber);
-    if (seat) {
-      seat.status = 'Occupied';
-      if (seat.occupant) {
-        seat.occupant.endDate = adm.endDate;
-        seat.occupant.daysRemaining = days;
-        seat.occupant.totalFee = adm.totalFee;
-        seat.occupant.paidAmount = adm.paidAmount;
-        seat.occupant.pendingFee = adm.pendingFee;
-        seat.occupant.feeStatus = adm.feeStatus;
+    // Sync seat if assigned
+    const effectiveSeat = adm.seatNumber != null ? adm.seatNumber : adm.previousSeatNumber;
+    if (effectiveSeat != null) {
+      const seat = this.ownerSeats.find(s => s.seatNumber === effectiveSeat);
+      if (seat) {
+        seat.status = 'Occupied';
+        adm.seatNumber = effectiveSeat;
+        adm.seatLabel = `Seat ${effectiveSeat}`;
+        if (!seat.occupant) {
+          seat.occupant = {
+            admissionId: adm.admissionId,
+            studentName: adm.studentName,
+            studentPhone: adm.studentPhone,
+            shift: adm.shift,
+            startDate: adm.startDate,
+            endDate: adm.endDate,
+            daysRemaining: days,
+            totalFee: adm.totalFee,
+            paidAmount: adm.paidAmount,
+            pendingFee: adm.pendingFee,
+            feeStatus: adm.feeStatus
+          };
+        } else {
+          seat.occupant.endDate = adm.endDate;
+          seat.occupant.daysRemaining = days;
+          seat.occupant.totalFee = adm.totalFee;
+          seat.occupant.paidAmount = adm.paidAmount;
+          seat.occupant.pendingFee = adm.pendingFee;
+          seat.occupant.feeStatus = adm.feeStatus;
+        }
       }
     }
 
@@ -1151,9 +1212,9 @@ class DataStore {
       seatLabel: adm.seatLabel,
       zone: adm.zone,
       shift: adm.shift,
-      plan: `Renewal for ${renewMonths} Month(s)`,
-      validFrom: new Date().toISOString().split('T')[0],
-      validTo: adm.endDate,
+      plan: `Renewal for ${renewMonths} Month(s) [${renewalStartDate} to ${newEndDate}]`,
+      validFrom: renewalStartDate,
+      validTo: newEndDate,
       feeItems: renewFeeItems,
       totalFee: fee,
       amountPaid: paid,
@@ -1170,6 +1231,7 @@ class DataStore {
     adm.reminderLogs.push({
       action: 'Renewed',
       renewedAt: new Date().toISOString(),
+      cycleStart: renewalStartDate,
       newEndDate: adm.endDate
     });
 
@@ -1536,30 +1598,56 @@ class DataStore {
     const seatNum = adm.seatNumber;
 
     // Free up seat if occupied by this student
-    const seat = this.ownerSeats.find(s => s.seatNumber === seatNum);
-    if (seat && seat.occupant?.admissionId === admissionId) {
+    const seat = this.ownerSeats.find(s => s.seatNumber === seatNum || (seatNum == null && s.occupant?.admissionId === admissionId));
+    if (seat && (seat.occupant?.admissionId === admissionId || (seatNum != null && Number(seat.seatNumber) === Number(seatNum)))) {
       seat.status = 'Available';
       seat.occupant = null;
     }
 
-    // Remove from admissions array
-    this.admissions.splice(index, 1);
+    // Preserve student details (name, phone, Aadhaar, records) while freeing up seat!
+    // Never completely erase the student's name and mobile number.
+    const prevSeat = seatNum != null ? seatNum : adm.previousSeatNumber;
+    adm.previousSeatNumber = prevSeat;
+    adm.seatNumber = null;
+    adm.seatLabel = prevSeat ? `Vacated (Seat #${prevSeat})` : 'Seat Freed / Vacated';
+    adm.status = 'Vacated';
+    adm.isDeleted = true;
+    adm.vacatedAt = new Date().toISOString();
+    adm.deletedAt = new Date().toISOString();
+    adm.vacateReason = 'Admission Cancelled / Seat Freed (Student details preserved in directory)';
+    adm.daysRemaining = 0;
 
-    // Also remove from studentOtps if any
+    // Also clear from studentOtps if any
     const phone = (adm.studentPhone || '').replace(/\D/g, '').slice(-10);
     if (phone && this.studentOtps[phone]) {
       delete this.studentOtps[phone];
     }
 
-    // Explicitly delete from MongoDB Atlas
+    // Persist status update to MongoDB Atlas (preserving student name & phone record)
     if (mongoose.connection.readyState === 1) {
-      Admission.deleteOne({ admissionId }).catch(e => console.warn('Mongo delete admission note:', e.message));
+      Admission.updateOne(
+        { admissionId },
+        {
+          $set: {
+            status: 'Vacated',
+            isDeleted: true,
+            seatNumber: null,
+            seatLabel: adm.seatLabel,
+            previousSeatNumber: prevSeat,
+            vacatedAt: adm.vacatedAt,
+            deletedAt: adm.deletedAt,
+            vacateReason: adm.vacateReason,
+            daysRemaining: 0
+          }
+        }
+      ).catch(e => console.warn('Mongo update admission on delete note:', e.message));
     }
 
     this.saveState();
     return { 
       success: true, 
-      message: `Admission for ${adm.studentName} (Seat #${seatNum}) permanently deleted. Seat is now Available.` 
+      message: `Seat #${prevSeat || 'N/A'} is now empty & Available! Student record for "${adm.studentName}" (${adm.studentPhone}) is safely preserved.`,
+      admission: adm
     };
   }
 

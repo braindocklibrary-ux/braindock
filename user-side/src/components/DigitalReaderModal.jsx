@@ -52,9 +52,9 @@ export default function DigitalReaderModal({ book, onClose }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Default to 'flipbook' (Original 3D Scanned Book) if archive embed URL exists, else 'interactive' (Live Book with Next/Prev page flip)
+  // Default to 'interactive' (Live Book with Next/Prev page flip) for 100% reliable in-browser reading
   const initialEmbed = resolveArchiveEmbedUrl(book);
-  const [viewMode, setViewMode] = useState(initialEmbed ? 'flipbook' : 'interactive');
+  const [viewMode, setViewMode] = useState('interactive');
   
   // Theme for reading: 'dark' | 'cream' | 'white'
   const [theme, setTheme] = useState('dark');
