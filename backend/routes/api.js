@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { store } from '../data/store.js';
 import cloudinary from '../config/cloudinary.js';
 import multer from 'multer';
-import { searchGlobalBooks, getGlobalBookById } from '../services/globalBooksService.js';
+import { searchGlobalBooks, getGlobalBookById, calculateRelevance } from '../services/globalBooksService.js';
 import { pushUserToDevice } from '../services/biometricAdmsService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
@@ -361,6 +361,9 @@ router.get('/books/suggestions', async (req, res) => {
       }
     }
 
+    // Sort suggestions by relevance so exact query match is ALWAYS at index 0 (#1)
+    finalSuggestions.sort((a, b) => calculateRelevance(b, q) - calculateRelevance(a, q));
+
     res.json({
       success: true,
       query: q,
@@ -374,7 +377,7 @@ router.get('/books/suggestions', async (req, res) => {
 router.get('/books/:id', async (req, res) => {
   let book = store.getBookById(req.params.id);
   
-  if (!book && (req.params.id.startsWith('IA-') || req.params.id.startsWith('OL-'))) {
+  if (!book && (req.params.id.startsWith('IA-') || req.params.id.startsWith('OL-') || req.params.id.startsWith('GB-'))) {
     book = await getGlobalBookById(req.params.id);
   }
 
@@ -430,7 +433,7 @@ router.get('/books/:id', async (req, res) => {
 // Stream & Read Complete Book PDF Document (Inline in Browser Reader)
 router.get('/books/:id/pdf', async (req, res) => {
   let book = store.getBookById(req.params.id);
-  if (!book && (req.params.id.startsWith('IA-') || req.params.id.startsWith('OL-'))) {
+  if (!book && (req.params.id.startsWith('IA-') || req.params.id.startsWith('OL-') || req.params.id.startsWith('GB-'))) {
     book = await getGlobalBookById(req.params.id);
   }
   if (!book) return res.status(404).json({ success: false, message: 'Book not found' });

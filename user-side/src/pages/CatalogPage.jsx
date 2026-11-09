@@ -18,6 +18,68 @@ import DigitalReaderModal from '../components/DigitalReaderModal';
 import { API_BASE_URL } from '../config';
 import { fallbackBooks } from '../data/fallbackData';
 
+// Calculate search relevance score so exact and closest title matches ALWAYS appear first (#1)
+const calculateRelevanceScore = (book, query) => {
+  if (!query) return 0;
+  const q = query.toLowerCase().trim();
+  const title = (book.title || '').toLowerCase().trim();
+  const author = (book.author || '').toLowerCase().trim();
+  const originalTitle = (book.originalScriptTitle || '').toLowerCase().trim();
+  
+  let score = 0;
+
+  // 1. Exact match on title (e.g. "ugly love" === "ugly love") -> Highest priority
+  if (title === q || originalTitle === q) {
+    score += 15000;
+  } 
+  // 2. Starts with query (e.g. "Ugly Love: Special Edition")
+  else if (title.startsWith(q + ' ') || title.startsWith(q + ':') || title.startsWith(q + '-') || originalTitle.startsWith(q)) {
+    score += 8000;
+  } 
+  // 3. Contains query as full phrase
+  else if (title.includes(q) || originalTitle.includes(q)) {
+    score += 4000;
+  }
+
+  // 4. Token matches
+  const qWords = q.split(/[\s\-:_]+/).filter(w => w.length > 1);
+  const titleWords = title.split(/[\s\-:_]+/).filter(w => w.length > 1);
+  let matchedWordCount = 0;
+
+  for (const qw of qWords) {
+    if (titleWords.includes(qw)) {
+      matchedWordCount++;
+      score += 600;
+    } else if (title.includes(qw)) {
+      score += 250;
+    }
+  }
+
+  if (qWords.length > 1 && matchedWordCount === qWords.length) {
+    score += 3000;
+  }
+
+  // 5. Author match
+  if (author === q) {
+    score += 3500;
+  } else if (author.startsWith(q)) {
+    score += 2000;
+  } else if (author.includes(q)) {
+    score += 800;
+  }
+
+  // 6. Prefer titles closer in length to query
+  const lenDiff = Math.abs(title.length - q.length);
+  score += Math.max(0, 300 - lenDiff * 5);
+
+  // 7. Boost if has authentic cover
+  if (book.coverImage && !book.coverImage.includes('unsplash.com')) {
+    score += 150;
+  }
+
+  return score;
+};
+
 export default function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
@@ -64,7 +126,11 @@ export default function CatalogPage() {
       if (data.success && data.data && data.data.length > 0) {
         setBooks(prev => {
           const existingIds = new Set(prev.map(b => b.bookId));
-          const uniqueNew = data.data.filter(b => !existingIds.has(b.bookId));
+          const existingTitles = new Set(prev.map(b => (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
+          const uniqueNew = data.data.filter(b => {
+            const tKey = (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return !existingIds.has(b.bookId) && (!tKey || !existingTitles.has(tKey));
+          });
           return [...prev, ...uniqueNew];
         });
         setPage(nextPage);
@@ -225,7 +291,20 @@ export default function CatalogPage() {
       }
     }
 
-    let finalBooks = [...localBooks, ...globalBooks];
+    // Deduplicate books by bookId and normalized title
+    const seen = new Set();
+    const uniqueBooks = [];
+    for (const b of [...localBooks, ...globalBooks]) {
+      const id = b.bookId;
+      const titleKey = (b.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!seen.has(id) && (!titleKey || !seen.has(titleKey))) {
+        seen.add(id);
+        if (titleKey) seen.add(titleKey);
+        uniqueBooks.push(b);
+      }
+    }
+
+    let finalBooks = uniqueBooks;
     
     // Fallback: if server returned empty, apply local filters to fallbackBooks
     if (finalBooks.length === 0) {
@@ -245,14 +324,24 @@ export default function CatalogPage() {
           (b.description && b.description.toLowerCase().includes(q))
         );
       }
-      if (sortBy === 'popular') {
-        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      } else if (sortBy === 'rating') {
-        filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      } else if (sortBy === 'year') {
-        filtered.sort((a, b) => (b.publicationYear || 0) - (a.publicationYear || 0));
-      }
       finalBooks = filtered;
+    }
+
+    // Sort by search relevance score when a search query is entered so exact title matches ALWAYS appear at the very top (#1)
+    if (search.trim()) {
+      finalBooks.sort((a, b) => {
+        const scoreB = calculateRelevanceScore(b, search.trim());
+        const scoreA = calculateRelevanceScore(a, search.trim());
+        return scoreB - scoreA;
+      });
+    } else {
+      if (sortBy === 'popular') {
+        finalBooks.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      } else if (sortBy === 'rating') {
+        finalBooks.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      } else if (sortBy === 'year') {
+        finalBooks.sort((a, b) => (b.publicationYear || 0) - (a.publicationYear || 0));
+      }
     }
 
     setBooks(finalBooks);
