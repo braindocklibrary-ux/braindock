@@ -161,9 +161,9 @@ export default function OwnerPortal() {
   const [renewalFee, setRenewalFee] = useState(() => {
     try {
       const savedFee = localStorage.getItem('bdl_renewal_fee');
-      if (savedFee) return Number(savedFee);
+      if (savedFee && Number(savedFee) !== 999) return Number(savedFee);
     } catch (e) {}
-    return 999;
+    return 850;
   });
   const [offerNote, setOfferNote] = useState(() => {
     try {
@@ -182,6 +182,9 @@ export default function OwnerPortal() {
   const [selectedAdmissionForPay, setSelectedAdmissionForPay] = useState(null);
   const [renewModalOpen, setRenewModalOpen] = useState(false);
   const [selectedAdmissionForRenew, setSelectedAdmissionForRenew] = useState(null);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [selectedAdmissionForRefund, setSelectedAdmissionForRefund] = useState(null);
+  const [refundForm, setRefundForm] = useState({ amount: 500, paymentMode: 'Cash', notes: '', vacateSeatToo: true });
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -288,17 +291,67 @@ export default function OwnerPortal() {
     aadhaarFront: '',
     aadhaarBack: '',
 
-    // Fee & Payment (Itemized with dynamic + rows) - ₹850 Desk Fee + ₹500 Security Deposit = ₹1350
+    // Fee & Payment Presets (Row 1 = Security Deposit ₹500, Row 2 = Monthly Fee ₹850)
     feeItems: [
-      { description: 'Dedicated Study Desk & Facility Pass (Monthly Fee)', amount: 850 },
-      { description: 'Security Deposit (Refundable)', amount: 500 }
+      { description: 'Security Deposit (Refundable)', amount: 500 },
+      { description: 'Monthly Desk Fee', amount: 850 }
     ],
+    deposit: 500,
     totalFee: 1350,
     paidAmount: 1350,
     paymentMode: 'UPI (GPay / PhonePe)',
     transactionRef: '',
     feeDueDate: '',
     notes: ''
+  };
+
+  const FEE_ITEM_PRESETS = [
+    { label: 'Security Deposit (Refundable)', value: 'Security Deposit (Refundable)', defaultAmount: 500 },
+    { label: 'Monthly Desk Fee (₹850/mo)', value: 'Monthly Desk Fee', defaultAmount: 850 },
+    { label: 'Quarterly Desk Fee (3 Months)', value: 'Quarterly Desk Fee (3 Months)', defaultAmount: 2550 },
+    { label: 'Half-Yearly Desk Fee (6 Months)', value: 'Half-Yearly Desk Fee (6 Months)', defaultAmount: 5100 },
+    { label: 'Annual Desk Fee (12 Months)', value: 'Annual Desk Fee (12 Months)', defaultAmount: 10200 },
+    { label: 'Locker Fee', value: 'Locker Fee', defaultAmount: 200 },
+    { label: 'Registration / ID Card Fee', value: 'Registration & ID Card Fee', defaultAmount: 100 },
+    { label: 'Other / Custom Charge...', value: '__custom__', defaultAmount: 0 }
+  ];
+
+  const RENEW_ITEM_PRESETS = [
+    { label: 'Monthly Desk Renewal (₹850/mo)', value: 'Monthly Renewal Fee', defaultAmount: 850 },
+    { label: 'Quarterly Renewal (3 Months)', value: 'Quarterly Renewal (3 Months)', defaultAmount: 2550 },
+    { label: 'Half-Yearly Renewal (6 Months)', value: 'Half-Yearly Renewal (6 Months)', defaultAmount: 5100 },
+    { label: 'Locker Extension Fee', value: 'Locker Extension Fee', defaultAmount: 200 },
+    { label: 'Other / Custom Charge...', value: '__custom__', defaultAmount: 0 }
+  ];
+
+  // Clean helper to separate Security Deposit vs Library Monthly Fee for BOTH old and new students
+  const getSplitFinancials = (adm) => {
+    if (!adm) return { rawDeposit: 0, heldDeposit: 0, refundedDeposit: 0, netPaidFee: 0, netTotalFee: 0, depositStatus: 'None' };
+    const total = Number(adm.totalFee) || 0;
+    const paid = Number(adm.paidAmount) || 0;
+
+    let rawDeposit = 0;
+    if (adm.deposit != null && Number(adm.deposit) > 0) {
+      rawDeposit = Number(adm.deposit);
+    } else if (adm.securityDeposit != null && Number(adm.securityDeposit) > 0) {
+      rawDeposit = Number(adm.securityDeposit);
+    } else if (Array.isArray(adm.feeItems)) {
+      const depItem = adm.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+      if (depItem && Number(depItem.amount) > 0) rawDeposit = Number(depItem.amount);
+    }
+    if (rawDeposit === 0 && (total === 1350 || (total === 500 && paid === 500))) {
+      rawDeposit = 500;
+    }
+
+    const isRefunded = adm.depositRefunded === true || adm.depositStatus === 'Refunded';
+    const refundedDeposit = isRefunded ? (Number(adm.depositRefundedAmount) || rawDeposit) : 0;
+    const heldDeposit = !isRefunded && rawDeposit > 0 ? Math.min(paid, rawDeposit) : 0;
+    const depositStatus = isRefunded ? 'Refunded' : (rawDeposit > 0 ? 'Held' : 'None');
+
+    const netTotalFee = Math.max(0, total - rawDeposit);
+    const netPaidFee = adm.netPaidFee != null ? Number(adm.netPaidFee) : Math.max(0, paid - rawDeposit);
+
+    return { rawDeposit, heldDeposit, refundedDeposit, netPaidFee, netTotalFee, depositStatus };
   };
 
   const [admForm, setAdmForm] = useState(initialAdmForm);
@@ -325,22 +378,31 @@ export default function OwnerPortal() {
     notes: ''
   });
 
-  // Renewal Form State (Itemized with dynamic + rows)
+  // Renewal Form State (Monthly rate ₹850/mo, no deposit added again)
   const [renewForm, setRenewForm] = useState({
     months: 1,
     feeItems: [
-      { description: 'Desk Extension (1 Month)', amount: 1500 }
+      { description: 'Monthly Renewal Fee', amount: 850 }
     ],
-    totalFee: 1500,
-    paidAmount: 1500,
+    totalFee: 850,
+    paidAmount: 850,
     paymentMode: 'UPI'
   });
 
+  const computeDepositFromItems = (items = []) => {
+    const dep = items.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+    return dep ? (Number(dep.amount) || 0) : 0;
+  };
+
   // Fee Items Handlers for Admission Form
   const handleAddAdmFeeItem = () => {
-    const updated = [...(admForm.feeItems || []), { description: '', amount: 0 }];
+    const hasDep = (admForm.feeItems || []).some(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+    const nextItem = hasDep
+      ? { description: 'Monthly Desk Fee', amount: 850 * (Number(admForm.durationMonths) || 1) }
+      : { description: 'Security Deposit (Refundable)', amount: 500 };
+    const updated = [...(admForm.feeItems || []), nextItem];
     const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+    setAdmForm(prev => ({ ...prev, feeItems: updated, deposit: computeDepositFromItems(updated), totalFee: sum, paidAmount: sum }));
   };
 
   const handleRemoveAdmFeeItem = (index) => {
@@ -348,7 +410,7 @@ export default function OwnerPortal() {
     if (current.length <= 1) return;
     const updated = current.filter((_, i) => i !== index);
     const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+    setAdmForm(prev => ({ ...prev, feeItems: updated, deposit: computeDepositFromItems(updated), totalFee: sum, paidAmount: sum }));
   };
 
   const handleAdmFeeItemChange = (index, field, value) => {
@@ -359,12 +421,29 @@ export default function OwnerPortal() {
       return it;
     });
     const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-    setAdmForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+    setAdmForm(prev => ({ ...prev, feeItems: updated, deposit: computeDepositFromItems(updated), totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleAdmFeePresetSelect = (index, selectedValue) => {
+    const updated = (admForm.feeItems || []).map((it, i) => {
+      if (i !== index) return it;
+      if (selectedValue === '__custom__') {
+        return { ...it, isCustom: true, description: FEE_ITEM_PRESETS.some(p => p.value === it.description) ? '' : it.description };
+      }
+      const preset = FEE_ITEM_PRESETS.find(p => p.value === selectedValue);
+      let amt = preset ? preset.defaultAmount : it.amount;
+      if (selectedValue === 'Monthly Desk Fee') {
+        amt = 850 * (Number(admForm.durationMonths) || 1);
+      }
+      return { ...it, isCustom: false, description: selectedValue, amount: amt };
+    });
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setAdmForm(prev => ({ ...prev, feeItems: updated, deposit: computeDepositFromItems(updated), totalFee: sum, paidAmount: sum }));
   };
 
   // Fee Items Handlers for Renewal Form
   const handleAddRenewItem = () => {
-    const updated = [...(renewForm.feeItems || []), { description: '', amount: 0 }];
+    const updated = [...(renewForm.feeItems || []), { description: 'Monthly Renewal Fee', amount: 850 }];
     const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
     setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
   };
@@ -383,6 +462,23 @@ export default function OwnerPortal() {
         return { ...it, [field]: field === 'amount' ? (Number(value) || 0) : value };
       }
       return it;
+    });
+    const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+    setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
+  };
+
+  const handleRenewPresetSelect = (index, selectedValue) => {
+    const updated = (renewForm.feeItems || []).map((it, i) => {
+      if (i !== index) return it;
+      if (selectedValue === '__custom__') {
+        return { ...it, isCustom: true, description: RENEW_ITEM_PRESETS.some(p => p.value === it.description) ? '' : it.description };
+      }
+      const preset = RENEW_ITEM_PRESETS.find(p => p.value === selectedValue);
+      let amt = preset ? preset.defaultAmount : it.amount;
+      if (selectedValue === 'Monthly Renewal Fee') {
+        amt = 850 * (Number(renewForm.months) || 1);
+      }
+      return { ...it, isCustom: false, description: selectedValue, amount: amt };
     });
     const sum = updated.reduce((s, it) => s + (Number(it.amount) || 0), 0);
     setRenewForm(prev => ({ ...prev, feeItems: updated, totalFee: sum, paidAmount: sum }));
@@ -1057,9 +1153,10 @@ export default function OwnerPortal() {
       startDate: sDate,
       endDate: eDate,
       feeItems: [
-        { description: `Dedicated Study Desk #${chosen} & Facility Pass (Monthly Fee)`, amount: 850 },
-        { description: 'Security Deposit (Refundable)', amount: 500 }
+        { description: 'Security Deposit (Refundable)', amount: 500 },
+        { description: 'Monthly Desk Fee', amount: 850 }
       ],
+      deposit: 500,
       totalFee: 1350,
       paidAmount: 1350,
       aadhaarFront: '',
@@ -1077,19 +1174,46 @@ export default function OwnerPortal() {
     const sDate = admission.startDate || new Date().toISOString().split('T')[0];
     const eDate = admission.endDate || calculateMembershipEndDate(sDate, admission.durationMonths || 1);
 
-    // Keep itemized fee breakdown separate (₹850 monthly fee + ₹500 security deposit)
-    let items = (admission.feeItems && Array.isArray(admission.feeItems) && admission.feeItems.length > 0)
-      ? admission.feeItems
-      : null;
+    // Normalize feeItems for clean preset dropdown display (Works for BOTH old & new students)
+    const split = getSplitFinancials(admission);
+    const mapLegacyDescToPreset = (desc, amt) => {
+      const lower = (desc || '').toLowerCase();
+      if (lower.includes('deposit') && !lower.includes('locker')) return 'Security Deposit (Refundable)';
+      if (lower.includes('locker')) return 'Locker Fee';
+      if (lower.includes('registration') || lower.includes('id card')) return 'Registration & ID Card Fee';
+      if (lower.includes('quarter') || amt === 2550) return 'Quarterly Desk Fee (3 Months)';
+      if (lower.includes('half') || amt === 5100) return 'Half-Yearly Desk Fee (6 Months)';
+      if (lower.includes('annual') || amt === 10200) return 'Annual Desk Fee (12 Months)';
+      if (lower.includes('fee') || lower.includes('desk') || lower.includes('facility') || lower.includes('pass') || amt === 850) {
+        return 'Monthly Desk Fee';
+      }
+      return null;
+    };
 
-    if (!items) {
-      const tot = Number(admission.totalFee) || 1350;
-      const dep = Number(admission.deposit) || (tot === 1350 ? 500 : 0);
-      const deskFee = tot - dep;
-      items = [
-        { description: `Dedicated Study Desk #${admission.seatNumber || ''} & Facility Pass (Monthly Fee)`, amount: deskFee > 0 ? deskFee : tot },
-        ...(dep > 0 ? [{ description: 'Security Deposit (Refundable)', amount: dep }] : [])
-      ];
+    let items = [];
+    if (admission.feeItems && Array.isArray(admission.feeItems) && admission.feeItems.length > 0) {
+      items = admission.feeItems.map(it => {
+        const amt = Number(it.amount) || 0;
+        const mapped = mapLegacyDescToPreset(it.description, amt);
+        if (mapped) return { description: mapped, amount: amt, isCustom: false };
+        return { description: it.description || '', amount: amt, isCustom: true };
+      });
+      // Sort Security Deposit row first if present
+      items.sort((a, b) => {
+        const aDep = a.description === 'Security Deposit (Refundable)' ? 0 : 1;
+        const bDep = b.description === 'Security Deposit (Refundable)' ? 0 : 1;
+        return aDep - bDep;
+      });
+    } else {
+      if (split.rawDeposit > 0) {
+        items.push({ description: 'Security Deposit (Refundable)', amount: split.rawDeposit, isCustom: false });
+      }
+      const deskFee = split.netTotalFee;
+      if (deskFee > 0 || items.length === 0) {
+        const m = Number(admission.durationMonths) || 1;
+        const desc = m === 3 ? 'Quarterly Desk Fee (3 Months)' : m === 6 ? 'Half-Yearly Desk Fee (6 Months)' : m === 12 ? 'Annual Desk Fee (12 Months)' : 'Monthly Desk Fee';
+        items.push({ description: desc, amount: deskFee > 0 ? deskFee : (Number(admission.totalFee) || 850), isCustom: false });
+      }
     }
 
     setAdmForm({
@@ -1128,8 +1252,9 @@ export default function OwnerPortal() {
       aadhaarFront: admission.aadhaarFront || admission.idProofFront || '',
       aadhaarBack: admission.aadhaarBack || admission.idProofBack || '',
       feeItems: items,
-      totalFee: admission.totalFee || 1350,
-      paidAmount: admission.paidAmount || 1350,
+      deposit: split.rawDeposit,
+      totalFee: admission.totalFee ?? 1350,
+      paidAmount: admission.paidAmount ?? 1350,
       paymentMode: admission.paymentMode || 'UPI (GPay / PhonePe)',
       transactionRef: admission.transactionRef || '',
       feeDueDate: admission.feeDueDate || '',
@@ -1390,12 +1515,12 @@ export default function OwnerPortal() {
       });
   };
 
-  // Open Renew Modal
+  // Open Renew Modal (Monthly fee only - Security Deposit never added again)
   const handleOpenRenew = (admission) => {
     setSelectedAdmissionForRenew(admission);
     const activeFee = studentRenewalFees[admission.admissionId] !== undefined
       ? Number(studentRenewalFees[admission.admissionId])
-      : (Number(renewalFee) || 999);
+      : (Number(renewalFee) && Number(renewalFee) !== 999 ? Number(renewalFee) : 850);
 
     // Contiguous Renewal Cycle: Starts seamlessly from previous cycle endDate (or startDate / today)
     const renewalStart = admission.endDate || admission.startDate || todayStr;
@@ -1406,13 +1531,51 @@ export default function OwnerPortal() {
       startDate: renewalStart,
       endDate: renewalEnd,
       feeItems: [
-        { description: `Desk #${admission.seatNumber || admission.previousSeatNumber || ''} Renewal Fee (1 Month)`, amount: activeFee }
+        { description: 'Monthly Renewal Fee', amount: activeFee }
       ],
       totalFee: activeFee,
       paidAmount: activeFee,
       paymentMode: 'UPI'
     });
     setRenewModalOpen(true);
+  };
+
+  // Open Refund Deposit Modal
+  const handleOpenRefundDeposit = (admission) => {
+    const split = getSplitFinancials(admission);
+    const defaultAmt = split.heldDeposit > 0 ? split.heldDeposit : (split.rawDeposit > 0 ? split.rawDeposit : 500);
+    setSelectedAdmissionForRefund(admission);
+    setRefundForm({
+      amount: defaultAmt,
+      paymentMode: 'Cash',
+      notes: 'Security deposit returned on leaving library',
+      vacateSeatToo: admission.seatNumber != null
+    });
+    setRefundModalOpen(true);
+  };
+
+  // Submit Deposit Refund
+  const handleSubmitRefund = (e) => {
+    e.preventDefault();
+    if (!selectedAdmissionForRefund) return;
+
+    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForRefund.admissionId}/refund-deposit`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(refundForm)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setRefundModalOpen(false);
+          setSelectedAdmissionForRefund(null);
+          fetchOwnerData();
+          showToast(data.message || `₹${refundForm.amount} Security Deposit returned successfully!`);
+        } else {
+          alert(data.message || 'Deposit refund failed');
+        }
+      })
+      .catch(err => alert('Error refunding deposit: ' + err.message));
   };
 
   // Submit Renewal
@@ -1530,22 +1693,22 @@ export default function OwnerPortal() {
     const m = Number(months) || 1;
     const startStr = admForm.startDate || new Date().toISOString().split('T')[0];
     const endStr = calculateMembershipEndDate(startStr, m);
-    
+
     // Monthly library pass is ₹850/mo. Deposit is ₹500 (kept separate, refundable)
     const deskMonthlyFee = 850 * m;
-    const hasDeposit = (admForm.feeItems || []).some(it => (it.description || '').toLowerCase().includes('deposit'));
-    const depositAmount = hasDeposit ? 500 : 0;
+    const depRow = (admForm.feeItems || []).find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+    const depositAmount = depRow ? (Number(depRow.amount) || 500) : 0;
     const fee = deskMonthlyFee + depositAmount;
 
     let mType = 'Monthly';
-    if (m === 3) mType = 'Quarterly';
-    else if (m === 6) mType = 'Half-Yearly';
-    else if (m === 12) mType = 'Annual';
+    let deskDesc = 'Monthly Desk Fee';
+    if (m === 3) { mType = 'Quarterly'; deskDesc = 'Quarterly Desk Fee (3 Months)'; }
+    else if (m === 6) { mType = 'Half-Yearly'; deskDesc = 'Half-Yearly Desk Fee (6 Months)'; }
+    else if (m === 12) { mType = 'Annual'; deskDesc = 'Annual Desk Fee (12 Months)'; }
 
-    const deskDesc = `Dedicated Study Desk #${admForm.seatNumber || ''} & Facility Pass (${m} Month${m > 1 ? 's' : ''})`;
     const updatedFeeItems = [
-      { description: deskDesc, amount: deskMonthlyFee },
-      ...(hasDeposit ? [{ description: 'Security Deposit (Refundable)', amount: depositAmount }] : [])
+      ...(depRow ? [{ description: 'Security Deposit (Refundable)', amount: depositAmount }] : []),
+      { description: deskDesc, amount: deskMonthlyFee }
     ];
 
     setAdmForm(prev => ({
@@ -1553,13 +1716,14 @@ export default function OwnerPortal() {
       durationMonths: m,
       membershipType: mType,
       endDate: endStr,
+      deposit: depositAmount,
       feeItems: updatedFeeItems,
       totalFee: fee,
       paidAmount: fee
     }));
   };
 
-  // Total Security Deposits KPI metric (across all active students)
+  // Total Security Deposits KPI metric (only held, un-refunded deposits across active & old students)
   const totalSecurityDeposits = useMemo(() => {
     let manualOverrides = {};
     try {
@@ -1567,21 +1731,15 @@ export default function OwnerPortal() {
       if (saved) manualOverrides = JSON.parse(saved);
     } catch (e) {}
 
-    const activeAdms = admissions.filter(a => a.status !== 'Vacated');
-    return activeAdms.reduce((sum, adm) => {
-      const overrideKey = `${adm.seatNumber}_deposit`;
-      if (manualOverrides[overrideKey] === false) return sum;
-      if (manualOverrides[overrideKey] === true) return sum + (Number(adm.deposit) || 500);
-
-      if (adm.deposit && Number(adm.deposit) > 0) return sum + Number(adm.deposit);
-      if (adm.securityDeposit && Number(adm.securityDeposit) > 0) return sum + Number(adm.securityDeposit);
-      if (Array.isArray(adm.feeItems)) {
-        const depItem = adm.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit'));
-        if (depItem && Number(depItem.amount) > 0) return sum + Number(depItem.amount);
-      }
-      if (adm.depositPaid) return sum + 500;
-      return sum;
-    }, 0);
+    return admissions
+      .filter(a => !a.isDeleted)
+      .reduce((sum, adm) => {
+        if (adm.depositRefunded || adm.depositStatus === 'Refunded') return sum;
+        const overrideKey = `${adm.seatNumber}_deposit`;
+        if (manualOverrides[overrideKey] === false) return sum;
+        if (manualOverrides[overrideKey] === true) return sum + (Number(adm.deposit) || 500);
+        return sum + getSplitFinancials(adm).heldDeposit;
+      }, 0);
   }, [admissions]);
 
   // If Locked by Passkey Gate
@@ -1776,13 +1934,16 @@ export default function OwnerPortal() {
         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Fees Collected</span>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">₹{stats.totalFeeCollected?.toLocaleString()}</h3>
-          <span className="text-[11px] font-medium text-emerald-600">Reconciled in bank</span>
+          <span className="text-[11px] font-medium text-emerald-600">Net Monthly Fees (Excl. Deposits)</span>
         </div>
 
         <div className="bg-white border border-purple-200/90 p-5 rounded-2xl shadow-xs bg-purple-50/20">
           <span className="text-[11px] font-semibold text-purple-700 uppercase tracking-wider block">Total Deposits</span>
-          <h3 className="text-2xl font-bold text-purple-950 mt-1">₹{totalSecurityDeposits?.toLocaleString()}</h3>
-          <span className="text-[11px] font-medium text-purple-600">Refundable balance</span>
+          <h3 className="text-2xl font-bold text-purple-950 mt-1">₹{(stats.totalDepositsHeld ?? totalSecurityDeposits)?.toLocaleString()}</h3>
+          <span className="text-[11px] font-medium text-purple-600 block">
+            Held & Refundable
+            {stats.totalDepositsRefunded > 0 ? ` • ₹${stats.totalDepositsRefunded.toLocaleString()} returned` : ''}
+          </span>
         </div>
 
         <div className={`p-5 rounded-2xl shadow-xs transition-all ${stats.totalFeePending > 0 ? 'bg-amber-50/40 border border-amber-200' : 'bg-white border border-slate-200/80'}`}>
@@ -2195,21 +2356,29 @@ export default function OwnerPortal() {
                         </td>
 
                         <td className="p-4 font-mono">
-                          <span className="font-bold text-slate-900">₹{adm.paidAmount}</span>
-                          <span className="text-slate-400"> / ₹{adm.totalFee}</span>
                           {(() => {
-                            const dep = (adm.deposit && Number(adm.deposit) > 0)
-                              ? Number(adm.deposit)
-                              : (adm.feeItems?.find(it => (it.description || '').toLowerCase().includes('deposit'))?.amount || (Number(adm.totalFee) === 1350 ? 500 : 0));
-                            const desk = (Number(adm.totalFee) || 0) - dep;
-                            if (dep > 0) {
-                              return (
-                                <span className="block text-[9.5px] text-purple-700 font-sans font-semibold mt-0.5 leading-tight">
-                                  Fee: ₹{desk > 0 ? desk : adm.totalFee} + Dep: ₹{dep}
+                            const split = getSplitFinancials(adm);
+                            return (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-900">Fee: ₹{split.netPaidFee}</span>
+                                  {split.rawDeposit > 0 && (
+                                    adm.depositRefunded || adm.depositStatus === 'Refunded' ? (
+                                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-sans text-[9.5px] font-bold">
+                                        Dep Returned: ₹{split.refundedDeposit} ✓
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200 font-sans text-[9.5px] font-bold">
+                                        Dep Held: ₹{split.heldDeposit}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                                <span className="block text-[10px] text-slate-400 mt-0.5">
+                                  Paid: ₹{adm.paidAmount} / ₹{adm.totalFee}
                                 </span>
-                              );
-                            }
-                            return null;
+                              </>
+                            );
                           })()}
                           {isPending && (
                             <span className="block text-[10px] font-bold text-amber-700">
@@ -2248,6 +2417,22 @@ export default function OwnerPortal() {
                               Collect Due
                             </button>
                           )}
+
+                          {(() => {
+                            const split = getSplitFinancials(adm);
+                            if (split.heldDeposit > 0 && !adm.depositRefunded && adm.depositStatus !== 'Refunded') {
+                              return (
+                                <button
+                                  onClick={() => handleOpenRefundDeposit(adm)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-[11px] border border-teal-200 transition-colors cursor-pointer"
+                                  title="Return Security Deposit when student leaves"
+                                >
+                                  Refund ₹{split.heldDeposit}
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
 
                           <button
                             onClick={() => handleOpenRenew(adm)}
@@ -2376,7 +2561,7 @@ export default function OwnerPortal() {
                     step="50"
                     value={renewalFee}
                     onChange={(e) => handleRenewalFeeChange(Number(e.target.value), offerNote)}
-                    placeholder="999"
+                    placeholder="850"
                     className="w-28 p-2 rounded-r-xl bg-white border border-slate-300 text-slate-900 font-black text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     title="Active renewal fee for WhatsApp notice"
                   />
@@ -2386,10 +2571,10 @@ export default function OwnerPortal() {
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mr-1">Quick Offers:</span>
                   {[
+                    { label: '₹850 (Standard)', fee: 850, note: '' },
                     { label: '₹849 (Offer)', fee: 849, note: 'Special Offer' },
                     { label: '₹999 (Regular)', fee: 999, note: '' },
-                    { label: '₹1,200', fee: 1200, note: '' },
-                    { label: '₹1,500', fee: 1500, note: '' }
+                    { label: '₹1,200', fee: 1200, note: '' }
                   ].map((preset) => (
                     <button
                       key={preset.fee}
@@ -3779,7 +3964,7 @@ export default function OwnerPortal() {
                       Fee Structure & Itemized Charges
                     </span>
                     <span className="text-[10px] text-purple-700">
-                      Click + Add Item to add custom fee components (Locker, Desk, Registration, ID)
+                      Select Security Deposit, Monthly Desk Fee, or add extra items from dropdown — no typing needed
                     </span>
                   </div>
                   <button
@@ -3792,46 +3977,84 @@ export default function OwnerPortal() {
                   </button>
                 </div>
 
-                {/* Dynamic Itemized Rows */}
+                {/* Dynamic Itemized Rows (Dropdown Presets) */}
                 <div className="space-y-2">
-                  {(admForm.feeItems || []).map((item, index) => (
-                    <div key={index} className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => handleAdmFeeItemChange(index, 'description', e.target.value)}
-                          placeholder="Item Description (e.g. Dedicated Desk #12, Locker Deposit, ID Card)"
-                          className="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          required
-                        />
-                      </div>
-                      <div className="w-32">
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-2 text-slate-400 text-xs font-bold">₹</span>
+                  {(admForm.feeItems || []).map((item, index) => {
+                    const isKnownPreset = FEE_ITEM_PRESETS.some(p => p.value !== '__custom__' && p.value === item.description);
+                    const dropdownVal = (!item.isCustom && isKnownPreset) ? item.description : '__custom__';
+                    return (
+                      <div key={index} className="space-y-1.5 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1">
+                            <select
+                              value={dropdownVal}
+                              onChange={(e) => handleAdmFeePresetSelect(index, e.target.value)}
+                              className="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                            >
+                              {FEE_ITEM_PRESETS.map(preset => (
+                                <option key={preset.value} value={preset.value}>
+                                  {preset.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="w-28 sm:w-32">
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-2 text-slate-400 text-xs font-bold">₹</span>
+                              <input
+                                type="number"
+                                value={item.amount}
+                                onChange={(e) => handleAdmFeeItemChange(index, 'amount', e.target.value)}
+                                placeholder="Price"
+                                className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                                required
+                              />
+                            </div>
+                          </div>
+                          {(admForm.feeItems || []).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAdmFeeItem(index)}
+                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {dropdownVal === '__custom__' && (
                           <input
-                            type="number"
-                            value={item.amount}
-                            onChange={(e) => handleAdmFeeItemChange(index, 'amount', e.target.value)}
-                            placeholder="Price"
-                            className="w-full pl-6 pr-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => handleAdmFeeItemChange(index, 'description', e.target.value)}
+                            placeholder="Enter custom fee description..."
+                            className="w-full p-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                             required
                           />
-                        </div>
+                        )}
                       </div>
-                      {(admForm.feeItems || []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAdmFeeItem(index)}
-                          className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+
+                {/* Live Fee vs Deposit Split Summary Pill */}
+                {(() => {
+                  const depAmt = computeDepositFromItems(admForm.feeItems || []);
+                  const netFeeAmt = Math.max(0, (Number(admForm.totalFee) || 0) - depAmt);
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-purple-200 text-[11px] font-semibold">
+                      <span className="text-emerald-700">
+                        Library Fee: <strong className="font-mono">₹{netFeeAmt.toLocaleString()}</strong>
+                      </span>
+                      <span className="text-purple-700">
+                        Refundable Deposit: <strong className="font-mono">₹{depAmt.toLocaleString()}</strong>
+                      </span>
+                      <span className="text-slate-900">
+                        Total: <strong className="font-mono">₹{(Number(admForm.totalFee) || 0).toLocaleString()}</strong>
+                      </span>
+                    </div>
+                  );
+                })()}
                 
                 {/* Total / Paid / Due Summary */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-purple-200/80">
@@ -4114,18 +4337,28 @@ export default function OwnerPortal() {
 
             <form onSubmit={handleSubmitRenew} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Extension Period</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">Extension Period</label>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Net Library Fee Only (No Deposit)
+                  </span>
+                </div>
                 <select 
                   value={renewForm.months}
                   onChange={(e) => {
                     const m = Number(e.target.value);
-                    const fee = m === 3 ? 4200 : (m === 6 ? 8000 : 1500 * m);
-                    const deskDesc = `Desk #${selectedAdmissionForRenew.seatNumber || selectedAdmissionForRenew.previousSeatNumber || ''} Renewal (${m} Month${m > 1 ? 's' : ''})`;
+                    const monthlyRate = Number(renewalFee) && Number(renewalFee) !== 999 ? Number(renewalFee) : 850;
+                    const fee = monthlyRate * m;
+                    const deskDesc = m === 3
+                      ? 'Quarterly Renewal (3 Months)'
+                      : m === 6
+                      ? 'Half-Yearly Renewal (6 Months)'
+                      : 'Monthly Renewal Fee';
                     const currentItems = [...(renewForm.feeItems || [])];
                     if (currentItems.length > 0) {
-                      currentItems[0] = { ...currentItems[0], description: deskDesc, amount: fee };
+                      currentItems[0] = { ...currentItems[0], isCustom: false, description: deskDesc, amount: fee };
                     } else {
-                      currentItems.push({ description: deskDesc, amount: fee });
+                      currentItems.push({ isCustom: false, description: deskDesc, amount: fee });
                     }
                     const sum = currentItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
                     const newEnd = calculateMembershipEndDate(renewForm.startDate, m);
@@ -4133,10 +4366,17 @@ export default function OwnerPortal() {
                   }}
                   className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-semibold"
                 >
-                  <option value={1}>Extend by 1 Month (₹1,500)</option>
-                  <option value={2}>Extend by 2 Months (₹3,000)</option>
-                  <option value={3}>Extend by 3 Months (₹4,200)</option>
-                  <option value={6}>Extend by 6 Months (₹8,000)</option>
+                  {(() => {
+                    const r = Number(renewalFee) && Number(renewalFee) !== 999 ? Number(renewalFee) : 850;
+                    return (
+                      <>
+                        <option value={1}>Extend by 1 Month (₹{r.toLocaleString()})</option>
+                        <option value={2}>Extend by 2 Months (₹{(r * 2).toLocaleString()})</option>
+                        <option value={3}>Extend by 3 Months (₹{(r * 3).toLocaleString()})</option>
+                        <option value={6}>Extend by 6 Months (₹{(r * 6).toLocaleString()})</option>
+                      </>
+                    );
+                  })()}
                 </select>
               </div>
 
@@ -4166,7 +4406,7 @@ export default function OwnerPortal() {
                 </p>
               </div>
 
-              {/* Dynamic Itemized Renewal Rows */}
+              {/* Dynamic Itemized Renewal Rows (Dropdown Presets) */}
               <div className="bg-purple-50/50 p-3 rounded-2xl border border-purple-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
@@ -4174,7 +4414,7 @@ export default function OwnerPortal() {
                       Itemized Charges
                     </span>
                     <span className="text-[10px] text-purple-700">
-                      Click + Add Item to add custom renewal charges
+                      Choose plan preset or add custom charge
                     </span>
                   </div>
                   <button
@@ -4188,43 +4428,62 @@ export default function OwnerPortal() {
                 </div>
 
                 <div className="space-y-2">
-                  {(renewForm.feeItems || []).map((item, index) => (
-                    <div key={index} className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => handleRenewItemChange(index, 'description', e.target.value)}
-                          placeholder="Item Description (e.g. Desk Renewal, Locker Fee)"
-                          className="w-full p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          required
-                        />
-                      </div>
-                      <div className="w-28">
-                        <div className="relative">
-                          <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-bold">₹</span>
+                  {(renewForm.feeItems || []).map((item, index) => {
+                    const isKnownRenewPreset = RENEW_ITEM_PRESETS.some(p => p.value !== '__custom__' && p.value === item.description);
+                    const dropdownVal = (!item.isCustom && isKnownRenewPreset) ? item.description : '__custom__';
+                    return (
+                      <div key={index} className="space-y-1.5 bg-white p-2 rounded-xl border border-purple-200 shadow-2xs">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1">
+                            <select
+                              value={dropdownVal}
+                              onChange={(e) => handleRenewPresetSelect(index, e.target.value)}
+                              className="w-full p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                            >
+                              {RENEW_ITEM_PRESETS.map(preset => (
+                                <option key={preset.value} value={preset.value}>
+                                  {preset.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="w-28">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-bold">₹</span>
+                              <input
+                                type="number"
+                                value={item.amount}
+                                onChange={(e) => handleRenewItemChange(index, 'amount', e.target.value)}
+                                placeholder="Price"
+                                className="w-full pl-5 pr-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                                required
+                              />
+                            </div>
+                          </div>
+                          {(renewForm.feeItems || []).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRenewItem(index)}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {dropdownVal === '__custom__' && (
                           <input
-                            type="number"
-                            value={item.amount}
-                            onChange={(e) => handleRenewItemChange(index, 'amount', e.target.value)}
-                            placeholder="Price"
-                            className="w-full pl-5 pr-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 font-mono font-bold text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500 text-right"
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => handleRenewItemChange(index, 'description', e.target.value)}
+                            placeholder="Custom charge description..."
+                            className="w-full p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
                             required
                           />
-                        </div>
+                        )}
                       </div>
-                      {(renewForm.feeItems || []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveRenewItem(index)}
-                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -4278,6 +4537,116 @@ export default function OwnerPortal() {
                   className="w-1/2 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-semibold shadow-xs"
                 >
                   Confirm Renewal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 4B: SECURITY DEPOSIT REFUND MODAL ================= */}
+      {refundModalOpen && selectedAdmissionForRefund && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-start justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setRefundModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-8 text-slate-800 space-y-5 shadow-2xl relative my-4 sm:my-10">
+            <button
+              onClick={() => setRefundModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+              title="Close (ESC)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] font-mono font-bold bg-teal-50 text-teal-800 px-2.5 py-0.5 rounded border border-teal-200 uppercase">
+                Security Deposit Return
+              </span>
+              <h3 className="text-xl font-bold text-slate-900 mt-2">
+                Refund Deposit • {selectedAdmissionForRefund.studentName}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selectedAdmissionForRefund.seatNumber != null
+                  ? `Seat #${selectedAdmissionForRefund.seatNumber}`
+                  : `Previous Seat #${selectedAdmissionForRefund.previousSeatNumber || '—'}`} • Phone: {selectedAdmissionForRefund.studentPhone}
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmitRefund} className="space-y-4 text-xs">
+              <div className="bg-teal-50/70 p-3.5 rounded-2xl border border-teal-200 space-y-1">
+                <p className="font-bold text-teal-900 text-xs">
+                  Is deposit refund ke baad kya hoga?
+                </p>
+                <p className="text-[11px] text-teal-800 leading-relaxed">
+                  • <strong>Total Deposits</strong> se ₹{Number(refundForm.amount) || 0} kam ho jayega.<br />
+                  • <strong>Fees Collected</strong> (Library ki net ₹850 monthly kamai) bilkul safe rahegi.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Refund Amount (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={refundForm.amount}
+                  onChange={(e) => setRefundForm({ ...refundForm, amount: Number(e.target.value) })}
+                  className="w-full p-2.5 rounded-xl bg-white border border-slate-200 font-mono font-bold text-sm text-slate-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Refund Mode</label>
+                <select
+                  value={refundForm.paymentMode}
+                  onChange={(e) => setRefundForm({ ...refundForm, paymentMode: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs font-medium"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="UPI (Google Pay / PhonePe)">UPI (Google Pay / PhonePe)</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Notes</label>
+                <input
+                  type="text"
+                  value={refundForm.notes}
+                  onChange={(e) => setRefundForm({ ...refundForm, notes: e.target.value })}
+                  placeholder="Optional return remark..."
+                  className="w-full p-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs"
+                />
+              </div>
+
+              {selectedAdmissionForRefund.seatNumber != null && (
+                <label className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={refundForm.vacateSeatToo}
+                    onChange={(e) => setRefundForm({ ...refundForm, vacateSeatToo: e.target.checked })}
+                    className="mt-0.5 rounded text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-xs text-slate-700 font-medium leading-snug">
+                    Also vacate <strong>Seat #{selectedAdmissionForRefund.seatNumber}</strong> & make it Available (keeps student name & phone in records)
+                  </span>
+                </label>
+              )}
+
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRefundModalOpen(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-xs cursor-pointer"
+                >
+                  Confirm Return ₹{refundForm.amount}
                 </button>
               </div>
             </form>

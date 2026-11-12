@@ -1220,10 +1220,23 @@ router.put('/owner/admissions/:id/renew', (req, res) => {
   });
 });
 
+// Refund Security Deposit (Return ₹500 when student leaves, optionally vacate seat)
+router.put('/owner/admissions/:id/refund-deposit', (req, res) => {
+  const result = store.refundDeposit(req.params.id, req.body);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json({
+    success: true,
+    message: result.message,
+    data: result.admission
+  });
+});
+
 // ================= MEMBERSHIP EXPIRY NOTIFICATION ENGINE (LAST 3 DAYS DAILY) =================
 // Get/Update WhatsApp Notice Renewal Settings
 router.get('/owner/renewal-settings', (req, res) => {
-  const settings = store.getRenewalSettings ? store.getRenewalSettings() : { defaultRenewalFee: 999, offerNote: '' };
+  const settings = store.getRenewalSettings ? store.getRenewalSettings() : { defaultRenewalFee: 850, offerNote: '' };
   res.json({ success: true, data: settings });
 });
 

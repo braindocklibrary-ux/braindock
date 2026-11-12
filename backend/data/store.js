@@ -67,7 +67,7 @@ class DataStore {
 
     // WhatsApp Renewal Notice Configuration (Configurable offer & standard fees)
     this.renewalSettings = {
-      defaultRenewalFee: 999,
+      defaultRenewalFee: 850,
       offerNote: ''
     };
 
@@ -177,9 +177,10 @@ class DataStore {
       }
       // Ensure all admissions have a consistent grId and biometricEnrollmentId
       (this.admissions || []).forEach(a => {
-        if (!a.grId) a.grId = `GR-${String(a.seatNumber).padStart(3, '0')}`;
-        if (!a.biometricEnrollmentId) a.biometricEnrollmentId = Number(a.seatNumber);
+        if (!a.grId && a.seatNumber != null) a.grId = `GR-${String(a.seatNumber).padStart(3, '0')}`;
+        if (!a.biometricEnrollmentId && a.seatNumber != null) a.biometricEnrollmentId = Number(a.seatNumber);
       });
+      this.normalizeAdmissionDeposits();
       // Retroactively link past biometricLogs to enrolled students if matching seat or PIN
       (this.biometricLogs || []).forEach(log => {
         const logNum = log.seatNumber ? Number(log.seatNumber) : (log.biometricEnrollmentId ? Number(log.biometricEnrollmentId) : null);
@@ -783,11 +784,101 @@ class DataStore {
     return this.ownerSeats.find(s => s.seatNumber === num);
   }
 
+  /**
+   * Computes exact financial separation between Security Deposit (refundable)
+   * and Net Library Fees (actual library earnings), seamlessly handling both
+   * old/legacy admissions and new admissions.
+   */
+  getAdmissionFinancials(adm) {
+    if (!adm) {
+      return { rawDeposit: 0, heldDeposit: 0, refundedDeposit: 0, netTotalFee: 0, netPaidFee: 0, depositStatus: 'None' };
+    }
+    const totalFee = Number(adm.totalFee) || 0;
+    const paidAmount = Number(adm.paidAmount) || 0;
+
+    // 1. Detect raw deposit amount accurately
+    let rawDeposit = 0;
+    if (adm.deposit != null && Number(adm.deposit) > 0) {
+      rawDeposit = Number(adm.deposit);
+    } else if (adm.securityDeposit != null && Number(adm.securityDeposit) > 0) {
+      rawDeposit = Number(adm.securityDeposit);
+    } else if (Array.isArray(adm.feeItems) && adm.feeItems.length > 0) {
+      const depItem = adm.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+      if (depItem && Number(depItem.amount) > 0) rawDeposit = Number(depItem.amount);
+    }
+
+    // Fallback to matching receipt feeItems or legacy 1350/500 figures for old students
+    if (rawDeposit === 0) {
+      const matchedReceipt = (this.receipts || []).find(
+        r => (adm.receiptNumber && r.receiptNumber === adm.receiptNumber) || (adm.admissionId && r.admissionId === adm.admissionId)
+      );
+      if (matchedReceipt && Array.isArray(matchedReceipt.feeItems)) {
+        const recDep = matchedReceipt.feeItems.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+        if (recDep && Number(recDep.amount) > 0) rawDeposit = Number(recDep.amount);
+      }
+    }
+
+    if (rawDeposit === 0 && (totalFee === 1350 || (totalFee === 500 && paidAmount === 500))) {
+      rawDeposit = 500;
+    }
+
+    const isRefunded = adm.depositRefunded === true || adm.depositStatus === 'Refunded';
+    const refundedDeposit = isRefunded ? (Number(adm.depositRefundedAmount) || rawDeposit) : 0;
+    const heldDeposit = !isRefunded && rawDeposit > 0 ? Math.min(paidAmount, rawDeposit) : 0;
+    const depositStatus = isRefunded ? 'Refunded' : (rawDeposit > 0 ? 'Held' : 'None');
+
+    const netTotalFee = Math.max(0, totalFee - rawDeposit);
+    const netPaidFee = Math.max(0, paidAmount - rawDeposit);
+
+    return { rawDeposit, heldDeposit, refundedDeposit, netTotalFee, netPaidFee, depositStatus };
+  }
+
+  /**
+   * Retroactively normalizes deposit & feeItems metadata on ALL existing/old admissions
+   * so old students also show clean separation between Monthly Fee and Security Deposit.
+   */
+  normalizeAdmissionDeposits() {
+    (this.admissions || []).forEach(adm => {
+      const fin = this.getAdmissionFinancials(adm);
+      if ((adm.deposit == null || Number(adm.deposit) === 0) && fin.rawDeposit > 0) {
+        adm.deposit = fin.rawDeposit;
+      }
+      if (!adm.depositStatus) {
+        adm.depositStatus = fin.depositStatus;
+      }
+      if (adm.depositRefunded === undefined) {
+        adm.depositRefunded = fin.depositStatus === 'Refunded';
+      }
+
+      // Backfill feeItems if missing on legacy admission so Edit modal & Table match cleanly
+      if ((!Array.isArray(adm.feeItems) || adm.feeItems.length === 0) && (Number(adm.totalFee) > 0 || fin.rawDeposit > 0)) {
+        const matchedReceipt = (this.receipts || []).find(
+          r => (adm.receiptNumber && r.receiptNumber === adm.receiptNumber) || (adm.admissionId && r.admissionId === adm.admissionId)
+        );
+        if (matchedReceipt && Array.isArray(matchedReceipt.feeItems) && matchedReceipt.feeItems.length > 0) {
+          adm.feeItems = matchedReceipt.feeItems.map(it => ({
+            description: it.description,
+            amount: Number(it.amount) || 0
+          }));
+        } else {
+          const items = [];
+          if (fin.rawDeposit > 0) {
+            items.push({ description: 'Security Deposit (Refundable)', amount: fin.rawDeposit });
+          }
+          if (fin.netTotalFee > 0) {
+            items.push({ description: 'Monthly Desk Fee', amount: fin.netTotalFee });
+          }
+          if (items.length > 0) adm.feeItems = items;
+        }
+      }
+    });
+  }
+
   getAdmissions({ filter, search } = {}) {
     let list = [...this.admissions];
     const now = new Date();
 
-    // Update days remaining
+    // Update days remaining & attach clean fee vs deposit breakdown
     list.forEach(adm => {
       if (adm.endDate) {
         const end = new Date(adm.endDate);
@@ -796,6 +887,12 @@ class DataStore {
           adm.status = 'Expired';
         }
       }
+      const fin = this.getAdmissionFinancials(adm);
+      adm.deposit = adm.deposit != null && Number(adm.deposit) > 0 ? Number(adm.deposit) : fin.rawDeposit;
+      adm.depositStatus = fin.depositStatus;
+      adm.netTotalFee = fin.netTotalFee;
+      adm.netPaidFee = fin.netPaidFee;
+      adm.heldDeposit = fin.heldDeposit;
     });
 
     if (filter === 'pending') {
@@ -855,13 +952,13 @@ class DataStore {
 
     const feeItems = Array.isArray(data.feeItems) && data.feeItems.length > 0
       ? data.feeItems.map(item => ({
-          description: String(item.description || '').trim() || `Dedicated Study Desk #${seatNum} & Facility Pass`,
+          description: String(item.description || '').trim() || `Monthly Desk Fee`,
           amount: Number(item.amount) || 0
         }))
-      : [{ description: `Dedicated Study Desk #${seatNum} & Facility Pass`, amount: Number(data.totalFee || 1500) }];
+      : [{ description: `Monthly Desk Fee`, amount: Number(data.totalFee || 850) }];
 
     const calculatedTotal = feeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const totalFee = calculatedTotal > 0 ? calculatedTotal : Number(data.totalFee || 1500);
+    const totalFee = calculatedTotal > 0 ? calculatedTotal : Number(data.totalFee || 850);
     const paidAmount = Number(data.paidAmount != null ? data.paidAmount : totalFee);
     const pendingFee = Math.max(0, totalFee - paidAmount);
     const feeStatus = pendingFee === 0 ? 'Paid' : (paidAmount > 0 ? 'Pending' : 'Pending');
@@ -934,7 +1031,21 @@ class DataStore {
       aadhaarFront: data.aadhaarFront || data.idProofFront || '',
       aadhaarBack: data.aadhaarBack || data.idProofBack || '',
       feeItems,
-      deposit: Number(data.deposit) || (feeItems.find(it => (it.description || '').toLowerCase().includes('deposit'))?.amount || 0),
+      deposit: (() => {
+        if (data.deposit != null && Number(data.deposit) > 0) return Number(data.deposit);
+        const dep = feeItems.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'));
+        return dep ? (Number(dep.amount) || 0) : 0;
+      })(),
+      depositStatus: (() => {
+        const depAmt = (data.deposit != null && Number(data.deposit) > 0)
+          ? Number(data.deposit)
+          : (feeItems.find(it => (it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'))?.amount || 0);
+        return Number(depAmt) > 0 ? 'Held' : 'None';
+      })(),
+      depositRefunded: false,
+      depositRefundedAmount: 0,
+      depositRefundedAt: null,
+      isDeleted: false,
 
       totalFee,
       paidAmount,
@@ -1116,15 +1227,16 @@ class DataStore {
     if (!adm) return { success: false, message: 'Admission record not found' };
 
     const renewMonths = Number(months || 1);
+    const defaultRenewAmt = 850 * renewMonths;
     const renewFeeItems = Array.isArray(feeItems) && feeItems.length > 0
       ? feeItems.map(item => ({
-          description: String(item.description || '').trim() || `Desk #${adm.seatNumber || adm.previousSeatNumber || ''} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
+          description: String(item.description || '').trim() || `Monthly Renewal Fee (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
           amount: Number(item.amount) || 0
         }))
-      : [{ description: `Desk #${adm.seatNumber || adm.previousSeatNumber || ''} Extension (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`, amount: Number(totalFee || 1500) }];
+      : [{ description: `Monthly Renewal Fee (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`, amount: Number(totalFee || defaultRenewAmt) }];
 
     const calculatedTotal = renewFeeItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const fee = calculatedTotal > 0 ? calculatedTotal : Number(totalFee || 1500);
+    const fee = calculatedTotal > 0 ? calculatedTotal : Number(totalFee || defaultRenewAmt);
     const paid = Number(paidAmount != null ? paidAmount : fee);
     const pending = Math.max(0, fee - paid);
 
@@ -1239,20 +1351,85 @@ class DataStore {
     return { success: true, admission: adm, receipt: newReceipt };
   }
 
+  /**
+   * Refund Security Deposit (₹500) to student when leaving/vacating library.
+   * Reduces Total Deposits Held while preserving earned Monthly Library Fees.
+   * Optionally frees/vacates the occupied seat simultaneously while preserving student name & phone.
+   */
+  refundDeposit(admissionId, { amount, paymentMode, notes, vacateSeatToo = false } = {}) {
+    const adm = this.admissions.find(a => a.admissionId === admissionId);
+    if (!adm) return { success: false, message: 'Admission record not found' };
+
+    const fin = this.getAdmissionFinancials(adm);
+    if (adm.depositRefunded === true || adm.depositStatus === 'Refunded') {
+      return { success: false, message: `Security deposit for ${adm.studentName} has already been refunded.` };
+    }
+
+    const refundable = fin.heldDeposit > 0 ? fin.heldDeposit : (fin.rawDeposit > 0 ? fin.rawDeposit : 0);
+    if (refundable <= 0 && !(Number(amount) > 0)) {
+      return { success: false, message: `No refundable security deposit found for ${adm.studentName}.` };
+    }
+
+    const refundAmt = Number(amount) > 0 ? Number(amount) : refundable;
+    adm.deposit = adm.deposit && Number(adm.deposit) > 0 ? Number(adm.deposit) : refundAmt;
+    adm.depositStatus = 'Refunded';
+    adm.depositRefunded = true;
+    adm.depositRefundedAmount = refundAmt;
+    adm.depositRefundedAt = new Date().toISOString();
+    adm.depositRefundMode = paymentMode || 'Cash';
+    adm.depositRefundNotes = (notes || '').trim() || `Security Deposit ₹${refundAmt} returned to student`;
+
+    // If student is vacating seat simultaneously on exit
+    let vacatedSeatNum = null;
+    if (vacateSeatToo && adm.seatNumber != null) {
+      vacatedSeatNum = adm.seatNumber;
+      const seat = this.ownerSeats.find(s => s.seatNumber === vacatedSeatNum);
+      if (seat) {
+        seat.status = 'Available';
+        seat.occupant = null;
+      }
+      adm.previousSeatNumber = vacatedSeatNum;
+      adm.seatNumber = null;
+      adm.seatLabel = `Vacated (Seat #${vacatedSeatNum})`;
+      adm.status = 'Vacated';
+      adm.isDeleted = false; // Legitimate exit — earned monthly fees stay in Library Fees Collected!
+      adm.vacatedAt = new Date().toISOString();
+      adm.vacateReason = `Completed term & Security Deposit ₹${refundAmt} refunded`;
+      adm.daysRemaining = 0;
+    }
+
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      actorName: 'Library Owner',
+      actorRole: 'Owner Desk',
+      action: 'Deposit Refunded',
+      module: '102-Seat Admission Desk',
+      details: `Refunded ₹${refundAmt} security deposit to ${adm.studentName} (${adm.studentPhone}) via ${adm.depositRefundMode}${vacatedSeatNum ? ` & vacated Seat #${vacatedSeatNum}` : ''}`,
+      timestamp: new Date()
+    });
+
+    this.saveState();
+    return {
+      success: true,
+      message: `₹${refundAmt} Security Deposit returned to ${adm.studentName}${vacatedSeatNum ? ` and Seat #${vacatedSeatNum} is now Available` : ''}!`,
+      admission: adm
+    };
+  }
+
   // ================= RENEWAL SETTINGS & WHATSAPP NOTICE ENGINE =================
   getRenewalSettings() {
-    return this.renewalSettings || { defaultRenewalFee: 999, offerNote: '' };
+    return this.renewalSettings || { defaultRenewalFee: 850, offerNote: '' };
   }
 
   updateRenewalSettings(data = {}) {
     if (!this.renewalSettings) {
-      this.renewalSettings = { defaultRenewalFee: 999, offerNote: '' };
+      this.renewalSettings = { defaultRenewalFee: 850, offerNote: '' };
     }
     if (data.defaultRenewalFee !== undefined) {
-      this.renewalSettings.defaultRenewalFee = Number(data.defaultRenewalFee) || 999;
+      this.renewalSettings.defaultRenewalFee = Number(data.defaultRenewalFee) || 850;
     }
     if (data.renewalFee !== undefined) {
-      this.renewalSettings.defaultRenewalFee = Number(data.renewalFee) || 999;
+      this.renewalSettings.defaultRenewalFee = Number(data.renewalFee) || 850;
     }
     if (data.offerNote !== undefined) {
       this.renewalSettings.offerNote = String(data.offerNote).trim();
@@ -1272,7 +1449,7 @@ class DataStore {
         ? 'EXPIRES TODAY' 
         : `expiring in ${daysRemaining} day(s)`;
 
-    const feeAmount = renewalFee || this.renewalSettings?.defaultRenewalFee || 999;
+    const feeAmount = renewalFee || this.renewalSettings?.defaultRenewalFee || 850;
     const note = offerNote !== undefined ? offerNote : (this.renewalSettings?.offerNote || '');
     const planText = `₹${feeAmount} / Month${note ? ` (${note})` : ''}`;
 
@@ -1284,7 +1461,7 @@ class DataStore {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const list = [];
-    const defaultFee = Number(overrideDefaultFee) || Number(this.renewalSettings?.defaultRenewalFee) || 999;
+    const defaultFee = Number(overrideDefaultFee) || Number(this.renewalSettings?.defaultRenewalFee) || 850;
     const offerNote = overrideNote !== undefined ? overrideNote : (this.renewalSettings?.offerNote || '');
 
     for (const adm of this.admissions) {
@@ -1352,7 +1529,7 @@ class DataStore {
       channel: 'WhatsApp'
     });
 
-    const fee = Number(customRenewalFee) || Number(adm.renewalFee) || Number(this.renewalSettings?.defaultRenewalFee) || 999;
+    const fee = Number(customRenewalFee) || Number(adm.renewalFee) || Number(this.renewalSettings?.defaultRenewalFee) || 850;
     if (customRenewalFee) {
       adm.renewalFee = fee;
     }
@@ -1758,6 +1935,9 @@ class DataStore {
         if (dbRenewalSettings && dbRenewalSettings.data) {
           this.renewalSettings = dbRenewalSettings.data;
         }
+
+        // Retroactively detect & separate Deposit vs Monthly Fees on all old/legacy Mongo admissions
+        this.normalizeAdmissionDeposits();
 
         // Always ensure 102 seats matrix exists
         if (!this.ownerSeats || this.ownerSeats.length !== 102) {
@@ -2262,9 +2442,28 @@ class DataStore {
     const maintenanceSeats = seats.filter(s => s.status === 'Maintenance').length;
 
     const activeAdmissions = this.admissions.filter(a => a.status !== 'Vacated');
+    // Genuine financial records: include active admissions AND completed/vacated admissions that were NOT cancelled mistakes (`!isDeleted`)
+    const validRevenueAdmissions = this.admissions.filter(a => !a.isDeleted);
+
     const feePendingList = activeAdmissions.filter(a => a.pendingFee > 0);
     const totalFeePending = feePendingList.reduce((acc, a) => acc + (a.pendingFee || 0), 0);
-    const totalFeeCollected = activeAdmissions.reduce((acc, a) => acc + (a.paidAmount || 0), 0);
+
+    // Pure Net Library Fee Revenue (excludes Security Deposit ₹500!)
+    const totalFeeCollected = validRevenueAdmissions.reduce((acc, a) => {
+      const fin = this.getAdmissionFinancials(a);
+      return acc + fin.netPaidFee;
+    }, 0);
+
+    // Refundable Security Deposits currently Held vs Already Refunded
+    const totalDepositsHeld = validRevenueAdmissions.reduce((acc, a) => {
+      const fin = this.getAdmissionFinancials(a);
+      return acc + fin.heldDeposit;
+    }, 0);
+
+    const totalDepositsRefunded = validRevenueAdmissions.reduce((acc, a) => {
+      const fin = this.getAdmissionFinancials(a);
+      return acc + fin.refundedDeposit;
+    }, 0);
 
     const expiringSoon = activeAdmissions.filter(a => a.daysRemaining >= 0 && a.daysRemaining <= 5);
     const expiredCount = activeAdmissions.filter(a => a.daysRemaining < 0 || a.status === 'Expired');
@@ -2276,6 +2475,9 @@ class DataStore {
       maintenanceSeats,
       occupancyRate: Math.round((occupiedSeats / totalSeats) * 100),
       totalFeeCollected,
+      totalDepositsHeld,
+      totalDepositsRefunded,
+      totalGrossCollected: totalFeeCollected + totalDepositsHeld,
       totalFeePending,
       pendingCount: feePendingList.length,
       expiringSoonCount: expiringSoon.length,
