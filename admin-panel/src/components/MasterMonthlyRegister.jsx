@@ -89,7 +89,20 @@ export default function MasterMonthlyRegister({
     });
   };
 
-  // Helper: check if a student was active / paid during a specific month key ('04'..'03')
+  // Parse YYYY-MM-DD or DD-MM-YYYY safely without timezone drift
+  const parseDateParts = (dateStr) => {
+    if (!dateStr) return null;
+    const str = String(dateStr).trim().split('T')[0];
+    let m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m) return { year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10) };
+    m = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (m) return { year: parseInt(m[3], 10), month: parseInt(m[2], 10), day: parseInt(m[1], 10) };
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+    return null;
+  };
+
+  // Helper: tick ONLY the expiry date's month(s) (e.g. 25-10-2026 -> 25-11-2026 ticks Month 11 ONLY, not 10 or 12)
   const isMonthPaidForAdmission = (admission, monthKey) => {
     if (!admission || !admission.startDate) return false;
 
@@ -100,44 +113,66 @@ export default function MasterMonthlyRegister({
     }
 
     try {
-      const start = new Date(admission.startDate);
-      const end = admission.endDate ? new Date(admission.endDate) : new Date(start.getTime() + (admission.durationMonths || 1) * 30 * 86400000);
-      
-      const targetMonthInt = parseInt(monthKey, 10); // 1 to 12
-      
-      // Determine academic year for the target month
-      // Months 04-12 are in current year (e.g. 2026), months 01-03 are in next year (e.g. 2027)
-      const currentYear = start.getFullYear();
-      let targetYear = currentYear;
-      if (targetMonthInt >= 1 && targetMonthInt <= 3 && start.getMonth() + 1 >= 4) {
-        targetYear = currentYear + 1;
+      const start = parseDateParts(admission.startDate);
+      if (!start) return false;
+
+      let end = parseDateParts(admission.endDate);
+      if (!end) {
+        const dur = Number(admission.durationMonths) || 1;
+        const totalEndMonths = start.year * 12 + (start.month - 1) + dur;
+        end = {
+          year: Math.floor(totalEndMonths / 12),
+          month: (totalEndMonths % 12) + 1,
+          day: start.day
+        };
       }
 
-      // Check if target month overlaps [start, end]
-      const targetMonthStart = new Date(targetYear, targetMonthInt - 1, 1);
-      const targetMonthEnd = new Date(targetYear, targetMonthInt, 0);
+      const targetMonthInt = parseInt(monthKey, 10); // 1 to 12
 
-      const isActiveInMonth = (start <= targetMonthEnd && end >= targetMonthStart);
-      return isActiveInMonth;
+      // Map Academic/Financial Year (04..12 -> fyStartYear, 01..03 -> fyStartYear + 1)
+      const fyStartYear = start.month >= 4 ? start.year : start.year - 1;
+      const targetYear = targetMonthInt >= 4 ? fyStartYear : fyStartYear + 1;
+
+      const startYM = start.year * 12 + start.month;
+      const endYM = end.year * 12 + end.month;
+      const targetYM = targetYear * 12 + targetMonthInt;
+
+      // Single-month cycle (e.g. start Oct -> end Nov) ticks strictly the expiry month (Nov 11).
+      // Multi-month / renewed cycles tick each covered expiry month from (start + 1) through end.
+      if (endYM > startYM) {
+        return targetYM > startYM && targetYM <= endYM;
+      }
+      return targetYM === endYM;
     } catch (e) {
       return false;
     }
   };
 
-  // Helper: check if deposit is marked
+  // Helper: check if held security deposit is paid (supports ALL old & new students)
   const isDepositPaid = (admission) => {
     if (!admission) return false;
     const overrideKey = `${admission.seatNumber}_deposit`;
     if (manualChecks[overrideKey] !== undefined) {
       return manualChecks[overrideKey];
     }
+    if (admission.depositRefunded === true || admission.depositStatus === 'Refunded') {
+      return false;
+    }
+    if (admission.heldDeposit && Number(admission.heldDeposit) > 0) return true;
+    if (admission.deposit && Number(admission.deposit) > 0) return true;
     if (admission.securityDeposit && Number(admission.securityDeposit) > 0) return true;
     if (Array.isArray(admission.feeItems)) {
-      const hasDep = admission.feeItems.some(it => 
-        (it.description || '').toLowerCase().includes('deposit') && Number(it.amount) > 0
+      const hasDep = admission.feeItems.some(it =>
+        (it.description || '').toLowerCase().includes('deposit') &&
+        !(it.description || '').toLowerCase().includes('locker') &&
+        Number(it.amount) > 0
       );
       if (hasDep) return true;
     }
+    // Retroactive compatibility for legacy students with empty feeItems
+    const total = Number(admission.totalFee) || 0;
+    const paid = Number(admission.paidAmount) || 0;
+    if (total === 1350 || (total === 500 && paid === 500)) return true;
     return Boolean(admission.depositPaid);
   };
 
@@ -292,7 +327,9 @@ export default function MasterMonthlyRegister({
         r.seatNo,
         `"${(r.name || '').replace(/"/g, '""')}"`,
         `"${r.mobileNo || ''}"`,
-        r.deposit ? 'PAID' : ''
+        r.admission?.depositRefunded || r.admission?.depositStatus === 'Refunded'
+          ? 'REFUNDED'
+          : (r.deposit ? 'PAID' : '')
       ];
 
       selectedMonths.forEach(mKey => {
@@ -615,19 +652,28 @@ export default function MasterMonthlyRegister({
 
                     {/* 6. Deposit Checkbox (Interactive & Exact Box Appearance) */}
                     <td className="py-2.5 px-3 text-center border-r border-purple-100">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleDepositCell(row.seatNumber, row.deposit, hasStudent)}
-                        disabled={!hasStudent}
-                        className={`w-5 h-5 rounded border-2 inline-flex items-center justify-center transition-all cursor-pointer ${
-                          row.deposit 
-                            ? 'bg-[#5B1484] border-[#5B1484] text-white shadow-2xs' 
-                            : 'border-purple-600/70 bg-white hover:bg-purple-50 disabled:border-slate-300 disabled:hover:bg-white disabled:cursor-default'
-                        }`}
-                        title={hasStudent ? (row.deposit ? 'Deposit Paid (Click to toggle)' : 'Deposit Pending (Click to toggle)') : 'Vacant Seat'}
-                      >
-                        {row.deposit && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </button>
+                      {hasStudent && (row.admission?.depositRefunded || row.admission?.depositStatus === 'Refunded') && !row.deposit ? (
+                        <span
+                          className="inline-block px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9.5px] font-bold"
+                          title="Security Deposit Refunded"
+                        >
+                          Ret ✓
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleDepositCell(row.seatNumber, row.deposit, hasStudent)}
+                          disabled={!hasStudent}
+                          className={`w-5 h-5 rounded border-2 inline-flex items-center justify-center transition-all cursor-pointer ${
+                            row.deposit 
+                              ? 'bg-[#5B1484] border-[#5B1484] text-white shadow-2xs' 
+                              : 'border-purple-600/70 bg-white hover:bg-purple-50 disabled:border-slate-300 disabled:hover:bg-white disabled:cursor-default'
+                          }`}
+                          title={hasStudent ? (row.deposit ? 'Deposit Paid (Click to toggle)' : 'Deposit Pending (Click to toggle)') : 'Vacant Seat'}
+                        >
+                          {row.deposit && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </button>
+                      )}
                     </td>
 
                     {/* Month Checkboxes (04 to 03) */}
