@@ -185,6 +185,10 @@ export default function OwnerPortal() {
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [selectedAdmissionForRefund, setSelectedAdmissionForRefund] = useState(null);
   const [refundForm, setRefundForm] = useState({ amount: 500, paymentMode: 'Cash', notes: '', vacateSeatToo: true });
+  const [mpinModalOpen, setMpinModalOpen] = useState(false);
+  const [selectedAdmissionForMpin, setSelectedAdmissionForMpin] = useState(null);
+  const [studentMpinInput, setStudentMpinInput] = useState('');
+  const [mpinSaving, setMpinSaving] = useState(false);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -1578,6 +1582,47 @@ export default function OwnerPortal() {
       .catch(err => alert('Error refunding deposit: ' + err.message));
   };
 
+  // Open Manage / Reset Student MPIN Modal
+  const handleOpenManageMpin = (admission) => {
+    setSelectedAdmissionForMpin(admission);
+    setStudentMpinInput('');
+    setMpinModalOpen(true);
+  };
+
+  // Submit Student MPIN Change / Reset from Admin Portal
+  const handleSubmitStudentMpin = (e) => {
+    e.preventDefault();
+    if (!selectedAdmissionForMpin) return;
+    const cleanPin = String(studentMpinInput || '').trim();
+    if (!/^\d{4,6}$/.test(cleanPin)) {
+      alert('MPIN must be 4 to 6 numeric digits (e.g. 1234).');
+      return;
+    }
+
+    setMpinSaving(true);
+    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForMpin.admissionId}/mpin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mpin: cleanPin })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setMpinSaving(false);
+        if (data.success) {
+          setMpinModalOpen(false);
+          setSelectedAdmissionForMpin(null);
+          fetchOwnerData();
+          showToast(data.message || `MPIN updated for ${selectedAdmissionForMpin.studentName}!`);
+        } else {
+          alert(data.message || 'Failed to update MPIN');
+        }
+      })
+      .catch(err => {
+        setMpinSaving(false);
+        alert('Error updating MPIN: ' + err.message);
+      });
+  };
+
   // Submit Renewal
   const handleSubmitRenew = (e) => {
     e.preventDefault();
@@ -2432,6 +2477,19 @@ export default function OwnerPortal() {
                             title="Renew Membership"
                           >
                             Renew
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenManageMpin(adm)}
+                            className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] border transition-colors inline-flex items-center space-x-1 cursor-pointer ${
+                              adm.hasMpin
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                            title={adm.hasMpin ? 'Reset / Change Student Portal MPIN' : 'Set Student Portal MPIN'}
+                          >
+                            <Key className="w-3 h-3" />
+                            <span>{adm.hasMpin ? 'MPIN ✓' : 'Set MPIN'}</span>
                           </button>
 
                           <button
@@ -4646,7 +4704,87 @@ export default function OwnerPortal() {
         </div>
       )}
 
-      {/* ================= MODAL: GOOGLE DRIVE CLOUD BACKUP & AUTO-SYNC ================= */}
+      {/* ================= MODAL 4C: MANAGE / RESET STUDENT MPIN ================= */}
+      {mpinModalOpen && selectedAdmissionForMpin && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setMpinModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 text-slate-800 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setMpinModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+              title="Close (ESC)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded border border-amber-200 uppercase">
+                Student Portal Security
+              </span>
+              <h3 className="text-xl font-bold text-slate-900 mt-2">
+                {selectedAdmissionForMpin.hasMpin ? 'Reset / Change Student MPIN' : 'Set Student MPIN'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                <strong>{selectedAdmissionForMpin.studentName}</strong> • Seat #{selectedAdmissionForMpin.seatNumber || selectedAdmissionForMpin.previousSeatNumber || '—'} • {selectedAdmissionForMpin.studentPhone}
+              </p>
+              {selectedAdmissionForMpin.studentEmail && (
+                <p className="text-[11px] font-mono text-slate-500 mt-0.5">
+                  Email: {selectedAdmissionForMpin.studentEmail}
+                </p>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmitStudentMpin} className="space-y-4 text-xs">
+              <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                Agar student apna MPIN bhul gaya hai (ya OTP email nahi mil raha), toh yahan naya <strong>4 se 6 digit ka MPIN</strong> set karein. Student turant apne Email ya Mobile + is MPIN se login kar payega.
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">New MPIN (4-6 Numeric Digits)</label>
+                  <button
+                    type="button"
+                    onClick={() => setStudentMpinInput(String(Math.floor(1000 + Math.random() * 9000)))}
+                    className="text-[11px] font-bold text-purple-700 hover:underline cursor-pointer"
+                  >
+                    Generate 4-Digit PIN
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength="6"
+                  value={studentMpinInput}
+                  onChange={(e) => setStudentMpinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="e.g. 1234"
+                  className="w-full p-3 rounded-xl bg-white border border-slate-300 font-mono font-black text-lg tracking-[0.3em] text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMpinModalOpen(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={mpinSaving}
+                  className="w-1/2 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  {mpinSaving ? 'Saving...' : 'Save Student MPIN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {driveModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">

@@ -893,6 +893,7 @@ class DataStore {
       adm.netTotalFee = fin.netTotalFee;
       adm.netPaidFee = fin.netPaidFee;
       adm.heldDeposit = fin.heldDeposit;
+      adm.hasMpin = Boolean(adm.mpin);
     });
 
     if (filter === 'pending') {
@@ -3057,8 +3058,11 @@ class DataStore {
 
     // Get separated receipts (Deposit receipt + Monthly fee receipt + all Renewals)
     const fin = this.getAdmissionFinancials(student);
+    const { mpin: _omitMpin, ...safeStudentFields } = student;
     const enrichedStudent = {
-      ...student,
+      ...safeStudentFields,
+      hasMpin: Boolean(student.mpin),
+      mpinUpdatedAt: student.mpinUpdatedAt || null,
       deposit: fin.rawDeposit,
       heldDeposit: fin.heldDeposit,
       depositStatus: fin.depositStatus,
@@ -3162,7 +3166,134 @@ class DataStore {
       studentEmail: student.studentEmail || rawEmail,
       studentName: student.studentName,
       seatNumber: student.seatNumber,
-      grId: student.grId
+      grId: student.grId,
+      hasMpin: Boolean(student.mpin)
+    };
+  }
+
+  // Helper to locate a student admission by email, 10-digit phone, admissionId, or grId
+  findStudentAdmission(identifier) {
+    if (!identifier) return null;
+    const raw = String(identifier).trim();
+    const rawLower = raw.toLowerCase();
+    const cleanDigits = raw.replace(/\D/g, '');
+    const last10 = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : '';
+
+    const isMatch = (a) => {
+      const sEmail = (a.studentEmail || '').trim().toLowerCase();
+      const pEmail = (a.parentEmail || '').trim().toLowerCase();
+      if (rawLower.includes('@') && (sEmail === rawLower || pEmail === rawLower)) return true;
+      const aPhone = (a.studentPhone || '').replace(/\D/g, '').slice(-10);
+      if (last10 && aPhone && aPhone === last10) return true;
+      if (a.admissionId && a.admissionId.toLowerCase() === rawLower) return true;
+      if (a.grId && a.grId.toLowerCase() === rawLower) return true;
+      return false;
+    };
+
+    return this.admissions.find(a => a.status !== 'Vacated' && isMatch(a))
+      || this.admissions.find(a => isMatch(a))
+      || null;
+  }
+
+  // Student sets/updates their own 4-6 digit MPIN after logging into Student Portal
+  setStudentMpin(admissionId, mpin, identifier) {
+    const cleanMpin = String(mpin || '').trim();
+    if (!/^\d{4,6}$/.test(cleanMpin)) {
+      return { success: false, message: 'MPIN must be 4 to 6 numeric digits (e.g. 1234).' };
+    }
+
+    let adm = admissionId ? this.admissions.find(a => a.admissionId === admissionId) : null;
+    if (!adm && identifier) {
+      adm = this.findStudentAdmission(identifier);
+    }
+    if (!adm) {
+      return { success: false, message: 'Student admission record not found.' };
+    }
+
+    adm.mpin = cleanMpin;
+    adm.hasMpin = true;
+    adm.mpinUpdatedAt = new Date().toISOString();
+    this.saveState();
+
+    const updatedSummary = this.getStudentByPhoneOrGr(adm.admissionId || adm.studentEmail || adm.studentPhone);
+    return {
+      success: true,
+      hasMpin: true,
+      message: 'MPIN saved! Next time you can login instantly using your MPIN without OTP.',
+      data: updatedSummary
+    };
+  }
+
+  // Student logs in using Registered Email or Mobile + 4-6 digit MPIN
+  loginStudentWithMpin(identifier, mpin) {
+    if (!identifier || !mpin) {
+      return { success: false, message: 'Please enter your registered Email/Mobile and your MPIN.' };
+    }
+    const student = this.findStudentAdmission(identifier);
+    if (!student) {
+      return { success: false, message: 'Account not found. Please check your registered Email or Mobile Number.' };
+    }
+    if (!student.mpin) {
+      return {
+        success: false,
+        code: 'NO_MPIN',
+        message: 'MPIN is not set yet. Please login first via Email OTP and set your MPIN, or ask the Library Admin to set one for you.'
+      };
+    }
+    if (String(student.mpin).trim() !== String(mpin).trim()) {
+      return {
+        success: false,
+        message: 'Incorrect MPIN. Please try again, login with Email OTP, or ask the Library Admin to reset your MPIN.'
+      };
+    }
+
+    const summary = this.getStudentByPhoneOrGr(student.admissionId || student.studentEmail || student.studentPhone);
+    return {
+      success: true,
+      message: `Welcome back, ${student.studentName}!`,
+      data: summary
+    };
+  }
+
+  // Admin/Owner sets, resets, or clears a student's MPIN if forgotten
+  adminSetStudentMpin(admissionId, mpin) {
+    const adm = this.admissions.find(a => a.admissionId === admissionId);
+    if (!adm) {
+      return { success: false, message: 'Admission record not found.' };
+    }
+
+    const cleanMpin = String(mpin || '').trim();
+    if (!cleanMpin) {
+      adm.mpin = '';
+      adm.hasMpin = false;
+      adm.mpinUpdatedAt = new Date().toISOString();
+      this.saveState();
+      return { success: true, hasMpin: false, message: `MPIN cleared for ${adm.studentName}.` };
+    }
+
+    if (!/^\d{4,6}$/.test(cleanMpin)) {
+      return { success: false, message: 'MPIN must be 4 to 6 numeric digits.' };
+    }
+
+    adm.mpin = cleanMpin;
+    adm.hasMpin = true;
+    adm.mpinUpdatedAt = new Date().toISOString();
+
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      actorName: 'Library Owner',
+      actorRole: 'Owner Desk',
+      action: 'Student MPIN Reset',
+      module: '102-Seat Admission Desk',
+      details: `Updated portal MPIN for ${adm.studentName} (${adm.studentPhone || adm.studentEmail || ''})`,
+      timestamp: new Date()
+    });
+
+    this.saveState();
+    return {
+      success: true,
+      hasMpin: true,
+      message: `MPIN successfully updated for ${adm.studentName}!`
     };
   }
 

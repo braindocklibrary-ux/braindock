@@ -28,16 +28,27 @@ import {
   MapPin,
   Mail,
   Download,
-  Receipt
+  Receipt,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
 import { API_BASE_URL, ADMIN_PORTAL_URL } from '../config';
 
 export default function StudentPortalPage() {
   const [searchParams] = useSearchParams();
-  // Authentication State
+  // Authentication State (1st Time: Email OTP | Repeat: Quick MPIN)
+  const [loginMode, setLoginMode] = useState(() => {
+    try {
+      return localStorage.getItem('bdl_student_has_mpin') === '1' ? 'mpin' : 'otp';
+    } catch (e) {
+      return 'otp';
+    }
+  });
   const [identifierInput, setIdentifierInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
+  const [mpinInput, setMpinInput] = useState('');
+  const [showLoginMpin, setShowLoginMpin] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [maskedEmail, setMaskedEmail] = useState('');
@@ -45,6 +56,14 @@ export default function StudentPortalPage() {
   const [authError, setAuthError] = useState('');
   const [authNotice, setAuthNotice] = useState('');
   const [manualSyncLoading, setManualSyncLoading] = useState(false);
+
+  // Student Portal MPIN Setup / Change State
+  const [setupMpin, setSetupMpin] = useState('');
+  const [setupMpinConfirm, setSetupMpinConfirm] = useState('');
+  const [setupMpinLoading, setSetupMpinLoading] = useState(false);
+  const [setupMpinMsg, setSetupMpinMsg] = useState('');
+  const [setupMpinErr, setSetupMpinErr] = useState('');
+  const [mpinModalOpen, setMpinModalOpen] = useState(false);
   
   // Student Profile & Data (Persisted 24 Hours in LocalStorage)
   const [studentData, setStudentData] = useState(() => {
@@ -208,12 +227,104 @@ export default function StudentPortalPage() {
       if (data.success) {
         setStudentData(data.data);
         localStorage.setItem('bdl_student_session', JSON.stringify({ data: data.data, savedAt: Date.now() }));
+        if (data.data?.student?.hasMpin) {
+          try { localStorage.setItem('bdl_student_has_mpin', '1'); } catch (err) {}
+        }
       } else {
         setAuthError(data.message || 'Invalid or expired OTP code entered.');
       }
     } catch (err) {
       setAuthLoading(false);
       setAuthError('Server error while verifying OTP.');
+    }
+  };
+
+  // Step 2B: Login Directly with Quick MPIN (No OTP Needed)
+  const handleLoginWithMpin = async (e) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    const target = identifierInput.trim();
+    const pin = mpinInput.trim();
+    if (!target) {
+      setAuthError('Please enter your registered Email address or 10-digit Mobile Number.');
+      return;
+    }
+    if (!/^\d{4,6}$/.test(pin)) {
+      setAuthError('Please enter your 4 to 6 digit numeric MPIN.');
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/student/auth/login-mpin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: target, mpin: pin })
+      });
+      const data = await res.json();
+      setAuthLoading(false);
+
+      if (data.success) {
+        try { localStorage.setItem('bdl_student_has_mpin', '1'); } catch (err) {}
+        setStudentData(data.data);
+        localStorage.setItem('bdl_student_session', JSON.stringify({ data: data.data, savedAt: Date.now() }));
+      } else {
+        setAuthError(data.message || 'Invalid MPIN or account details.');
+      }
+    } catch (err) {
+      setAuthLoading(false);
+      setAuthError('Unable to connect to library server.');
+    }
+  };
+
+  // Student Sets / Updates MPIN inside Student Portal
+  const handleSaveStudentMpin = async (e) => {
+    if (e) e.preventDefault();
+    setSetupMpinErr('');
+    setSetupMpinMsg('');
+    const p1 = setupMpin.trim();
+    const p2 = setupMpinConfirm.trim();
+    if (!/^\d{4,6}$/.test(p1)) {
+      setSetupMpinErr('MPIN must be 4 to 6 numeric digits (e.g. 1234).');
+      return;
+    }
+    if (p1 !== p2) {
+      setSetupMpinErr('Both MPIN fields must match.');
+      return;
+    }
+
+    setSetupMpinLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/student/auth/set-mpin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admissionId: studentData?.student?.admissionId,
+          identifier: studentData?.student?.studentEmail || studentData?.student?.studentPhone,
+          mpin: p1
+        })
+      });
+      const data = await res.json();
+      setSetupMpinLoading(false);
+
+      if (data.success) {
+        try { localStorage.setItem('bdl_student_has_mpin', '1'); } catch (err) {}
+        if (data.data) {
+          setStudentData(data.data);
+          localStorage.setItem('bdl_student_session', JSON.stringify({ data: data.data, savedAt: Date.now() }));
+        }
+        setSetupMpin('');
+        setSetupMpinConfirm('');
+        setSetupMpinMsg(data.message || 'MPIN saved! Next time login directly using MPIN.');
+        setTimeout(() => {
+          setMpinModalOpen(false);
+        }, 1200);
+      } else {
+        setSetupMpinErr(data.message || 'Could not save MPIN.');
+      }
+    } catch (err) {
+      setSetupMpinLoading(false);
+      setSetupMpinErr('Server error while saving MPIN.');
     }
   };
 
@@ -224,8 +335,14 @@ export default function StudentPortalPage() {
     setOtpSent(false);
     setIdentifierInput('');
     setOtpInput('');
+    setMpinInput('');
     setMaskedEmail('');
     setTestPunchResult(null);
+    setAuthError('');
+    setAuthNotice('');
+    try {
+      setLoginMode(localStorage.getItem('bdl_student_has_mpin') === '1' ? 'mpin' : 'otp');
+    } catch (e) {}
   };
 
   // Interactive Live Punch Test on the physical TIMEWATCH Machine
@@ -283,12 +400,110 @@ export default function StudentPortalPage() {
               Student Member Login
             </h1>
             <p className="text-xs text-slate-500 max-w-xs mx-auto">
-              Check your assigned desk #, biometric door status, daily reading hours & fee validity.
+              First time? Login with Email OTP & set your 4-digit MPIN for instant login every time.
             </p>
           </div>
 
-          {/* Step 1: Registered Email Address Input Form */}
-          {!otpSent ? (
+          {/* Auth Mode Switcher: 1st Time OTP vs Quick MPIN Login */}
+          <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('otp'); setAuthError(''); setAuthNotice(''); }}
+              className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                loginMode === 'otp'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>1st Time (OTP)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('mpin'); setOtpSent(false); setAuthError(''); setAuthNotice(''); }}
+              className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                loginMode === 'mpin'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Quick MPIN</span>
+            </button>
+          </div>
+
+          {loginMode === 'mpin' ? (
+            /* Quick MPIN Login Form */
+            <form onSubmit={handleLoginWithMpin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Registered Email or Mobile Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={identifierInput}
+                    onChange={(e) => setIdentifierInput(e.target.value)}
+                    placeholder="e.g. student@gmail.com or 9876543210"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-600 focus:border-purple-600 bg-white text-slate-950 font-bold text-sm tracking-wide shadow-xs placeholder:text-slate-400 placeholder:font-normal"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Enter Your 4-6 Digit MPIN
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showLoginMpin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    value={mpinInput}
+                    onChange={(e) => setMpinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="••••"
+                    maxLength="6"
+                    className="w-full pl-10 pr-10 py-3 rounded-xl border-2 border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-600 focus:border-purple-600 bg-white text-slate-950 font-black text-lg font-mono tracking-[0.35em] shadow-xs placeholder:text-slate-300 placeholder:font-normal"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginMpin(v => !v)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title={showLoginMpin ? 'Hide MPIN' : 'Show MPIN'}
+                  >
+                    {showLoginMpin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  Forgot MPIN? Use <button type="button" onClick={() => setLoginMode('otp')} className="text-purple-700 font-bold underline cursor-pointer">Email OTP</button> or ask Library Admin Desk to reset it.
+                </p>
+              </div>
+
+              {authError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full py-3.5 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-sm shadow-md shadow-purple-900/10 transition-all flex items-center justify-center space-x-2 disabled:opacity-60 cursor-pointer"
+              >
+                <span>{authLoading ? 'Verifying MPIN...' : 'Login with MPIN'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          ) : !otpSent ? (
             <form onSubmit={handleSendOtp} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -496,6 +711,20 @@ export default function StudentPortalPage() {
 
           <div className="flex items-center space-x-2 shrink-0">
             <button
+              type="button"
+              onClick={() => { setSetupMpin(''); setSetupMpinConfirm(''); setSetupMpinErr(''); setSetupMpinMsg(''); setMpinModalOpen(true); }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs ${
+                student.hasMpin
+                  ? 'bg-purple-50 hover:bg-purple-100 text-purple-800 border-purple-200'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+              }`}
+              title={student.hasMpin ? 'Change your Quick Login MPIN' : 'Set MPIN for instant login next time'}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{student.hasMpin ? 'MPIN Active (Change)' : 'Set Login MPIN'}</span>
+              <span className="inline sm:hidden">{student.hasMpin ? 'MPIN' : 'Set MPIN'}</span>
+            </button>
+            <button
               onClick={handleManualSync}
               disabled={manualSyncLoading}
               className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
@@ -518,6 +747,59 @@ export default function StudentPortalPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
+        {/* First-Time MPIN Setup Banner (Visible when student hasn't set MPIN yet) */}
+        {!student.hasMpin && (
+          <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 text-white rounded-3xl p-5 sm:p-6 shadow-lg flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1 max-w-xl">
+              <div className="inline-flex items-center space-x-1.5 bg-white/15 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                <KeyRound className="w-3 h-3" />
+                <span>1-Time Setup Recommended</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-extrabold tracking-tight">
+                Set Your Quick Login MPIN (No OTP Needed Next Time!)
+              </h3>
+              <p className="text-xs text-purple-100 leading-relaxed">
+                Apna 4-6 digit ka MPIN set kar lein taaki agli baar bina Email OTP ke turant portal open kar sakein.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveStudentMpin} className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength="6"
+                value={setupMpin}
+                onChange={(e) => setSetupMpin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="New MPIN (4-6 digits)"
+                className="w-40 px-3 py-2.5 rounded-xl bg-white text-slate-900 font-mono font-bold text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                required
+              />
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength="6"
+                value={setupMpinConfirm}
+                onChange={(e) => setSetupMpinConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="Confirm MPIN"
+                className="w-36 px-3 py-2.5 rounded-xl bg-white text-slate-900 font-mono font-bold text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                required
+              />
+              <button
+                type="submit"
+                disabled={setupMpinLoading}
+                className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs shadow-sm transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {setupMpinLoading ? 'Saving...' : 'Save MPIN'}
+              </button>
+            </form>
+            {(setupMpinErr || setupMpinMsg) && (
+              <div className={`w-full text-xs font-bold px-3 py-2 rounded-xl ${setupMpinErr ? 'bg-rose-500/30 text-white' : 'bg-emerald-500/30 text-white'}`}>
+                {setupMpinErr || setupMpinMsg}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ================= SECTION 1: 4 CORE KPI METRIC CARDS ================= */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           
@@ -1225,6 +1507,93 @@ export default function StudentPortalPage() {
         onClose={() => setReceiptModal(null)}
         studentOnly={true}
       />
+
+      {/* ================= MODAL: SET / CHANGE STUDENT MPIN ================= */}
+      {mpinModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm p-4 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setMpinModalOpen(false); }}
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 relative">
+            <button
+              onClick={() => setMpinModalOpen(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div>
+              <span className="text-[10px] font-mono font-bold bg-purple-50 text-purple-800 px-2.5 py-0.5 rounded-full border border-purple-200 uppercase">
+                Quick Login Security
+              </span>
+              <h3 className="text-lg font-extrabold text-slate-900 mt-2">
+                {student.hasMpin ? 'Change Your Portal MPIN' : 'Set Your Portal MPIN'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Choose a 4 to 6 digit numeric MPIN so you can sign in anytime without Email OTP.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveStudentMpin} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">New MPIN (4-6 Digits)</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="6"
+                  value={setupMpin}
+                  onChange={(e) => setSetupMpin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="e.g. 1234"
+                  className="w-full p-3 rounded-xl border border-slate-300 font-mono font-bold text-base tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Confirm MPIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="6"
+                  value={setupMpinConfirm}
+                  onChange={(e) => setSetupMpinConfirm(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Re-enter MPIN"
+                  className="w-full p-3 rounded-xl border border-slate-300 font-mono font-bold text-base tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                  required
+                />
+              </div>
+
+              {setupMpinErr && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold">
+                  {setupMpinErr}
+                </div>
+              )}
+              {setupMpinMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
+                  {setupMpinMsg}
+                </div>
+              )}
+
+              <div className="flex items-center space-x-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setMpinModalOpen(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={setupMpinLoading}
+                  className="w-1/2 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  {setupMpinLoading ? 'Saving...' : 'Save MPIN'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

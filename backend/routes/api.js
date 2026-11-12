@@ -1233,6 +1233,15 @@ router.put('/owner/admissions/:id/refund-deposit', (req, res) => {
   });
 });
 
+// Admin sets or resets Student Portal MPIN
+router.put('/owner/admissions/:id/mpin', (req, res) => {
+  const result = store.adminSetStudentMpin(req.params.id, req.body?.mpin);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
 // ================= MEMBERSHIP EXPIRY NOTIFICATION ENGINE (LAST 3 DAYS DAILY) =================
 // Get/Update WhatsApp Notice Renewal Settings
 router.get('/owner/renewal-settings', (req, res) => {
@@ -1422,8 +1431,9 @@ router.post('/student/auth/send-otp', async (req, res) => {
     return res.status(404).json(result);
   }
 
-  // Dispatch OTP email via Nodemailer (Gmail SMTP)
+  // Dispatch OTP email via Resend / Nodemailer (Port 587 + 465 SSL fallback)
   let emailDispatched = false;
+  let emailError = null;
   let targetEmail = result.studentEmail;
 
   if (targetEmail) {
@@ -1436,28 +1446,41 @@ router.post('/student/auth/send-otp', async (req, res) => {
         seatNumber: result.seatNumber
       });
       emailDispatched = !!emailRes?.success;
+      if (!emailDispatched) {
+        emailError = emailRes?.error || 'SMTP connection failed';
+      }
     } catch (err) {
+      emailError = err.message;
       console.error('[EMAIL_OTP_DISPATCH_FAIL]', err.message);
     }
+  } else {
+    emailError = 'No email address registered on student profile.';
   }
 
-  console.log(`[STUDENT_OTP_GENERATED] Student: ${result.studentName} | Email: ${targetEmail || 'None'} | Code: ${result.otp} | Sent: ${emailDispatched}`);
+  console.log(`[STUDENT_OTP_GENERATED] Student: ${result.studentName} | Email: ${targetEmail || 'None'} | Sent: ${emailDispatched}${emailError ? ` | Error: ${emailError}` : ''}`);
 
   const maskedEmail = targetEmail 
     ? targetEmail.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}***${c}`)
     : null;
 
+  if (!emailDispatched) {
+    return res.status(502).json({
+      success: false,
+      emailDispatched: false,
+      emailError,
+      maskedEmail,
+      hasMpin: Boolean(result.hasMpin),
+      message: 'Could not send OTP email right now (server email delivery failed). Please login with your MPIN, or ask the Library Admin to set/reset your MPIN.'
+    });
+  }
+
   res.json({
     success: true,
-    emailDispatched,
+    emailDispatched: true,
     studentEmail: targetEmail,
     maskedEmail,
-    message: emailDispatched
-      ? `6-Digit OTP code has been sent directly to your registered email (${maskedEmail})! Please check your inbox or spam folder.`
-      : (targetEmail 
-          ? `Verification code generated for ${maskedEmail}.` 
-          : `Student has no registered email. Code: ${result.otp}`),
-    otp: result.otp,
+    hasMpin: Boolean(result.hasMpin),
+    message: `6-Digit OTP code has been sent to your registered email (${maskedEmail})! Please check your inbox or spam folder.`,
     phone: result.phone,
     studentName: result.studentName
   });
@@ -1471,6 +1494,27 @@ router.post('/student/auth/verify-otp', (req, res) => {
     return res.status(400).json({ success: false, message: 'Registered email address and 6-digit OTP code are required.' });
   }
   const result = store.verifyStudentOtp(target, otp);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+// Login directly with Registered Email / Mobile + MPIN
+router.post('/student/auth/login-mpin', (req, res) => {
+  const { email, identifier, mpin } = req.body;
+  const target = (identifier || email || '').trim();
+  const result = store.loginStudentWithMpin(target, mpin);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  res.json(result);
+});
+
+// Student sets or updates MPIN once logged into Student Portal
+router.post('/student/auth/set-mpin', (req, res) => {
+  const { admissionId, identifier, mpin } = req.body;
+  const result = store.setStudentMpin(admissionId, mpin, identifier);
   if (!result.success) {
     return res.status(400).json(result);
   }
