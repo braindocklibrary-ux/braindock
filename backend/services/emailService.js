@@ -18,12 +18,33 @@ const buildSmtpConfig = ({ port, secure }) => ({
   }
 });
 
+const postJsonHttps = async (url, headers, payload, timeoutMs = 10000) => {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  const textBody = await resp.text();
+  let parsed = null;
+  try { parsed = JSON.parse(textBody); } catch (_) {}
+  return { ok: resp.ok, status: resp.status, text: textBody, data: parsed };
+};
+
+const parseSender = (smtpFrom) => {
+  const match = String(smtpFrom || '').match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  return { name: 'Brain Dock Library', email: process.env.SMTP_USER || 'climatehero2026@gmail.com' };
+};
+
 /**
  * Send OTP Verification Email to Student
- * Supports Resend HTTPS API (if RESEND_API_KEY set) + SMTP Port 587 + SSL Port 465 fallback.
+ * Tries HTTPS providers first (Apps Script Webhook, Brevo, Resend) because cloud hosts like Render
+ * block outbound SMTP ports 25/465/587, then falls back to SMTP 587 / 465 for local/unblocked servers.
  */
 export const sendOtpEmail = async ({ to, studentName, otpCode, phone, seatNumber }) => {
   const smtpFrom = process.env.SMTP_FROM || 'Brain Dock Library <climatehero2026@gmail.com>';
+  const sender = parseSender(smtpFrom);
   const subject = `Brain Dock Library - Your Login OTP is ${otpCode}`;
   const textContent = `Your Brain Dock Library verification code is ${otpCode}. Valid for 15 minutes.`;
 
@@ -55,43 +76,93 @@ export const sendOtpEmail = async ({ to, studentName, otpCode, phone, seatNumber
   </div>
   `;
 
-  // 1. HTTPS API via Resend if configured (never blocked by cloud SMTP firewalls)
+  let lastError = 'Email delivery failed';
+
+  // 1. HTTPS Google Apps Script Email Webhook (free Gmail delivery via HTTPS port 443)
+  if (process.env.EMAIL_WEBHOOK_URL) {
+    try {
+      const res = await postJsonHttps(process.env.EMAIL_WEBHOOK_URL, {}, {
+        action: 'sendOtpEmail',
+        to,
+        subject,
+        html: htmlContent,
+        text: textContent,
+        studentName,
+        otpCode,
+        phone,
+        seatNumber
+      });
+      if (res.ok && res.data && (res.data.success || res.data.ok || res.data.emailSent)) {
+        console.log(`[EMAIL_OTP_WEBHOOK] Dispatched OTP to ${to} via Google Apps Script`);
+        return { success: true, provider: 'apps-script-webhook' };
+      }
+      lastError = `Apps Script webhook HTTP ${res.status}`;
+      console.warn(`[EMAIL_OTP_WEBHOOK_WARN] ${lastError}: ${res.text.slice(0, 180)}`);
+    } catch (err) {
+      lastError = err.message;
+      console.warn(`[EMAIL_OTP_WEBHOOK_WARN] Webhook failed: ${err.message}`);
+    }
+  }
+
+  // 2. HTTPS API via Brevo (300 free transactional emails/day, works with single verified Gmail)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const res = await postJsonHttps(
+        'https://api.brevo.com/v3/smtp/email',
+        { 'api-key': process.env.BREVO_API_KEY },
+        {
+          sender: { name: sender.name, email: process.env.BREVO_SENDER_EMAIL || sender.email },
+          to: [{ email: to, name: studentName || 'Student' }],
+          subject,
+          htmlContent,
+          textContent
+        }
+      );
+      if (res.ok) {
+        console.log(`[EMAIL_OTP_BREVO] Dispatched OTP to ${to} (Id: ${res.data?.messageId || 'ok'})`);
+        return { success: true, messageId: res.data?.messageId, provider: 'brevo' };
+      }
+      lastError = `Brevo HTTP ${res.status}`;
+      console.warn(`[EMAIL_OTP_BREVO_WARN] ${lastError}: ${res.text.slice(0, 180)}`);
+    } catch (err) {
+      lastError = err.message;
+      console.warn(`[EMAIL_OTP_BREVO_WARN] Brevo failed: ${err.message}`);
+    }
+  }
+
+  // 3. HTTPS API via Resend if configured (never blocked by cloud SMTP firewalls)
   if (process.env.RESEND_API_KEY) {
     try {
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const res = await postJsonHttps(
+        'https://api.resend.com/emails',
+        { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+        {
           from: process.env.RESEND_FROM || smtpFrom,
           to: [to],
           subject,
           html: htmlContent,
           text: textContent
-        })
-      });
-      if (resp.ok) {
-        const resJson = await resp.json();
-        console.log(`[EMAIL_OTP_RESEND] Dispatched OTP to ${to} (Id: ${resJson.id})`);
-        return { success: true, messageId: resJson.id, provider: 'resend' };
+        }
+      );
+      if (res.ok) {
+        console.log(`[EMAIL_OTP_RESEND] Dispatched OTP to ${to} (Id: ${res.data?.id || 'ok'})`);
+        return { success: true, messageId: res.data?.id, provider: 'resend' };
       }
-      const errTxt = await resp.text();
-      console.warn(`[EMAIL_OTP_RESEND_WARN] Resend HTTP ${resp.status}: ${errTxt}`);
+      lastError = `Resend HTTP ${res.status}`;
+      console.warn(`[EMAIL_OTP_RESEND_WARN] ${lastError}: ${res.text.slice(0, 180)}`);
     } catch (err) {
+      lastError = err.message;
       console.warn(`[EMAIL_OTP_RESEND_WARN] Resend failed: ${err.message}`);
     }
   }
 
-  // 2. Try configured SMTP port (default 587 STARTTLS), then fallback to SSL port 465
+  // 4. Try configured SMTP port (default 587 STARTTLS), then fallback to SSL port 465
   const primaryPort = parseInt(process.env.SMTP_PORT || '587', 10);
   const attempts = [
     { port: primaryPort, secure: primaryPort === 465 },
     primaryPort === 465 ? { port: 587, secure: false } : { port: 465, secure: true }
   ];
 
-  let lastError = 'SMTP delivery failed';
   for (const cfg of attempts) {
     try {
       const transporter = nodemailer.createTransport(buildSmtpConfig(cfg));

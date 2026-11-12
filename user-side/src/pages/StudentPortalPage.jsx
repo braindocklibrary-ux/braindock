@@ -33,7 +33,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
-import { API_BASE_URL, ADMIN_PORTAL_URL } from '../config';
+import { API_BASE_URL } from '../config';
 
 export default function StudentPortalPage() {
   const [searchParams] = useSearchParams();
@@ -619,17 +619,6 @@ export default function StudentPortalPage() {
               </button>
             </form>
           )}
-
-          <div className="text-center pt-2">
-            <a 
-              href={`${ADMIN_PORTAL_URL}/owner-portal`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-slate-400 hover:text-purple-700 font-medium transition-colors"
-            >
-              Library Owner / Director Portal →
-            </a>
-          </div>
         </div>
       </div>
     );

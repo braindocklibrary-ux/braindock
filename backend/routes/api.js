@@ -1431,8 +1431,9 @@ router.post('/student/auth/send-otp', async (req, res) => {
     return res.status(404).json(result);
   }
 
-  // Dispatch OTP email via Resend / Nodemailer (Port 587 + 465 SSL fallback)
+  // Dispatch OTP via Email (HTTPS providers + SMTP fallback) and WhatsApp Bot if connected
   let emailDispatched = false;
+  let whatsappDispatched = false;
   let emailError = null;
   let targetEmail = result.studentEmail;
 
@@ -1457,16 +1458,27 @@ router.post('/student/auth/send-otp', async (req, res) => {
     emailError = 'No email address registered on student profile.';
   }
 
-  console.log(`[STUDENT_OTP_GENERATED] Student: ${result.studentName} | Email: ${targetEmail || 'None'} | Sent: ${emailDispatched}${emailError ? ` | Error: ${emailError}` : ''}`);
+  if (result.phone && whatsAppBot.getStatus().status === 'connected') {
+    try {
+      const waMsg = `*Brain Dock Library — Student Portal OTP*\n\nHello *${result.studentName || 'Student'}*,\nYour 6-digit login code is: *${result.otp}*\n\nValid for 15 minutes. After logging in, please set your 4-digit MPIN inside your portal for instant future logins.`;
+      const waRes = await whatsAppBot.sendTextMessage(result.phone, waMsg);
+      whatsappDispatched = !!waRes?.success;
+    } catch (waErr) {
+      console.warn('[WA_OTP_DISPATCH_FAIL]', waErr.message);
+    }
+  }
+
+  console.log(`[STUDENT_OTP_GENERATED] Student: ${result.studentName} | Email: ${targetEmail || 'None'} | EmailSent: ${emailDispatched} | WASent: ${whatsappDispatched}${emailError ? ` | Error: ${emailError}` : ''}`);
 
   const maskedEmail = targetEmail 
     ? targetEmail.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}***${c}`)
     : null;
 
-  if (!emailDispatched) {
+  if (!emailDispatched && !whatsappDispatched) {
     return res.status(502).json({
       success: false,
       emailDispatched: false,
+      whatsappDispatched: false,
       emailError,
       maskedEmail,
       hasMpin: Boolean(result.hasMpin),
@@ -1474,13 +1486,19 @@ router.post('/student/auth/send-otp', async (req, res) => {
     });
   }
 
+  const deliveryChannels = [
+    emailDispatched ? `registered email (${maskedEmail})` : null,
+    whatsappDispatched ? 'registered WhatsApp' : null
+  ].filter(Boolean).join(' and ');
+
   res.json({
     success: true,
-    emailDispatched: true,
+    emailDispatched,
+    whatsappDispatched,
     studentEmail: targetEmail,
     maskedEmail,
     hasMpin: Boolean(result.hasMpin),
-    message: `6-Digit OTP code has been sent to your registered email (${maskedEmail})! Please check your inbox or spam folder.`,
+    message: `6-Digit OTP code has been sent to your ${deliveryChannels}! Please check and enter the code below.`,
     phone: result.phone,
     studentName: result.studentName
   });
