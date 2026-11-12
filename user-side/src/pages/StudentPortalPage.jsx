@@ -26,7 +26,9 @@ import {
   ChevronRight,
   TrendingUp,
   MapPin,
-  Mail
+  Mail,
+  Download,
+  Receipt
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
 import { API_BASE_URL, ADMIN_PORTAL_URL } from '../config';
@@ -440,6 +442,17 @@ export default function StudentPortalPage() {
   };
   const isExpired = student?.status === 'Expired' || (student?.daysRemaining != null && student?.daysRemaining < 0);
   const hasPendingFee = (student?.pendingFee || 0) > 0;
+  const finSplit = studentData?.financialSplit || {
+    rawDeposit: Number(student?.deposit) || 0,
+    heldDeposit: Number(student?.heldDeposit) || 0,
+    refundedDeposit: student?.depositRefunded ? (Number(student?.depositRefundedAmount) || Number(student?.deposit) || 0) : 0,
+    netTotalFee: student?.netTotalFee != null ? Number(student.netTotalFee) : Math.max(0, (Number(student?.totalFee) || 0) - (Number(student?.deposit) || 0)),
+    netPaidFee: student?.netPaidFee != null ? Number(student.netPaidFee) : Math.max(0, (Number(student?.paidAmount) || 0) - (Number(student?.deposit) || 0)),
+    depositStatus: student?.depositStatus || (student?.depositRefunded ? 'Refunded' : (Number(student?.deposit) > 0 ? 'Held' : 'None'))
+  };
+  const studentReceipts = (Array.isArray(studentData?.receipts) && studentData.receipts.length > 0)
+    ? studentData.receipts
+    : (studentData?.receipt ? [studentData.receipt] : []);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-16">
@@ -1037,54 +1050,167 @@ export default function StudentPortalPage() {
           </div>
         </div>
 
-        {/* ================= SECTION 5: FEE STATUS & DESK AMENITIES ================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* ================= SECTION 5: OFFICIAL RECEIPTS (STUDENT COPY ONLY) & DESK AMENITIES ================= */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Desk Amenities */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-purple-700" />
-              <span>Your Desk #{desk.seatNumber} Facilities</span>
-            </h3>
-            <ul className="space-y-2 text-xs text-slate-600">
-              {desk.amenities.map((am, i) => (
-                <li key={i} className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{am}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Fee & Receipt Summary */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
-            <div>
+          {/* Fee Summary + Desk Amenities */}
+          <div className="space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
               <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
                 <CreditCard className="w-4 h-4 text-purple-700" />
-                <span>Admission Fee & Account Status</span>
+                <span>Fee & Security Deposit Summary</span>
               </h3>
-              <div className="grid grid-cols-2 gap-3 mt-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                 <div>
-                  <span className="text-slate-400 block font-medium">Total Plan Fee:</span>
-                  <span className="font-bold text-slate-800">₹{student.totalFee}</span>
+                  <span className="text-slate-400 block font-medium">Library Fees Paid:</span>
+                  <span className="font-bold text-emerald-700 font-mono">₹{finSplit.netPaidFee}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">Amount Paid:</span>
-                  <span className="font-bold text-emerald-700">₹{student.paidAmount}</span>
+                  <span className="text-slate-400 block font-medium">Security Deposit:</span>
+                  {finSplit.depositStatus === 'Refunded' ? (
+                    <span className="font-bold text-emerald-700 font-mono">
+                      ₹{finSplit.refundedDeposit} (Refunded ✓)
+                    </span>
+                  ) : finSplit.heldDeposit > 0 ? (
+                    <span className="font-bold text-purple-800 font-mono">
+                      ₹{finSplit.heldDeposit} (Held)
+                    </span>
+                  ) : (
+                    <span className="font-bold text-slate-500 font-mono">₹0</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">Pending Dues:</span>
                   <span className={`font-bold font-mono ${hasPendingFee ? 'text-amber-700' : 'text-slate-500'}`}>
-                    ₹{student.pendingFee}
+                    ₹{student.pendingFee || 0}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">Fee Status:</span>
+                  <span className="text-slate-400 block font-medium">Account Status:</span>
                   <span className={`font-bold ${hasPendingFee ? 'text-amber-700' : 'text-emerald-700'}`}>
-                    {student.feeStatus}
+                    {student.feeStatus || 'Paid'}
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Desk Amenities */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-purple-700" />
+                <span>Your Desk #{desk.seatNumber} Facilities</span>
+              </h3>
+              <ul className="space-y-2 text-xs text-slate-600">
+                {desk.amenities.map((am, i) => (
+                  <li key={i} className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{am}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Digital Fee & Deposit Receipts (Student Copy Only • Auto-updated on Renewal) */}
+          <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                    <Receipt className="w-4 h-4 text-purple-700" />
+                    <span>My Digital Fee & Deposit Receipts</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Separate receipts for Security Deposit, Monthly Fees & Renewals • Official Student Copy ready for PDF download
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                  STUDENT COPY ONLY ({studentReceipts.length})
+                </span>
+              </div>
+
+              {studentReceipts.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-500">
+                  No fee receipts found yet for this membership.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {studentReceipts.map((rec, idx) => {
+                    const isDeposit = rec.receiptCategory === 'deposit';
+                    const isRenewal = rec.receiptCategory === 'renewal';
+                    return (
+                      <div
+                        key={rec.receiptNumber || idx}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                          isDeposit
+                            ? 'bg-purple-50/40 border-purple-200 hover:border-purple-300'
+                            : isRenewal
+                            ? 'bg-indigo-50/40 border-indigo-200 hover:border-indigo-300'
+                            : 'bg-emerald-50/30 border-emerald-200 hover:border-emerald-300'
+                        }`}
+                      >
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`text-[10px] font-mono font-black px-2.5 py-0.5 rounded-full border uppercase ${
+                              isDeposit
+                                ? 'bg-purple-100 text-purple-900 border-purple-300'
+                                : isRenewal
+                                ? 'bg-indigo-100 text-indigo-900 border-indigo-300'
+                                : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            }`}>
+                              {isDeposit ? 'Security Deposit' : isRenewal ? 'Renewal Receipt' : 'Library Fee'}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-slate-700">
+                              #{rec.receiptNumber}
+                            </span>
+                            {isDeposit && rec.depositRefunded && (
+                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                                Refunded ✓
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            {rec.receiptTitle || (isDeposit ? 'Security Deposit Receipt (Refundable)' : 'Monthly Library Fee Receipt')}
+                          </h4>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                            <span>Date: <strong className="font-mono text-slate-800">{rec.date}</strong></span>
+                            {!isDeposit && rec.validFrom && rec.validTo && (
+                              <span>Period: <strong className="font-mono text-slate-800">{rec.validFrom} ➔ {rec.validTo}</strong></span>
+                            )}
+                            <span>Mode: <strong className="text-slate-800">{rec.paymentMode || 'UPI'}</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
+                          <div className="text-left sm:text-right">
+                            <span className="text-[10px] text-slate-500 block uppercase font-bold">
+                              {isDeposit && rec.depositRefunded ? 'Returned' : 'Paid'}
+                            </span>
+                            <span className="text-xl font-black font-mono text-slate-900">
+                              ₹{Number(rec.amountPaid ?? rec.totalFee ?? 0).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setReceiptModal(rec)}
+                            className="px-3.5 py-2 rounded-xl bg-[#5B1484] hover:bg-purple-900 text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>View / Download PDF</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span>* Future renewals automatically appear here with separate Student Copy PDF receipts.</span>
             </div>
           </div>
 
@@ -1092,11 +1218,12 @@ export default function StudentPortalPage() {
 
       </div>
 
-      {/* ================= MODAL: OFFICIAL A4 DUAL PRINTABLE RECEIPT ================= */}
+      {/* ================= MODAL: OFFICIAL STUDENT COPY RECEIPT (PRINT / PDF) ================= */}
       <DualA4ReceiptModal 
         receipt={receiptModal} 
         isOpen={!!receiptModal} 
-        onClose={() => setReceiptModal(null)} 
+        onClose={() => setReceiptModal(null)}
+        studentOnly={true}
       />
 
     </div>

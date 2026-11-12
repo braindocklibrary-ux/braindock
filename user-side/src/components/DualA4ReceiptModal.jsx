@@ -1,7 +1,7 @@
 import React from 'react';
 import { Printer, X, Scissors } from 'lucide-react';
 
-export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
+export default function DualA4ReceiptModal({ receipt, isOpen, onClose, studentOnly = false }) {
   // Close on Escape key
   React.useEffect(() => {
     if (!isOpen) return;
@@ -87,8 +87,10 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             <strong className="text-slate-800 text-[9.5px] block truncate">{receipt.shift || 'Full Day (24x7)'}</strong>
           </div>
           <div>
-            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Plan Duration:</span>
-            <strong className="text-slate-800 text-[9.5px] block">{receipt.plan || 'Monthly'}</strong>
+            <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Receipt Type / Plan:</span>
+            <strong className="text-slate-800 text-[9.5px] block">
+              {receipt.receiptTitle || receipt.plan || 'Monthly'}
+            </strong>
           </div>
           <div className="col-span-2">
             <span className="text-slate-500 block text-[8.5px] uppercase font-bold">Membership Validity:</span>
@@ -96,6 +98,15 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
               {receipt.validFrom} <span className="text-slate-400">TO</span> {receipt.validTo}
             </strong>
           </div>
+          {receipt.receiptCategory === 'deposit' && receipt.depositRefunded && (
+            <div className="col-span-4 mt-1 bg-emerald-50 border border-emerald-300 rounded px-2.5 py-1 flex items-center justify-between text-[10px] text-emerald-900 font-semibold">
+              <span>✓ SECURITY DEPOSIT REFUNDED TO STUDENT</span>
+              <span className="font-mono">
+                ₹{receipt.depositRefundedAmount || receipt.totalFee} via {receipt.depositRefundMode || 'Cash'}
+                {receipt.depositRefundedAt ? ` • ${String(receipt.depositRefundedAt).split('T')[0]}` : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Financial Breakdown Table */}
@@ -176,7 +187,11 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
 
         {/* Terms footer */}
         <div className="mt-1.5 pt-1 border-t border-slate-200 flex items-center justify-between text-[8px] text-slate-500 font-mono">
-          <span>* Fees once paid are non-refundable. Biometric punch mandatory for entry & exit. Strict silence.</span>
+          <span>
+            {receipt.receiptCategory === 'deposit'
+              ? '* Refundable Security Deposit is returned upon seat vacation without damage. Keep this Student Copy for refund.'
+              : '* Fees once paid are non-refundable. Biometric punch mandatory for entry & exit. Strict silence.'}
+          </span>
           <span className="font-bold text-slate-700">Computer Generated Official Receipt</span>
         </div>
       </div>
@@ -220,13 +235,13 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
           #printable-a4-dual-receipt {
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-between !important;
+            justify-content: ${studentOnly ? 'flex-start' : 'space-between'} !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            height: 283mm !important;
-            max-height: 283mm !important;
+            height: ${studentOnly ? 'auto' : '283mm'} !important;
+            max-height: ${studentOnly ? 'none' : '283mm'} !important;
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
@@ -234,12 +249,12 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
             break-after: avoid !important;
           }
           .receipt-single-box {
-            height: 136mm !important;
-            max-height: 136mm !important;
+            height: ${studentOnly ? 'auto' : '136mm'} !important;
+            max-height: ${studentOnly ? 'none' : '136mm'} !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            padding: 4.5mm 5.5mm !important;
+            padding: 5mm 6mm !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -269,11 +284,15 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="text-xs font-black text-purple-900 bg-purple-100 px-3 py-1 rounded-full border border-purple-200 font-mono uppercase tracking-wider">
-                A4 DUAL RECEIPT (STUDENT COPY + OFFICE COPY)
+                {studentOnly
+                  ? `${(receipt.receiptTitle || 'OFFICIAL FEE RECEIPT').toUpperCase()} • STUDENT COPY`
+                  : 'A4 DUAL RECEIPT (STUDENT COPY + OFFICE COPY)'}
               </span>
-              <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Full A4 Page • 2 Balanced Receipts with Perforated Cut Line
-              </span>
+              {!studentOnly && (
+                <span className="text-[11px] text-slate-500 hidden sm:inline">
+                  Full A4 Page • 2 Balanced Receipts with Perforated Cut Line
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-2.5">
@@ -282,7 +301,7 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
                 className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                <span>Print / Save as PDF</span>
+                <span>{studentOnly ? 'Download PDF / Print (Student Copy)' : 'Print / Save as PDF'}</span>
               </button>
               <button 
                 onClick={onClose}
@@ -296,27 +315,30 @@ export default function DualA4ReceiptModal({ receipt, isOpen, onClose }) {
           </div>
 
           <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-1.5 text-[11px] text-purple-900 flex items-center justify-between">
-            <span>💡 <strong>To save receipt as PDF:</strong> Click <strong>"Print / Save as PDF"</strong> above and select <strong>"Save as PDF"</strong> in the destination dropdown.</span>
+            <span>💡 <strong>To save receipt as PDF:</strong> Click <strong>"{studentOnly ? 'Download PDF / Print (Student Copy)' : 'Print / Save as PDF'}"</strong> above and select <strong>"Save as PDF"</strong> in the destination dropdown.</span>
           </div>
         </div>
 
-        {/* Printable Container: 2 Receipts Stacked to Cover Full A4 Page */}
+        {/* Printable Container */}
         <div id="printable-a4-dual-receipt" className="space-y-2 mt-3">
           
-          {/* 1. TOP RECEIPT: STUDENT COPY (Upper Half of A4) */}
+          {/* 1. STUDENT COPY (Always shown) */}
           {renderSingleReceipt('STUDENT COPY', 'purple')}
 
-          {/* 2. PERFORATED CUTTING LINE IN THE CENTER */}
-          <div className="receipt-cut-line py-1 text-center relative flex items-center justify-center my-1">
-            <div className="w-full border-t border-dashed border-slate-400"></div>
-            <div className="absolute bg-white px-3 text-[8.5px] text-slate-500 font-mono tracking-widest uppercase flex items-center space-x-1.5 border border-slate-300 rounded-full shadow-2xs">
-              <Scissors className="w-3 h-3 text-slate-600 rotate-90" />
-              <span>✂ CUT ALONG DOTTED LINE • (STUDENT COPY TOP / OFFICE COPY BOTTOM) ✂</span>
-            </div>
-          </div>
+          {/* 2 & 3. OFFICE COPY (Hidden in Student Portal) */}
+          {!studentOnly && (
+            <>
+              <div className="receipt-cut-line py-1 text-center relative flex items-center justify-center my-1">
+                <div className="w-full border-t border-dashed border-slate-400"></div>
+                <div className="absolute bg-white px-3 text-[8.5px] text-slate-500 font-mono tracking-widest uppercase flex items-center space-x-1.5 border border-slate-300 rounded-full shadow-2xs">
+                  <Scissors className="w-3 h-3 text-slate-600 rotate-90" />
+                  <span>✂ CUT ALONG DOTTED LINE • (STUDENT COPY TOP / OFFICE COPY BOTTOM) ✂</span>
+                </div>
+              </div>
 
-          {/* 3. BOTTOM RECEIPT: OFFICE / LIBRARY COPY (Lower Half of A4) */}
-          {renderSingleReceipt('OFFICE / LIBRARY COPY', 'slate')}
+              {renderSingleReceipt('OFFICE / LIBRARY COPY', 'slate')}
+            </>
+          )}
 
         </div>
 

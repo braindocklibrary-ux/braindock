@@ -1337,6 +1337,21 @@ class DataStore {
       transactionRef: transactionRef || `UPI/RNW-${Date.now().toString().slice(-6)}`,
       authorizedBy: 'Dr. Keval Patel (Director / Owner)'
     };
+
+    // Persist renewal receipt & payment ledger so Student Portal and Owner Receipt View both stay in sync
+    this.receipts.unshift(newReceipt);
+    this.payments.unshift({
+      transactionId: newReceipt.transactionRef,
+      invoiceNumber: receiptNumber,
+      userName: adm.studentName,
+      memberId: adm.admissionId,
+      purpose: `Seat #${adm.seatNumber} Renewal (${renewMonths} Month${renewMonths > 1 ? 's' : ''})`,
+      amount: paid,
+      paymentMethod: paymentMode || 'UPI',
+      status: 'Success',
+      date: new Date()
+    });
+
     // Reset reminder status upon successful renewal so no further warnings are sent
     adm.lastReminderSentDate = null;
     adm.reminderLogs = adm.reminderLogs || [];
@@ -2747,6 +2762,209 @@ class DataStore {
   // STUDENT SELF-SERVICE PORTAL METHODS
   // ==========================================
 
+  /**
+   * Build separate Student Copy receipts (Security Deposit vs Monthly Library Fees + all Renewals)
+   * for any old or new student admission.
+   */
+  getStudentReceipts(student) {
+    if (!student) return [];
+    const fin = this.getAdmissionFinancials(student);
+
+    // Gather all receipts belonging to this admission (sorted newest first)
+    let rawReceipts = (this.receipts || []).filter(r =>
+      (student.admissionId && r.admissionId === student.admissionId) ||
+      (student.receiptNumber && r.receiptNumber === student.receiptNumber)
+    );
+
+    if (rawReceipts.length === 0) {
+      rawReceipts = [{
+        receiptNumber: student.receiptNumber || `BDL-REC-2026-${String(student.seatNumber || '00').padStart(4, '0')}`,
+        admissionId: student.admissionId,
+        date: student.admissionDate || student.date || student.startDate || new Date().toISOString().split('T')[0],
+        studentName: student.studentName,
+        studentPhone: student.studentPhone,
+        aadhaarNo: student.aadhaarNo,
+        seatNumber: student.seatNumber,
+        seatLabel: student.seatLabel,
+        zone: student.zone,
+        shift: student.shift,
+        plan: student.plan || `${student.durationMonths || 1} Month(s)`,
+        validFrom: student.startDate,
+        validTo: student.endDate,
+        feeItems: student.feeItems || [],
+        totalFee: student.totalFee,
+        amountPaid: student.paidAmount,
+        pendingDue: student.pendingFee || 0,
+        feeStatus: student.feeStatus || 'Paid',
+        paymentMode: student.paymentMode || 'UPI',
+        transactionRef: student.transactionRef || '',
+        biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
+        authorizedBy: 'Dr. Keval Patel (Director / Owner)'
+      }];
+    }
+
+    // Sort newest first by date/createdAt
+    const sortedRaw = [...rawReceipts].sort((a, b) => {
+      const tA = new Date(a.createdAt || a.date || 0).getTime();
+      const tB = new Date(b.createdAt || b.date || 0).getTime();
+      return tB - tA;
+    });
+
+    const output = [];
+    let depositEmitted = false;
+
+    for (const rec of sortedRaw) {
+      const recItems = Array.isArray(rec.feeItems) ? rec.feeItems : [];
+      const planLower = (rec.plan || '').toLowerCase();
+      const isRenewal = planLower.includes('renewal');
+      const isClearance = planLower.includes('clearance') || planLower.includes('balance fee');
+      const isInitialAdmReceipt = !isRenewal && !isClearance && (rec.receiptNumber === student.receiptNumber || sortedRaw.length === 1);
+
+      const depItems = recItems.filter(it =>
+        (it.description || '').toLowerCase().includes('deposit') &&
+        !(it.description || '').toLowerCase().includes('locker') &&
+        Number(it.amount) > 0
+      );
+      const nonDepItems = recItems.filter(it =>
+        !((it.description || '').toLowerCase().includes('deposit') && !(it.description || '').toLowerCase().includes('locker'))
+      );
+
+      let depAmt = depItems.reduce((s, it) => s + (Number(it.amount) || 0), 0);
+      if (depAmt === 0 && isInitialAdmReceipt && !depositEmitted && fin.rawDeposit > 0) {
+        depAmt = fin.rawDeposit;
+      }
+
+      // 1. Emit Renewal Receipt cleanly
+      if (isRenewal) {
+        output.push({
+          ...rec,
+          biometricEnrollmentId: rec.biometricEnrollmentId || student.biometricEnrollmentId || student.seatNumber,
+          receiptCategory: 'renewal',
+          receiptTitle: 'Renewal Fee Receipt',
+          feeItems: recItems.length > 0 ? recItems : [{ description: rec.plan || 'Monthly Renewal Fee', amount: Number(rec.totalFee) || 850 }]
+        });
+        continue;
+      }
+
+      // 2. Emit Balance Clearance Receipt cleanly
+      if (isClearance) {
+        output.push({
+          ...rec,
+          biometricEnrollmentId: rec.biometricEnrollmentId || student.biometricEnrollmentId || student.seatNumber,
+          receiptCategory: 'clearance',
+          receiptTitle: 'Pending Fee Payment Receipt',
+          feeItems: recItems.length > 0 ? recItems : [{ description: rec.plan || 'Balance Fee Payment', amount: Number(rec.amountPaid) || 0 }]
+        });
+        continue;
+      }
+
+      // 3. Initial / Combined Receipt: split Security Deposit vs Monthly Library Fee into separate receipts
+      if (depAmt > 0 && !depositEmitted) {
+        depositEmitted = true;
+        const recPaid = Number(rec.amountPaid ?? rec.totalFee ?? depAmt);
+        const recTotal = Number(rec.totalFee ?? depAmt);
+        const netTotal = Math.max(0, recTotal - depAmt);
+        const netPaid = Math.max(0, recPaid - depAmt);
+
+        // 3a. Monthly Library Fee Receipt (only if fee > 0; skipped for deposit-only records)
+        if (netTotal > 0 || nonDepItems.length > 0) {
+          const cleanFeeItems = nonDepItems.length > 0
+            ? nonDepItems.map(it => {
+                const descLow = (it.description || '').trim().toLowerCase();
+                return {
+                  description: (descLow === 'feess' || descLow === 'fees' || descLow === 'fee') ? 'Monthly Desk Fee' : it.description,
+                  amount: Number(it.amount) || 0
+                };
+              })
+            : [{ description: 'Monthly Desk Fee', amount: netTotal }];
+          const feeDue = Math.max(0, netTotal - netPaid);
+
+          output.push({
+            ...rec,
+            receiptNumber: `${rec.receiptNumber}-FEE`,
+            baseReceiptNumber: rec.receiptNumber,
+            biometricEnrollmentId: rec.biometricEnrollmentId || student.biometricEnrollmentId || student.seatNumber,
+            receiptCategory: 'fee',
+            receiptTitle: 'Monthly Library Fee Receipt',
+            plan: rec.plan || `${student.durationMonths || 1} Month(s)`,
+            feeItems: cleanFeeItems,
+            totalFee: netTotal,
+            amountPaid: netPaid,
+            pendingDue: feeDue,
+            feeStatus: feeDue > 0 ? 'Pending' : 'Paid'
+          });
+        }
+
+        // 3b. Separate Security Deposit Receipt
+        const depPaid = Math.min(recPaid, depAmt);
+        output.push({
+          ...rec,
+          receiptNumber: `${rec.receiptNumber}-DEP`,
+          baseReceiptNumber: rec.receiptNumber,
+          biometricEnrollmentId: rec.biometricEnrollmentId || student.biometricEnrollmentId || student.seatNumber,
+          receiptCategory: 'deposit',
+          receiptTitle: 'Security Deposit Receipt (Refundable)',
+          plan: 'Refundable Security Deposit',
+          feeItems: [{ description: 'Security Deposit (Refundable)', amount: depAmt }],
+          totalFee: depAmt,
+          amountPaid: depPaid,
+          pendingDue: Math.max(0, depAmt - depPaid),
+          feeStatus: student.depositRefunded ? 'Refunded' : 'Held (Refundable)',
+          depositRefunded: Boolean(student.depositRefunded),
+          depositRefundedAmount: student.depositRefundedAmount || (student.depositRefunded ? depAmt : 0),
+          depositRefundedAt: student.depositRefundedAt || null,
+          depositRefundMode: student.depositRefundMode || null,
+          depositRefundNotes: student.depositRefundNotes || null
+        });
+      } else {
+        // Standalone fee receipt without deposit
+        output.push({
+          ...rec,
+          biometricEnrollmentId: rec.biometricEnrollmentId || student.biometricEnrollmentId || student.seatNumber,
+          receiptCategory: 'fee',
+          receiptTitle: 'Library Fee Receipt',
+          feeItems: recItems.length > 0 ? recItems : [{ description: 'Monthly Desk Fee', amount: Number(rec.totalFee) || 850 }]
+        });
+      }
+    }
+
+    // Safety net: if student has rawDeposit > 0 (legacy edge case) & no deposit receipt emitted yet
+    if (!depositEmitted && fin.rawDeposit > 0) {
+      output.push({
+        receiptNumber: `${student.receiptNumber || `BDL-REC-${student.seatNumber || '00'}`}-DEP`,
+        admissionId: student.admissionId,
+        date: student.admissionDate || student.date || student.startDate,
+        studentName: student.studentName,
+        studentPhone: student.studentPhone,
+        aadhaarNo: student.aadhaarNo,
+        seatNumber: student.seatNumber,
+        seatLabel: student.seatLabel,
+        zone: student.zone,
+        shift: student.shift,
+        plan: 'Refundable Security Deposit',
+        validFrom: student.startDate,
+        validTo: student.endDate,
+        biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
+        receiptCategory: 'deposit',
+        receiptTitle: 'Security Deposit Receipt (Refundable)',
+        feeItems: [{ description: 'Security Deposit (Refundable)', amount: fin.rawDeposit }],
+        totalFee: fin.rawDeposit,
+        amountPaid: fin.rawDeposit,
+        pendingDue: 0,
+        feeStatus: student.depositRefunded ? 'Refunded' : 'Held (Refundable)',
+        depositRefunded: Boolean(student.depositRefunded),
+        depositRefundedAmount: student.depositRefundedAmount || (student.depositRefunded ? fin.rawDeposit : 0),
+        depositRefundedAt: student.depositRefundedAt || null,
+        depositRefundMode: student.depositRefundMode || null,
+        paymentMode: student.paymentMode || 'Cash',
+        transactionRef: student.transactionRef || 'OFFLINE-DESK',
+        authorizedBy: 'Dr. Keval Patel (Director / Owner)'
+      });
+    }
+
+    return output;
+  }
+
   getStudentByPhoneOrGr(query) {
     if (!query) return null;
     const clean = String(query).trim();
@@ -2837,16 +3055,28 @@ class DataStore {
     const monthlyTotalMinutes = 120 * 60 + (student.seatNumber * 7);
     const monthlyHours = Math.round(monthlyTotalMinutes / 60);
 
-    // Get receipt
-    const receipt = this.receipts.find(r => r.receiptNumber === student.receiptNumber || r.admissionId === student.admissionId);
+    // Get separated receipts (Deposit receipt + Monthly fee receipt + all Renewals)
+    const fin = this.getAdmissionFinancials(student);
+    const enrichedStudent = {
+      ...student,
+      deposit: fin.rawDeposit,
+      heldDeposit: fin.heldDeposit,
+      depositStatus: fin.depositStatus,
+      netTotalFee: fin.netTotalFee,
+      netPaidFee: fin.netPaidFee
+    };
+    const receipts = this.getStudentReceipts(enrichedStudent);
+    const receipt = receipts.find(r => r.receiptCategory === 'fee' || r.receiptCategory === 'renewal') || receipts[0] || null;
 
     // Biometric lock status
     const isExpired = student.status === 'Expired' || student.daysRemaining < 0;
     const lockStatus = isExpired ? 'BLOCKED_EXPIRED' : 'ACTIVE_UNLOCKED';
 
     return {
-      student,
+      student: enrichedStudent,
+      financialSplit: fin,
       receipt,
+      receipts,
       assignedDesk: {
         seatNumber: student.seatNumber,
         seatLabel: student.seatLabel,
