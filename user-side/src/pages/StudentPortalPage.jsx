@@ -85,8 +85,6 @@ export default function StudentPortalPage() {
     }
   });
   const [receiptModal, setReceiptModal] = useState(null);
-  const [testPunchResult, setTestPunchResult] = useState(null);
-  const [testPunchLoading, setTestPunchLoading] = useState(false);
 
   const studentDataRef = useRef(studentData);
   const isRefreshingRef = useRef(false);
@@ -337,39 +335,11 @@ export default function StudentPortalPage() {
     setOtpInput('');
     setMpinInput('');
     setMaskedEmail('');
-    setTestPunchResult(null);
     setAuthError('');
     setAuthNotice('');
     try {
       setLoginMode(localStorage.getItem('bdl_student_has_mpin') === '1' ? 'mpin' : 'otp');
     } catch (e) {}
-  };
-
-  // Interactive Live Punch Test on the physical TIMEWATCH Machine
-  const handleSimulatePunch = async (method = 'Fingerprint') => {
-    if (!studentData?.student) return;
-    const cleanMethod = method === 'Face' ? 'Face Recognition' : method;
-    setTestPunchLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/biometric/punch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          seatNumber: studentData.student.seatNumber,
-          grId: studentData.student.grId || studentData.student.admissionId,
-          studentPhone: studentData.student.studentPhone,
-          method: cleanMethod
-        })
-      });
-      const data = await res.json();
-      setTestPunchResult(data);
-      setTestPunchLoading(false);
-
-      // Refresh student summary immediately
-      refreshStudentData();
-    } catch (err) {
-      setTestPunchLoading(false);
-    }
   };
 
 
@@ -917,125 +887,6 @@ export default function StudentPortalPage() {
             </div>
           </div>
 
-        </div>
-
-        {/* ================= SECTION 2: PHYSICAL HARDWARE TERMINAL & BIOMETRIC GATE STATUS ================= */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <h2 className="text-lg font-bold text-slate-900">
-                  TIMEWATCH Bio-1SE Entrance Gate & Attendance Controller
-                </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  LIVE HARDWARE
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Your biometric credentials ({bio.grId} • Desk #{desk.seatNumber}) are active. Touch sensor on physical machine to open door.
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Machine SN: 140000103DFFFFFF (Online)</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-            
-            {/* Visual Hardware Preview from user uploaded photo */}
-            <div className="bg-slate-950 p-4 rounded-2xl text-center border border-slate-800 space-y-3">
-              <div className="relative rounded-xl overflow-hidden border border-slate-800 max-h-48 flex items-center justify-center bg-slate-900">
-                <img 
-                  src="/timewatch-device.jpg" 
-                  alt="TIMEWATCH Biometric Door Controller" 
-                  className="w-full h-auto object-cover opacity-90"
-                />
-                <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-xs text-[10px] font-mono text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/30">
-                  TIMEWATCH
-                </div>
-              </div>
-              <div className="text-[11px] text-slate-400 font-mono">
-                Physical Door Lock Terminal • Silent Hall Entrance
-              </div>
-            </div>
-
-            {/* Simulated LCD Screen & Punch Action */}
-            <div className="lg:col-span-2 space-y-4">
-              
-              {/* LCD Screen Display */}
-              <div className={`p-5 rounded-2xl font-mono text-xs border transition-all ${
-                testPunchResult 
-                  ? testPunchResult.granted 
-                    ? 'bg-emerald-950 border-emerald-700 text-emerald-300' 
-                    : 'bg-rose-950 border-rose-700 text-rose-300'
-                  : 'bg-slate-900 border-slate-800 text-purple-200'
-              }`}>
-                <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3 text-[10px] text-slate-400">
-                  <span>TIMEWATCH BIO-TERMINAL LCD</span>
-                  <span>{new Date().toLocaleTimeString()}</span>
-                </div>
-                
-                {testPunchLoading ? (
-                  <div className="py-4 text-center text-amber-300 animate-pulse">
-                    Scanning biometric pattern... Contacting Brain Dock Access Controller...
-                  </div>
-                ) : testPunchResult ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm font-bold">
-                      {testPunchResult.granted ? (
-                        <span className="text-emerald-400">🟢 {testPunchResult.message}</span>
-                      ) : (
-                        <span className="text-rose-400">⛔ {testPunchResult.message}</span>
-                      )}
-                    </div>
-                    <div className="text-[11px] opacity-80 pt-1">
-                      Student: {student.studentName} | Desk: #{desk.seatNumber} | GR: {bio.grId} | Door: {testPunchResult.doorStatus}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 py-2">
-                    <p className="text-purple-300">Ready for punch: Place finger or look at camera</p>
-                    <p className="text-slate-400 text-[11px]">Enrolled ID: {bio.grId} | Member: {student.studentName}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Punch Simulation Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                <button
-                  onClick={() => handleSimulatePunch('Fingerprint')}
-                  disabled={testPunchLoading}
-                  className="w-full py-3 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors disabled:opacity-50"
-                >
-                  <Fingerprint className="w-4 h-4 shrink-0" />
-                  <span>Test Fingerprint</span>
-                </button>
-
-                <button
-                  onClick={() => handleSimulatePunch('Face')}
-                  disabled={testPunchLoading}
-                  className="w-full py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors disabled:opacity-50"
-                >
-                  <UserCheck className="w-4 h-4 shrink-0" />
-                  <span>Test Face Recognition</span>
-                </button>
-
-                <button
-                  onClick={() => handleSimulatePunch('RFID Card')}
-                  disabled={testPunchLoading}
-                  className="w-full py-3 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
-                >
-                  <CreditCard className="w-4 h-4 shrink-0" />
-                  <span>Tap RFID Card</span>
-                </button>
-              </div>
-
-            </div>
-
-          </div>
         </div>
 
         {/* ================= SECTION 3: DAILY STUDY ATTENDANCE LOGS ================= */}
