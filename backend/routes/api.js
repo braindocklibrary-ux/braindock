@@ -11,6 +11,7 @@ import { streamBookPdf } from '../services/bookPdfService.js';
 import { uploadBackupToGoogleDrive, getGoogleDriveBackupStatus } from '../services/googleDriveService.js';
 import { whatsAppBot } from '../services/whatsappBot.js';
 import { expiryScheduler } from '../services/expiryScheduler.js';
+import { registerStudentSse, broadcastStudentPunchEvent } from '../services/biometricStreamService.js';
 import mongoose from 'mongoose';
 
 const router = express.Router();
@@ -1385,10 +1386,17 @@ router.get('/biometric/stats', (req, res) => {
   res.json({ success: true, data: stats });
 });
 
-// Process a biometric punch (Simulated or Real Hardware Webhook)
+// Process a biometric punch (Simulated, Real Hardware Webhook, or Portal Self-Punch)
 router.post('/biometric/punch', (req, res) => {
   const { grId, seatNumber, studentPhone, method, overridePunchType } = req.body;
   const result = store.processBiometricPunch({ grId, seatNumber, studentPhone, method, overridePunchType });
+  if (result?.log) {
+    try {
+      broadcastStudentPunchEvent(result.log);
+    } catch (err) {
+      console.warn('[BIOMETRIC PUNCH] Stream broadcast error:', err.message);
+    }
+  }
   res.status(result.granted ? 200 : 403).json(result);
 });
 
@@ -1546,6 +1554,39 @@ router.get('/student/summary/:query', (req, res) => {
     return res.status(404).json({ success: false, message: 'Student admission not found.' });
   }
   res.json({ success: true, data: summary });
+});
+
+// Real-Time Server-Sent Events (SSE) Stream for Instant Punch Notifications (< 0.1s latency, zero polling)
+router.get('/student/live-stream/:query', (req, res) => {
+  const query = (req.params.query || '').trim();
+  if (!query) {
+    return res.status(400).json({ success: false, message: 'Student identifier required' });
+  }
+
+  // Set SSE headers (unbuffered, no-cache, keep-alive)
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': '*'
+  });
+
+  registerStudentSse(query, res, req);
+
+  // Send handshake message
+  res.write(`data: ${JSON.stringify({ type: 'CONNECTED', message: 'Instant real-time punch stream active', timestamp: Date.now() })}\n\n`);
+
+  // Heartbeat comment ping every 25s to keep proxy connection alive
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+    } catch (e) {
+      clearInterval(heartbeat);
+    }
+  }, 25000);
+
+  req.on('close', () => clearInterval(heartbeat));
 });
 
 export default router;

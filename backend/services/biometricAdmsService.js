@@ -1,4 +1,5 @@
 import { store } from '../data/store.js';
+import { broadcastStudentPunchEvent } from './biometricStreamService.js';
 
 // Store in-memory recent biometric punches for real-time dashboard
 export const recentPunches = [];
@@ -199,6 +200,13 @@ function processSinglePunch({ pin, punchTime, verifyType, statusType, sn, ioMode
     record.receivedAt = new Date().toISOString();
     recentPunches.unshift(record);
     if (recentPunches.length > 200) recentPunches.pop();
+
+    // Broadcast instant real-time punch event to student portal (< 0.1s latency)
+    try {
+      broadcastStudentPunchEvent(record);
+    } catch (e) {
+      console.warn('[BIOMETRIC STREAM] Event broadcast warning:', e.message);
+    }
   }
 
   console.log(`[BIOMETRIC ADMS] 🟢 Punch processed: ${record?.studentName || cleanPin} (Seat #${record?.seatNumber || 'N/A'}) -> ${record?.punchType} via ${record?.method} at ${record?.timestamp}`);

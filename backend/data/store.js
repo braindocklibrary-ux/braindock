@@ -2584,8 +2584,9 @@ class DataStore {
     });
 
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    // Use Indian Standard Time (IST) for exact YYYY-MM-DD match regardless of server UTC time
+    const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
     const timestampStr = `${dateStr} ${timeStr}`;
 
     // If student not found
@@ -2598,6 +2599,7 @@ class DataStore {
         grId: grId || (cleanSeat ? `SEAT-${cleanSeat}` : 'UNKNOWN'),
         biometricEnrollmentId: cleanGrNum || cleanSeat || null,
         studentName: cleanSeat ? `Unassigned Seat #${cleanSeat}` : 'Unknown / Unregistered User',
+        studentEmail: null,
         studentPhone: studentPhone || 'N/A',
         seatNumber: cleanSeat || null,
         zone: 'Entrance Gate',
@@ -2637,6 +2639,7 @@ class DataStore {
         grId: student.grId,
         biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
         studentName: student.studentName,
+        studentEmail: student.studentEmail || student.parentEmail || null,
         studentPhone: student.studentPhone,
         seatNumber: student.seatNumber,
         zone: student.zone,
@@ -2673,7 +2676,15 @@ class DataStore {
       if (l.biometricEnrollmentId && Number(l.biometricEnrollmentId) === sBioId) return true;
       if (l.grId && (l.grId === sGr || l.grId === student.admissionId || l.grId === `PIN-${sBioId}` || l.grId === `PIN-${sSeat}`)) return true;
       if (sPhone && l.studentPhone && l.studentPhone.replace(/\D/g, '').slice(-10) === sPhone) return true;
+      if (l.studentName && student.studentName && l.studentName.trim().toLowerCase() === student.studentName.trim().toLowerCase()) return true;
       return false;
+    });
+
+    // STRICT SORT: newest first so studentTodayLogs[0] is guaranteed to be the most recent punch
+    studentTodayLogs.sort((a, b) => {
+      const timeA = a.receivedAt ? new Date(a.receivedAt).getTime() : (a.timestamp ? new Date(a.timestamp.replace(/-/g, '/')).getTime() : 0);
+      const timeB = b.receivedAt ? new Date(b.receivedAt).getTime() : (b.timestamp ? new Date(b.timestamp.replace(/-/g, '/')).getTime() : 0);
+      return timeB - timeA;
     });
 
     let punchType = overridePunchType;
@@ -2728,6 +2739,7 @@ class DataStore {
       grId: student.grId,
       biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
       studentName: student.studentName,
+      studentEmail: student.studentEmail || student.parentEmail || null,
       studentPhone: student.studentPhone,
       seatNumber: student.seatNumber,
       zone: student.zone,
@@ -3031,6 +3043,8 @@ class DataStore {
         const logPhoneClean = String(l.studentPhone).replace(/\D/g, '').slice(-10);
         if (logPhoneClean && logPhoneClean === sPhone) return true;
       }
+      // 5. By Student Name exact match
+      if (l.studentName && student.studentName && l.studentName.trim().toLowerCase() === student.studentName.trim().toLowerCase()) return true;
       return false;
     });
 
@@ -3041,8 +3055,8 @@ class DataStore {
       return timeB - timeA;
     });
     
-    // Calculate today's study duration
-    const today = new Date().toISOString().split('T')[0];
+    // Calculate today's study duration (IST Date)
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const todayLogs = logs.filter(l => l.date === today || (l.timestamp && l.timestamp.startsWith(today)));
     const todayTotalMinutes = todayLogs.reduce((acc, l) => acc + (l.durationMinutes || 0), 0);
     const todayHours = Math.floor(todayTotalMinutes / 60);
