@@ -30,7 +30,8 @@ import {
   Download,
   Receipt,
   Eye,
-  EyeOff
+  EyeOff,
+  User
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
 import { API_BASE_URL } from '../config';
@@ -64,6 +65,7 @@ export default function StudentPortalPage() {
   const [setupMpinMsg, setSetupMpinMsg] = useState('');
   const [setupMpinErr, setSetupMpinErr] = useState('');
   const [mpinModalOpen, setMpinModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   
   // Student Profile & Data (Persisted 24 Hours in LocalStorage)
   const [studentData, setStudentData] = useState(() => {
@@ -669,6 +671,18 @@ export default function StudentPortalPage() {
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
+            {/* My Profile Button (Student Admission Record & Digital ID Modal) */}
+            <button
+              type="button"
+              onClick={() => setProfileModalOpen(true)}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-[11px] sm:text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+              title="View your official student admission record and ID"
+            >
+              <User className="w-3.5 h-3.5 text-indigo-700" />
+              <span className="hidden sm:inline">My Profile</span>
+              <span className="inline sm:hidden">Profile</span>
+            </button>
+
             <button
               type="button"
               onClick={() => { setSetupMpin(''); setSetupMpinConfirm(''); setSetupMpinErr(''); setSetupMpinMsg(''); setMpinModalOpen(true); }}
@@ -989,189 +1003,6 @@ export default function StudentPortalPage() {
           </div>
         </div>
 
-        {/* ================= SECTION 4: STUDENT ID CARD & ADMISSION PROFILE (SECTIONS 01 TO 05) ================= */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-mono font-bold tracking-wider uppercase bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded-md border border-purple-200">
-                  OFFICIAL STUDENT PROFILE
-                </span>
-                <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Seat #{desk.seatNumber}
-                </span>
-              </div>
-              <h2 className="text-lg font-bold text-slate-900 mt-1">
-                Student Admission Record & Digital ID
-              </h2>
-              <p className="text-xs text-slate-500">
-                Verified admission data registered at Brain Dock Library Director Desk.
-              </p>
-            </div>
-            
-            <div className="flex items-center space-x-2 text-xs font-mono text-purple-800 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 self-start sm:self-auto">
-              <span>Adm ID: {student.admissionId || bio.grId}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Left Photo & ID Badge */}
-            <div className="md:col-span-1 flex flex-col items-center text-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
-              {student.studentPhoto ? (
-                <img 
-                  src={student.studentPhoto} 
-                  alt={student.studentName} 
-                  className="w-32 h-32 rounded-2xl object-cover border-4 border-white shadow-md"
-                />
-              ) : (
-                <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white font-extrabold flex items-center justify-center text-3xl shadow-md border-4 border-white">
-                  {student.studentName.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">{student.studentName}</h3>
-                <p className="text-[11px] text-purple-700 font-mono font-bold">{bio.grId}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Brain Dock Library Member</p>
-              </div>
-
-              <div className="w-full pt-2 border-t border-slate-200 space-y-1 text-[11px] font-mono">
-                <div className="flex justify-between text-slate-600">
-                  <span>Assigned Desk:</span>
-                  <span className="font-bold text-purple-900">Seat #{desk.seatNumber}</span>
-                </div>
-                {student.lockerNumber && (
-                  <div className="flex justify-between text-slate-600">
-                    <span>Locker:</span>
-                    <span className="font-bold text-slate-900">{student.lockerNumber}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-slate-600">
-                  <span>Timing:</span>
-                  <span className="font-semibold text-slate-900 truncate max-w-[110px]">{student.shift}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Admission Details (Sections 01 - 05) */}
-            <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              
-              {/* 01 Personal Info */}
-              <div className="p-4 rounded-2xl bg-purple-50/30 border border-purple-100 space-y-2">
-                <span className="text-[11px] font-bold text-purple-900 block pb-1 border-b border-purple-100">
-                  01 Personal Details
-                </span>
-                <div className="space-y-1.5 text-slate-700">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Father / Mother:</span>
-                    <span className="font-semibold text-slate-900">{student.parentsName || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Date of Birth:</span>
-                    <span className="font-semibold text-slate-900">{student.dob || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Gender:</span>
-                    <span className="font-semibold text-slate-900">{student.gender || 'Male'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Mobile:</span>
-                    <span className="font-mono font-semibold text-slate-900">{student.studentPhone}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Email:</span>
-                    <span className="font-semibold text-purple-800 truncate max-w-[150px]">{student.studentEmail || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Address:</span>
-                    <span className="font-medium text-slate-900 truncate max-w-[160px]">{student.address ? `${student.address}, ${student.city || ''}` : '—'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 02 Education Details */}
-              <div className="p-4 rounded-2xl bg-indigo-50/30 border border-indigo-100 space-y-2">
-                <span className="text-[11px] font-bold text-indigo-900 block pb-1 border-b border-indigo-100">
-                  02 Education & Aspirations
-                </span>
-                <div className="space-y-1.5 text-slate-700">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Qualification:</span>
-                    <span className="font-semibold text-slate-900">{student.qualification || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">College / Univ:</span>
-                    <span className="font-semibold text-slate-900 truncate max-w-[150px]">{student.institution || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Course / Stream:</span>
-                    <span className="font-semibold text-slate-900">{student.course || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Year / Sem:</span>
-                    <span className="font-semibold text-slate-900">{student.yearSemester || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Target Exam:</span>
-                    <span className="font-bold text-indigo-900">{student.targetExam || 'General Study'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 03 Emergency Contact */}
-              <div className="p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100 space-y-2">
-                <span className="text-[11px] font-bold text-emerald-900 block pb-1 border-b border-emerald-100">
-                  03 Emergency Contact
-                </span>
-                <div className="space-y-1.5 text-slate-700">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Contact Name:</span>
-                    <span className="font-semibold text-slate-900">{student.emergencyName || student.parentsName || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Relationship:</span>
-                    <span className="font-semibold text-slate-900">{student.emergencyRelation || 'Parent'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Emergency Phone:</span>
-                    <span className="font-mono font-semibold text-slate-900">{student.emergencyPhone || student.guardianPhone || '—'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 04 Identity Proof & Biometric Pin */}
-              <div className="p-4 rounded-2xl bg-amber-50/30 border border-amber-100 space-y-2">
-                <span className="text-[11px] font-bold text-amber-900 block pb-1 border-b border-amber-100">
-                  04 Identity & Access Credentials
-                </span>
-                <div className="space-y-1.5 text-slate-700">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Document Type:</span>
-                    <span className="font-semibold text-slate-900">{student.idProofType || 'Aadhaar Card'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">ID Proof No:</span>
-                    <span className="font-mono font-semibold text-slate-900">{student.idProofNo || student.aadhaarNo || '—'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Biometric PIN:</span>
-                    <span className="font-mono font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">
-                      {bio.biometricEnrollmentId || desk.seatNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Photo Attached:</span>
-                    <span className="font-bold text-emerald-700">
-                      {student.studentPhoto ? '✅ Verified Photo' : 'No Photo'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
         {/* ================= SECTION 5: OFFICIAL RECEIPTS (STUDENT COPY ONLY) & DESK AMENITIES ================= */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
@@ -1431,6 +1262,207 @@ export default function StudentPortalPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: STUDENT ADMISSION RECORD & DIGITAL ID (MY PROFILE) ================= */}
+      {profileModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center overflow-y-auto animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setProfileModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl space-y-6 relative max-h-[92vh] overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => setProfileModalOpen(false)}
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer z-10"
+              title="Close Profile"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Profile Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 pr-10">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-mono font-bold tracking-wider uppercase bg-purple-100 text-purple-900 px-2.5 py-0.5 rounded-md border border-purple-200">
+                    OFFICIAL STUDENT PROFILE
+                  </span>
+                  <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Seat #{desk.seatNumber}
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-1">
+                  Student Admission Record & Digital ID
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Verified admission data registered at Brain Dock Library Director Desk.
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2 text-xs font-mono text-purple-800 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200 self-start sm:self-auto">
+                <span>Adm ID: {student.admissionId || bio.grId}</span>
+              </div>
+            </div>
+
+            {/* Profile Content Body */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* Left Photo & ID Badge */}
+              <div className="md:col-span-1 flex flex-col items-center text-center p-4 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-3">
+                {student.studentPhoto ? (
+                  <img 
+                    src={student.studentPhoto} 
+                    alt={student.studentName} 
+                    className="w-32 h-32 rounded-2xl object-cover border-4 border-white shadow-md"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white font-extrabold flex items-center justify-center text-3xl shadow-md border-4 border-white">
+                    {student.studentName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">{student.studentName}</h3>
+                  <p className="text-[11px] text-purple-700 font-mono font-bold">{bio.grId}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Brain Dock Library Member</p>
+                </div>
+
+                <div className="w-full pt-2 border-t border-slate-200 space-y-1 text-[11px] font-mono">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Assigned Desk:</span>
+                    <span className="font-bold text-purple-900">Seat #{desk.seatNumber}</span>
+                  </div>
+                  {student.lockerNumber && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Locker:</span>
+                      <span className="font-bold text-slate-900">{student.lockerNumber}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-600">
+                    <span>Timing:</span>
+                    <span className="font-semibold text-slate-900 truncate max-w-[110px]">{student.shift}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Admission Details (Sections 01 - 04) */}
+              <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                
+                {/* 01 Personal Info */}
+                <div className="p-4 rounded-2xl bg-purple-50/30 border border-purple-100 space-y-2">
+                  <span className="text-[11px] font-bold text-purple-900 block pb-1 border-b border-purple-100">
+                    01 Personal Details
+                  </span>
+                  <div className="space-y-1.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Father / Mother:</span>
+                      <span className="font-semibold text-slate-900">{student.parentsName || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Date of Birth:</span>
+                      <span className="font-semibold text-slate-900">{student.dob || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Gender:</span>
+                      <span className="font-semibold text-slate-900">{student.gender || 'Male'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Mobile:</span>
+                      <span className="font-mono font-semibold text-slate-900">{student.studentPhone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Email:</span>
+                      <span className="font-semibold text-purple-800 truncate max-w-[150px]">{student.studentEmail || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Address:</span>
+                      <span className="font-medium text-slate-900 truncate max-w-[160px]">{student.address ? `${student.address}, ${student.city || ''}` : '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 02 Education Details */}
+                <div className="p-4 rounded-2xl bg-indigo-50/30 border border-indigo-100 space-y-2">
+                  <span className="text-[11px] font-bold text-indigo-900 block pb-1 border-b border-indigo-100">
+                    02 Education & Aspirations
+                  </span>
+                  <div className="space-y-1.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Qualification:</span>
+                      <span className="font-semibold text-slate-900">{student.qualification || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">College / Univ:</span>
+                      <span className="font-semibold text-slate-900 truncate max-w-[150px]">{student.institution || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Course / Stream:</span>
+                      <span className="font-semibold text-slate-900">{student.course || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Year / Sem:</span>
+                      <span className="font-semibold text-slate-900">{student.yearSemester || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Target Exam:</span>
+                      <span className="font-bold text-indigo-900">{student.targetExam || 'General Study'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 03 Emergency Contact */}
+                <div className="p-4 rounded-2xl bg-emerald-50/30 border border-emerald-100 space-y-2">
+                  <span className="text-[11px] font-bold text-emerald-900 block pb-1 border-b border-emerald-100">
+                    03 Emergency Contact
+                  </span>
+                  <div className="space-y-1.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Contact Name:</span>
+                      <span className="font-semibold text-slate-900">{student.emergencyName || student.parentsName || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Relationship:</span>
+                      <span className="font-semibold text-slate-900">{student.emergencyRelation || 'Parent'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Emergency Phone:</span>
+                      <span className="font-mono font-semibold text-slate-900">{student.emergencyPhone || student.guardianPhone || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 04 Identity Proof & Biometric Pin */}
+                <div className="p-4 rounded-2xl bg-amber-50/30 border border-amber-100 space-y-2">
+                  <span className="text-[11px] font-bold text-amber-900 block pb-1 border-b border-amber-100">
+                    04 Identity & Access Credentials
+                  </span>
+                  <div className="space-y-1.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Document Type:</span>
+                      <span className="font-semibold text-slate-900">{student.idProofType || 'Aadhaar Card'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">ID Proof No:</span>
+                      <span className="font-mono font-semibold text-slate-900">{student.idProofNo || student.aadhaarNo || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Biometric PIN:</span>
+                      <span className="font-mono font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">
+                        {bio.biometricEnrollmentId || desk.seatNumber}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Photo Attached:</span>
+                      <span className="font-bold text-emerald-700">
+                        {student.studentPhoto ? '✅ Verified Photo' : 'No Photo'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </div>
         </div>
       )}
