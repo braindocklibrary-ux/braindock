@@ -87,6 +87,8 @@ export default function StudentPortalPage() {
     }
   });
   const [receiptModal, setReceiptModal] = useState(null);
+  const [punchActionLoading, setPunchActionLoading] = useState(false);
+  const [punchFeedback, setPunchFeedback] = useState(null);
 
   const studentDataRef = useRef(studentData);
   const isRefreshingRef = useRef(false);
@@ -146,14 +148,54 @@ export default function StudentPortalPage() {
     refreshStudentData();
   };
 
-  // Continuous auto-sync every 1500ms to immediately detect TimeWatch Bio-1SE punches
+  // Self attendance punch (Toggle Entry IN / Exit OUT)
+  const handlePunchAttendance = async () => {
+    if (!studentData?.student || punchActionLoading) return;
+    setPunchActionLoading(true);
+    setPunchFeedback(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/biometric/punch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seatNumber: studentData.student.seatNumber,
+          grId: studentData.student.grId || studentData.student.admissionId,
+          studentPhone: studentData.student.studentPhone,
+          method: 'Student Portal Digital Punch'
+        })
+      });
+      const data = await res.json();
+      setPunchActionLoading(false);
+      if (data.success || data.granted) {
+        setPunchFeedback({ type: 'success', message: data.message });
+        await refreshStudentData();
+      } else {
+        setPunchFeedback({ type: 'error', message: data.message || 'Access Denied / Punch Failed' });
+      }
+    } catch (e) {
+      setPunchActionLoading(false);
+      setPunchFeedback({ type: 'error', message: 'Unable to connect to biometric server.' });
+    }
+    setTimeout(() => setPunchFeedback(null), 6000);
+  };
+
+  // Fetch fresh data once on login/mount, and when returning to the tab (no continuous 1.5s spam)
   useEffect(() => {
     if (!studentData?.student) return;
     refreshStudentData(studentData);
-    const interval = setInterval(() => {
-      refreshStudentData();
-    }, 1500);
-    return () => clearInterval(interval);
+
+    const onFocus = () => {
+      if (!document.hidden) {
+        refreshStudentData();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [studentData?.student?.seatNumber, studentData?.student?.studentEmail, studentData?.student?.admissionId]);
 
   // Resend OTP Countdown Timer (like Climate Hero)
@@ -835,9 +877,18 @@ export default function StudentPortalPage() {
                   ⛔ Door will NOT open. Membership expired on {student.endDate}. Please renew at desk.
                 </p>
               ) : (
-                <p className="text-emerald-800 font-medium leading-relaxed">
-                  🟢 Armed on TIMEWATCH Lock. Door unlocks automatically via Fingerprint & Face.
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-emerald-800 font-medium leading-relaxed">
+                    🟢 {stats.statusToday || 'Armed on TIMEWATCH Lock'}
+                  </p>
+                  <span className={`px-2 py-0.5 rounded-full font-extrabold text-[10px] ${
+                    stats.statusToday === 'Inside Library' 
+                      ? 'bg-emerald-200 text-emerald-900 border border-emerald-300' 
+                      : 'bg-slate-200 text-slate-800'
+                  }`}>
+                    {stats.statusToday === 'Inside Library' ? 'Punched IN' : 'Outside'}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -1014,27 +1065,58 @@ export default function StudentPortalPage() {
                 </h2>
                 <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>LIVE HARDWARE SYNC (1.5s)</span>
+                  <span>TIMEWATCH BIO-SYNC</span>
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Exact Punch IN, Punch OUT, and daily reading durations recorded by TIMEWATCH Bio-1SE lock.
               </p>
             </div>
-            <div className="flex items-center space-x-2.5">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <button
+                onClick={handlePunchAttendance}
+                disabled={punchActionLoading || isExpired}
+                className={`py-2 px-4 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 ${
+                  stats.statusToday === 'Inside Library'
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-900/10'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/10'
+                }`}
+                title={stats.statusToday === 'Inside Library' ? 'Click to record Exit Punch' : 'Click to record Entry Punch'}
+              >
+                <Fingerprint className="w-4 h-4 shrink-0" />
+                <span>
+                  {punchActionLoading 
+                    ? 'Recording...' 
+                    : stats.statusToday === 'Inside Library' 
+                      ? '🔴 Punch OUT (Mark Exit)' 
+                      : '🟢 Punch IN (Mark Entry)'}
+                </span>
+              </button>
+
               <button
                 onClick={handleManualSync}
                 disabled={manualSyncLoading}
-                className="text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-xl border border-purple-200 flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                className="text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-2 rounded-xl border border-purple-200 flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <RotateCcw className={`w-3.5 h-3.5 ${manualSyncLoading ? 'animate-spin' : ''}`} />
                 <span>{manualSyncLoading ? 'Refreshing...' : 'Refresh Logs'}</span>
               </button>
-              <div className="text-xs font-bold text-purple-800 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-200">
+              <div className="text-xs font-bold text-purple-800 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">
                 Punches: {studentData?.recentLogs?.length || 0}
               </div>
             </div>
           </div>
+
+          {/* Punch action feedback banner */}
+          {punchFeedback && (
+            <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-center space-x-2 ${
+              punchFeedback.type === 'success' 
+                ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' 
+                : 'bg-rose-50 text-rose-900 border border-rose-200'
+            }`}>
+              <span>{punchFeedback.message}</span>
+            </div>
+          )}
 
           <div className="overflow-x-auto -mx-2 sm:mx-0">
             <table className="w-full min-w-[640px] text-left text-xs">
@@ -1095,7 +1177,7 @@ export default function StudentPortalPage() {
                 ) : (
                   <tr>
                     <td colSpan="7" className="py-8 text-center text-slate-400">
-                      No biometric punches recorded yet today. Use the simulator above to test punch.
+                      No biometric punches recorded yet today. Click "Punch IN" above or scan your finger on the gate machine.
                     </td>
                   </tr>
                 )}
