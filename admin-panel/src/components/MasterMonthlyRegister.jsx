@@ -225,22 +225,51 @@ export default function MasterMonthlyRegister({
     return rows;
   }, [admissions, manualChecks]);
 
-  // Filtered rows for on-screen table
+  // Filtered rows for on-screen table (with search relevance sorting)
   const displayedRows = useMemo(() => {
-    return masterRows.filter(row => {
+    const q = (searchTerm || '').trim().toLowerCase();
+    const cleanQ = q.replace(/[^0-9]/g, '');
+
+    const filtered = masterRows.filter(row => {
       // Scope / filter
       if (filterMode === 'occupied' && !row.isOccupied) return false;
       if (filterMode === 'vacant' && row.isOccupied) return false;
 
       // Search
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
+      if (q) {
         const matchSeat = String(row.seatNumber).includes(q);
-        const matchName = row.name.toLowerCase().includes(q);
-        const matchPhone = row.mobileNo.includes(q);
+        const matchName = (row.name || '').toLowerCase().includes(q);
+        const matchPhone = (row.mobileNo || '').includes(q);
         return matchSeat || matchName || matchPhone;
       }
       return true;
+    });
+
+    if (!q) return filtered;
+
+    // Relevance scoring when search term is active
+    const getScore = (row) => {
+      const seatStr = String(row.seatNumber || '');
+      if (seatStr === q || (cleanQ && seatStr === cleanQ)) return 1000;
+      if (seatStr.startsWith(q) || (cleanQ && seatStr.startsWith(cleanQ))) return 800;
+      const name = (row.name || '').toLowerCase();
+      if (name === q) return 600;
+      if (name.startsWith(q)) return 500;
+      const nameWords = name.split(/\s+/);
+      if (nameWords.some(w => w.startsWith(q))) return 400;
+      const phone = (row.mobileNo || '').replace(/\D/g, '');
+      if (phone === cleanQ) return 350;
+      if (cleanQ && phone.startsWith(cleanQ)) return 300;
+      if (name.includes(q)) return 200;
+      if (cleanQ && phone.includes(cleanQ)) return 100;
+      return 10;
+    };
+
+    return [...filtered].sort((a, b) => {
+      const scoreA = getScore(a);
+      const scoreB = getScore(b);
+      if (scoreA !== scoreB) return scoreB - scoreA;
+      return a.seatNumber - b.seatNumber;
     });
   }, [masterRows, filterMode, searchTerm]);
 

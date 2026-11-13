@@ -1700,11 +1700,52 @@ export default function OwnerPortal() {
     })
     .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
 
-  // Filtered Admissions for Register View (Always Kram-Wise sorted 1..102 by Seat Number)
+  // Filtered Admissions for Register View (Always Kram-Wise sorted 1..102 by Seat Number, with search relevance)
   const parseSeatNum = (val) => {
     if (val == null || val === '') return 999999;
     const num = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
     return isNaN(num) ? 999999 : num;
+  };
+
+  const getRelevanceScore = (adm, q) => {
+    if (!q) return 0;
+    const seatStr = String(adm.seatNumber != null ? adm.seatNumber : (adm.previousSeatNumber || '')).trim().toLowerCase();
+    const cleanSeatNum = seatStr.replace(/[^0-9]/g, '');
+    const cleanQ = q.replace(/[^0-9]/g, '');
+
+    // 1. Exact Seat Number match (e.g. searching '61' matches seat '61') -> Rank 1
+    if (seatStr === q || (cleanQ && cleanSeatNum === cleanQ)) {
+      return 1000;
+    }
+    // 2. Seat number starts with query (e.g. '61' matches seat '610' or '61A')
+    if (seatStr.startsWith(q) || (cleanQ && cleanSeatNum.startsWith(cleanQ))) {
+      return 800;
+    }
+    // 3. Student Name exact match or starts with query
+    const name = (adm.studentName || '').toLowerCase().trim();
+    if (name === q) return 600;
+    if (name.startsWith(q)) return 500;
+
+    // 4. Any name token/word starts with query (e.g. searching 'karn' matches 'hudad karnbhai')
+    const nameWords = name.split(/\s+/);
+    if (nameWords.some(w => w.startsWith(q))) return 400;
+
+    // 5. Phone number exact match or starts with query
+    const phone = (adm.studentPhone || '').replace(/\D/g, '');
+    if (phone === cleanQ) return 350;
+    if (cleanQ && phone.startsWith(cleanQ)) return 300;
+
+    // 6. Name contains query
+    if (name.includes(q)) return 200;
+
+    // 7. Phone contains query (e.g. 9316185583 has '61' in the middle)
+    if (cleanQ && phone.includes(cleanQ)) return 100;
+
+    // 8. Seat number contains query
+    if (seatStr.includes(q)) return 80;
+
+    // 9. Other fields (admissionId, targetExam, locker)
+    return 10;
   };
 
   const filteredAdmissions = admissions.filter(adm => {
@@ -1727,6 +1768,14 @@ export default function OwnerPortal() {
     if (registerFilter === 'vacated') return adm.status === 'Vacated' || adm.seatNumber == null;
     return true;
   }).sort((a, b) => {
+    const q = (searchQuery || '').toLowerCase().trim();
+    if (q) {
+      const scoreA = getRelevanceScore(a, q);
+      const scoreB = getRelevanceScore(b, q);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Highest score at the top
+      }
+    }
     const seatA = parseSeatNum(a.seatNumber != null ? a.seatNumber : a.previousSeatNumber);
     const seatB = parseSeatNum(b.seatNumber != null ? b.seatNumber : b.previousSeatNumber);
     if (seatA !== seatB) return seatA - seatB;
