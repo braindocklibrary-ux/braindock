@@ -94,9 +94,9 @@ export function disableStudentOnBiometricMachine(pin, name) {
   }
 
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // Queue DELETE_USER for each ID variant
+  // High-priority: Place DELETE_USER at the FRONT of queue so machine executes lockout immediately!
   pinVariants.forEach(variantId => {
-    fkCommandQueue.push({
+    fkCommandQueue.unshift({
       cmd_code: 'DELETE_USER',
       body: {
         user_id: variantId
