@@ -148,11 +148,10 @@ async function startServer() {
         daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
       }
 
-      // If expired > 5 days (daysRemaining < -5), lock/disable on machine!
+      // If expired > 5 days (daysRemaining < -5), lock/disable on machine immediately!
+      // (Only queue lockouts so machine processes them in seconds without waiting behind 50 active students)
       if (daysRemaining < -5) {
         disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
-      } else {
-        enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
       }
     });
   }, 2000);

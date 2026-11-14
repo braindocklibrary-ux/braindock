@@ -75,13 +75,14 @@ export function disableStudentOnBiometricMachine(pin, name) {
   const cleanPin = String(pin).trim();
   const cleanName = String(name || '').trim().slice(0, 24);
 
-  // Collect all possible ID variants used on device (e.g. "19", "019", seatNumber, biometricEnrollmentId)
+  // Collect all possible ID variants used on device (e.g. "1", "001", "00000001", seatNumber, biometricEnrollmentId)
   const pinVariants = new Set();
   pinVariants.add(cleanPin);
   const numPin = Number(cleanPin);
   if (!isNaN(numPin)) {
     pinVariants.add(String(numPin));
     pinVariants.add(String(numPin).padStart(3, '0'));
+    pinVariants.add(String(numPin).padStart(8, '0'));
   }
 
   const adm = (store.admissions || []).find(a => 
@@ -91,13 +92,24 @@ export function disableStudentOnBiometricMachine(pin, name) {
   );
   if (adm?.biometricEnrollmentId) {
     pinVariants.add(String(adm.biometricEnrollmentId));
+    const numBio = Number(adm.biometricEnrollmentId);
+    if (!isNaN(numBio)) {
+      pinVariants.add(String(numBio).padStart(3, '0'));
+      pinVariants.add(String(numBio).padStart(8, '0'));
+    }
   }
 
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // High-priority: Place DELETE_USER at the FRONT of queue so machine executes lockout immediately!
+  // High-priority: Place DELETE_USER & DELETE_USER_INFO in queue so machine executes lockout immediately!
   pinVariants.forEach(variantId => {
-    fkCommandQueue.unshift({
+    fkCommandQueue.push({
       cmd_code: 'DELETE_USER',
+      body: {
+        user_id: variantId
+      }
+    });
+    fkCommandQueue.push({
+      cmd_code: 'DELETE_USER_INFO',
       body: {
         user_id: variantId
       }

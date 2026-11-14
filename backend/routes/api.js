@@ -1432,9 +1432,20 @@ router.post('/biometric/sync-lockouts', (req, res) => {
 
   res.json({
     success: true,
-    message: `Biometric sync queued: ${lockedCount} expired student(s) locked out, ${activeCount} active student(s) enabled on TimeWatch machine.`,
+    message: `Biometric sync queued: ${lockedCount} expired student(s) locked out on TimeWatch machine.`,
     lockedCount,
     activeCount
+  });
+});
+
+// Direct Instant Lockout for a single user/PIN (for live testing)
+router.post('/biometric/lock-user/:pin', (req, res) => {
+  const pin = req.params.pin;
+  const adm = (store.admissions || []).find(a => String(a.seatNumber) === String(pin) || String(a.biometricEnrollmentId) === String(pin));
+  disableStudentOnBiometricMachine(pin, adm?.studentName || `User-${pin}`);
+  res.json({
+    success: true,
+    message: `Lockout command queued immediately for PIN "${pin}" (${adm?.studentName || 'Student'})! It will be sent to the machine on the next poll.`
   });
 });
 
