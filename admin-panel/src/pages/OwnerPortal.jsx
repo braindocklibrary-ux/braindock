@@ -634,6 +634,26 @@ export default function OwnerPortal() {
       });
   };
 
+  const [syncingLockouts, setSyncingLockouts] = useState(false);
+  const handleSyncBiometricLockouts = async () => {
+    setSyncingLockouts(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/biometric/sync-lockouts`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`🔒 ${data.message}`);
+        fetchBiometricData();
+        fetchExpiryReminders();
+      } else {
+        showToast(data.message || 'Failed to sync biometric lockouts.');
+      }
+    } catch (e) {
+      showToast('Network error syncing biometric lockouts.');
+    } finally {
+      setSyncingLockouts(false);
+    }
+  };
+
   const handleRenewalFeeChange = (newFee, note) => {
     const feeNum = Number(newFee);
     setRenewalFee(feeNum);
@@ -2615,6 +2635,16 @@ export default function OwnerPortal() {
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${expiryLoading ? 'animate-spin' : ''}`} />
                   <span>Sync Expiries</span>
+                </button>
+
+                <button
+                  onClick={handleSyncBiometricLockouts}
+                  disabled={syncingLockouts}
+                  className="py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs flex items-center space-x-2 shadow-xs transition-colors cursor-pointer"
+                  title="Force sync active & lock out all expired (>5d) students on TimeWatch Bio-1SE machine"
+                >
+                  <Lock className={`w-3.5 h-3.5 text-rose-700 ${syncingLockouts ? 'animate-spin' : ''}`} />
+                  <span>{syncingLockouts ? 'Locking on Machine...' : 'Lock Expired on Machine'}</span>
                 </button>
               </div>
             </div>

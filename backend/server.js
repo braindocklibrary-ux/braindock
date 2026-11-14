@@ -11,6 +11,8 @@ import {
   handleAdmsAttendancePunch, 
   handleAdmsUniversal,
   pushUserToDevice,
+  enableStudentOnBiometricMachine,
+  disableStudentOnBiometricMachine,
   recentPunches 
 } from './services/biometricAdmsService.js';
 import { store } from './data/store.js';
@@ -131,10 +133,27 @@ async function startServer() {
     console.log(`📡 BIOMETRIC ADMS ENGINE LISTENING ON PORT: ${BIOMETRIC_PORT}`);
   });
 
-  // Auto-sync admitted students to TimeWatch device on boot
+  // Auto-sync admitted students to TimeWatch device on boot (Sync active vs blocked users)
   setTimeout(() => {
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
+
     (store.admissions || []).forEach(adm => {
-      pushUserToDevice({ pin: adm.seatNumber, name: adm.studentName });
+      if (adm.status === 'Vacated' || !adm.seatNumber) return;
+
+      let daysRemaining = adm.daysRemaining;
+      if (adm.endDate) {
+        const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
+        const diffMs = endDateVal.getTime() - todayDate.getTime();
+        daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
+      }
+
+      // If expired > 5 days (daysRemaining < -5), lock/disable on machine!
+      if (daysRemaining < -5) {
+        disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      } else {
+        enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      }
     });
   }, 2000);
 

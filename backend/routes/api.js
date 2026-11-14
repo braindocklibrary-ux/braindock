@@ -4,7 +4,7 @@ import { store } from '../data/store.js';
 import cloudinary from '../config/cloudinary.js';
 import multer from 'multer';
 import { searchGlobalBooks, getGlobalBookById, calculateRelevance } from '../services/globalBooksService.js';
-import { pushUserToDevice } from '../services/biometricAdmsService.js';
+import { pushUserToDevice, enableStudentOnBiometricMachine, disableStudentOnBiometricMachine } from '../services/biometricAdmsService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
@@ -1213,9 +1213,13 @@ router.put('/owner/admissions/:id/renew', (req, res) => {
   if (!result.success) {
     return res.status(400).json(result);
   }
+  // Immediately re-enable student on TimeWatch biometric machine
+  if (result.admission?.seatNumber) {
+    enableStudentOnBiometricMachine(result.admission.seatNumber, result.admission.studentName);
+  }
   res.json({ 
     success: true, 
-    message: 'Membership renewed successfully!', 
+    message: 'Membership renewed successfully! Biometric machine access re-enabled.', 
     data: result.admission, 
     receipt: result.receipt 
   });
@@ -1398,6 +1402,40 @@ router.post('/biometric/punch', (req, res) => {
     }
   }
   res.status(result.granted ? 200 : 403).json(result);
+});
+
+// Force sync active students & lockout all expired (>5d) students on TimeWatch machine
+router.post('/biometric/sync-lockouts', (req, res) => {
+  const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
+  let lockedCount = 0;
+  let activeCount = 0;
+
+  (store.admissions || []).forEach(adm => {
+    if (adm.status === 'Vacated' || !adm.seatNumber) return;
+
+    let daysRemaining = adm.daysRemaining;
+    if (adm.endDate) {
+      const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
+      const diffMs = endDateVal.getTime() - todayDate.getTime();
+      daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    }
+
+    if (daysRemaining < -5) {
+      disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      lockedCount++;
+    } else {
+      enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      activeCount++;
+    }
+  });
+
+  res.json({
+    success: true,
+    message: `Biometric sync queued: ${lockedCount} expired student(s) locked out, ${activeCount} active student(s) enabled on TimeWatch machine.`,
+    lockedCount,
+    activeCount
+  });
 });
 
 // Clear all dummy admissions and attendance logs (Owner Reset to Live State - Protected)

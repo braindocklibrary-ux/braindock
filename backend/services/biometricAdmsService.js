@@ -65,28 +65,66 @@ export function pushUserToDevice({ pin, name }) {
 }
 
 /**
- * Disable user on TimeWatch biometric machine (Lockout after > 5 days expired)
+ * Disable / Lockout student on TimeWatch biometric machine (Expired > 5 days)
  */
-export function disableStudentOnBiometricMachine(pin) {
+export function disableStudentOnBiometricMachine(pin, name) {
   if (!pin) return;
   const cleanPin = String(pin).trim();
+  const cleanName = String(name || '').trim().slice(0, 24);
+
+  // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
+  // Queue SET_USER_INFO with disabled privilege & group 0 (Lockout)
+  fkCommandQueue.push({
+    cmd_code: 'SET_USER_INFO',
+    body: {
+      user_id: cleanPin,
+      user_name: cleanName || `User-${cleanPin}`,
+      user_privilege: 'DISABLED',
+      enabled: false,
+      enabled_flag: 0,
+      user_group: 0,
+      use_group: 0,
+      lock_group: 0
+    }
+  });
+
+  // 2. Standard ZK ADMS Protocol Fallback
   const cmdId = Math.floor(100000 + Math.random() * 900000);
-  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tDisable=1`;
+  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=1\tPri=0\tGroup=0`;
   pendingCommands.push({ id: cmdId, pin: cleanPin, cmdString, status: 'PENDING' });
-  console.log(`[BIOMETRIC ADMS] 🔒 Queued Disable command for PIN ${cleanPin}`);
+
+  console.log(`[BIOMETRIC ADMS] 🔒 Queued LOCKOUT/DISABLE command for TimeWatch machine: PIN "${cleanPin}" (${cleanName || 'Student'})`);
 }
 
 /**
- * Re-enable user on TimeWatch biometric machine (Upon renewal)
+ * Re-enable student on TimeWatch biometric machine (Active / Renewed)
  */
 export function enableStudentOnBiometricMachine(pin, name) {
   if (!pin) return;
   const cleanPin = String(pin).trim();
-  const cleanName = String(name || '').trim();
+  const cleanName = String(name || '').trim().slice(0, 24);
+
+  // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
+  fkCommandQueue.push({
+    cmd_code: 'SET_USER_INFO',
+    body: {
+      user_id: cleanPin,
+      user_name: cleanName || `User-${cleanPin}`,
+      user_privilege: 'USER',
+      enabled: true,
+      enabled_flag: 1,
+      user_group: 1,
+      use_group: 1,
+      lock_group: 1
+    }
+  });
+
+  // 2. Standard ZK ADMS Protocol Fallback
   const cmdId = Math.floor(100000 + Math.random() * 900000);
-  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=0\tPri=0`;
+  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=0\tPri=0\tGroup=1\tPasswd=\tCard=`;
   pendingCommands.push({ id: cmdId, pin: cleanPin, name: cleanName, cmdString, status: 'PENDING' });
-  console.log(`[BIOMETRIC ADMS] 🟢 Queued Enable command for PIN ${cleanPin}`);
+
+  console.log(`[BIOMETRIC ADMS] 🟢 Queued UNLOCK/ENABLE command for TimeWatch machine: PIN "${cleanPin}" (${cleanName})`);
 }
 
 /**
@@ -228,7 +266,7 @@ function processSinglePunch({ pin, punchTime, verifyType, statusType, sn, ioMode
 
     // If student is blocked (> 5 days expired), dispatch disable command to machine
     if (punchResult?.isPunchBlocked) {
-      disableStudentOnBiometricMachine(cleanPin);
+      disableStudentOnBiometricMachine(cleanPin, record?.studentName);
     }
 
     // Broadcast instant real-time punch event to student portal (< 0.1s latency)
