@@ -1409,7 +1409,6 @@ router.post('/biometric/sync-lockouts', (req, res) => {
   const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
   const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
   let lockedCount = 0;
-  let activeCount = 0;
 
   (store.admissions || []).forEach(adm => {
     if (adm.status === 'Vacated' || !adm.seatNumber) return;
@@ -1421,20 +1420,21 @@ router.post('/biometric/sync-lockouts', (req, res) => {
       daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
     }
 
-    if (daysRemaining < -5) {
+    // Lockout all students expired >= 5 days (grace period ended)
+    const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+    if (daysExpired >= 5) {
       disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
+        disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
+      }
       lockedCount++;
-    } else {
-      enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
-      activeCount++;
     }
   });
 
   res.json({
     success: true,
     message: `Biometric sync queued: ${lockedCount} expired student(s) locked out on TimeWatch machine.`,
-    lockedCount,
-    activeCount
+    lockedCount
   });
 });
 

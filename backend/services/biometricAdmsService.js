@@ -122,46 +122,46 @@ export function disableStudentOnBiometricMachine(pin, name) {
     }
   }
 
+  const expiryDate = adm?.endDate || '2026-11-01';
+
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // High-priority: Place DELETE_ENROLL_DATA (purges optical fingerprint & face templates from DSP memory),
-  // DELETE_USER_INFO, and DELETE_USER in queue so the machine CANNOT verify the finger and CANNOT open door!
+  // Step A: Set Access Control schedule to 0 (No Access / Locked Out) and expired date.
+  // This is the #1 most reliable hardware lockout in Realand/TimeWatch:
+  // When time_group is 0, the machine's onboard CPU displays "Invalid Time / Access Denied"
+  // and REFUSES to energize the door relay!
   pinVariants.forEach(variantId => {
-    // Delete all biometric templates (fingerprint slots 0-9, face 10-14, card 16)
-    fkCommandQueue.push({
-      cmd_code: 'DELETE_ENROLL_DATA',
-      body: {
-        user_id: variantId,
-        backup_number: -1
-      }
-    });
-    // Explicitly delete slot 0 (primary finger)
-    fkCommandQueue.push({
-      cmd_code: 'DELETE_ENROLL_DATA',
-      body: {
-        user_id: variantId,
-        backup_number: 0
-      }
-    });
-    // Explicitly delete slot 1 (secondary finger)
-    fkCommandQueue.push({
-      cmd_code: 'DELETE_ENROLL_DATA',
-      body: {
-        user_id: variantId,
-        backup_number: 1
-      }
-    });
-    // Set Access Control schedule to 0 (No Access / Locked Out)
     fkCommandQueue.push({
       cmd_code: 'SET_USER_INFO',
       body: {
         user_id: variantId,
-        user_name: 'EXPIRED',
+        user_name: 'EXPIRED-LOCK',
         user_privilege: 0,
         user_group: 0,
-        time_group: 0
+        time_group: 0,
+        time_group_id: 0,
+        enabled: 0,
+        disable: 1,
+        expire_date: expiryDate
       }
     });
-    // Delete user info and user record
+
+    // Step B: Purge ALL biometric template slots:
+    // -1 = all templates
+    // 0..9 = fingerprints
+    // 10..14 = face recognition templates (Critical: Jadavbhai & others have Face templates in slot 12/13!)
+    // 16 = RFID card
+    const backupSlotsToDelete = [-1, 0, 1, 2, 3, 10, 11, 12, 13, 14, 16];
+    backupSlotsToDelete.forEach(slot => {
+      fkCommandQueue.push({
+        cmd_code: 'DELETE_ENROLL_DATA',
+        body: {
+          user_id: variantId,
+          backup_number: slot
+        }
+      });
+    });
+
+    // Step C: Delete user info & record
     fkCommandQueue.push({
       cmd_code: 'DELETE_USER_INFO',
       body: {
@@ -180,12 +180,12 @@ export function disableStudentOnBiometricMachine(pin, name) {
   pinVariants.forEach(variantId => {
     const cmdId = Math.floor(100000 + Math.random() * 900000);
     const deleteCmd = `C:${cmdId}:DATA DELETE USER PIN=${variantId}`;
-    const disableCmd = `C:${cmdId + 1}:DATA USER PIN=${variantId}\tName=${cleanName}\tDisable=1\tPri=0\tGroup=0`;
+    const disableCmd = `C:${cmdId + 1}:DATA USER PIN=${variantId}\tName=EXPIRED\tDisable=1\tPri=0\tGroup=0\tTZ=0`;
     pendingCommands.push({ id: cmdId, pin: variantId, cmdString: deleteCmd, status: 'PENDING' });
     pendingCommands.push({ id: cmdId + 1, pin: variantId, cmdString: disableCmd, status: 'PENDING' });
   });
 
-  console.log(`[BIOMETRIC ADMS] 🔒 Queued DELETE_USER (Physical Relay Lockout) for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
+  console.log(`[BIOMETRIC ADMS] 🔒 Queued FULL LOCKOUT (SET_USER_INFO group 0 + DELETE_ENROLL_DATA face/finger + DELETE_USER) for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
 }
 
 /**
