@@ -386,6 +386,12 @@ const HomepageContentSchema = new mongoose.Schema({
   data: { type: mongoose.Schema.Types.Mixed, required: true }
 }, { timestamps: true });
 
+// WhatsApp Auth Session Storage Schema (Persistent Cloud Multi-Device Tokens)
+const WhatsAppSessionSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true }, // e.g. 'creds.json' or 'app-state-sync-key-...'
+  data: { type: String, required: true } // Stringified auth payload
+}, { timestamps: true });
+
 export const User = mongoose.model('User', UserSchema);
 export const Book = mongoose.model('Book', BookSchema);
 export const BookIssue = mongoose.model('BookIssue', BookIssueSchema);
@@ -408,4 +414,5 @@ export const Receipt = mongoose.model('Receipt', ReceiptSchema);
 export const OwnerSeat = mongoose.model('OwnerSeat', OwnerSeatSchema);
 export const BiometricLog = mongoose.model('BiometricLog', BiometricLogSchema);
 export const HomepageContent = mongoose.model('HomepageContent', HomepageContentSchema);
+export const WhatsAppSession = mongoose.model('WhatsAppSession', WhatsAppSessionSchema);
 

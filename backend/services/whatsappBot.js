@@ -4,6 +4,7 @@ import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { WhatsAppSession } from '../models/schemas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,7 @@ class WhatsAppBotService {
     this.lastConnectedAt = null;
     this.reconnectAttempts = 0;
     this.isInitializing = false;
+    this._syncTimeout = null;
   }
 
   // Get current bot state
@@ -31,6 +33,72 @@ class WhatsAppBotService {
     };
   }
 
+  // Restore session credentials from MongoDB Atlas into local container
+  async restoreAuthFromMongo() {
+    try {
+      if (!fs.existsSync(AUTH_DIR)) {
+        fs.mkdirSync(AUTH_DIR, { recursive: true });
+      }
+
+      const credsPath = path.join(AUTH_DIR, 'creds.json');
+      if (fs.existsSync(credsPath)) {
+        return;
+      }
+
+      const docs = await WhatsAppSession.find({}).lean();
+      if (docs && docs.length > 0) {
+        console.log(`[WhatsApp Bot] 🔄 Restoring ${docs.length} session credentials from MongoDB Atlas into local container...`);
+        for (const doc of docs) {
+          try {
+            const filePath = path.join(AUTH_DIR, doc.key);
+            fs.writeFileSync(filePath, doc.data, 'utf-8');
+          } catch (e) {}
+        }
+        console.log(`[WhatsApp Bot] ✅ Session credentials restored from MongoDB Atlas successfully.`);
+      }
+    } catch (err) {
+      console.warn('[WhatsApp Bot] MongoDB session restore notice:', err.message);
+    }
+  }
+
+  // Persist session credentials into MongoDB Atlas
+  async syncAuthToMongo() {
+    try {
+      if (!fs.existsSync(AUTH_DIR)) return;
+      const files = fs.readdirSync(AUTH_DIR);
+      if (!files || files.length === 0) return;
+
+      const ops = files.map(file => {
+        try {
+          const filePath = path.join(AUTH_DIR, file);
+          const data = fs.readFileSync(filePath, 'utf-8');
+          return {
+            updateOne: {
+              filter: { key: file },
+              update: { $set: { key: file, data } },
+              upsert: true
+            }
+          };
+        } catch (e) {
+          return null;
+        }
+      }).filter(Boolean);
+
+      if (ops.length > 0) {
+        await WhatsAppSession.bulkWrite(ops, { ordered: false });
+      }
+    } catch (err) {
+      console.warn('[WhatsApp Bot] MongoDB session sync notice:', err.message);
+    }
+  }
+
+  debouncedMongoSync() {
+    if (this._syncTimeout) clearTimeout(this._syncTimeout);
+    this._syncTimeout = setTimeout(() => {
+      this.syncAuthToMongo().catch(() => {});
+    }, 1500);
+  }
+
   // Initialize or resume WhatsApp connection
   async initWhatsAppBot() {
     if (this.isInitializing || this.status === 'connected') {
@@ -40,21 +108,44 @@ class WhatsAppBotService {
     this.isInitializing = true;
     this.status = 'connecting';
 
-    if (!fs.existsSync(AUTH_DIR)) {
-      fs.mkdirSync(AUTH_DIR, { recursive: true });
-    }
-
     try {
+      // 1. Ensure local folder is populated with cloud credentials from MongoDB Atlas
+      await this.restoreAuthFromMongo();
+
+      if (!fs.existsSync(AUTH_DIR)) {
+        fs.mkdirSync(AUTH_DIR, { recursive: true });
+      }
+
+      // Safely close any previous zombie socket
+      if (this.sock) {
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+        } catch (e) {}
+        this.sock = null;
+      }
+
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ['Brain Dock Library', 'Desktop', '1.0.0']
+        browser: ['Brain Dock Library', 'Desktop', '1.0.0'],
+        keepAliveIntervalMs: 25000, // 25s keepalive ping
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        syncFullHistory: false, // Prevents loading heavy old chats (RAM safe)
+        markOnlineOnConnect: true,
+        generateHighQualityLinkPreview: false,
+        retryRequestDelayMs: 2000,
+        maxMsgRetryCount: 3
       });
 
-      this.sock.ev.on('creds.update', saveCreds);
+      this.sock.ev.on('creds.update', async () => {
+        await saveCreds();
+        this.debouncedMongoSync();
+      });
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -89,16 +180,29 @@ class WhatsAppBotService {
             num = rawId.length >= 10 ? `+${rawId}` : rawId;
           }
           this.connectedNumber = num;
-          console.log(`[WhatsApp Bot] Connected successfully! Linked Number: ${this.connectedNumber}`);
+          console.log(`[WhatsApp Bot] 🟢 Connected successfully! Linked Number: ${this.connectedNumber}`);
+
+          // Persist full auth state to MongoDB Atlas immediately
+          this.syncAuthToMongo().catch(() => {});
         }
 
         if (connection === 'close') {
           const statusCode = lastDisconnect?.error?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          const shouldReconnect = !isLoggedOut;
 
           console.log(`[WhatsApp Bot] Connection closed. Reason: ${statusCode}, Should Reconnect: ${shouldReconnect}`);
 
-          if (statusCode === DisconnectReason.loggedOut) {
+          // Dismantle previous socket
+          if (this.sock) {
+            try {
+              this.sock.ev.removeAllListeners();
+              this.sock.end(undefined);
+            } catch (e) {}
+            this.sock = null;
+          }
+
+          if (isLoggedOut) {
             this.status = 'disconnected';
             this.connectedNumber = null;
             this.qrCodeDataUrl = null;
@@ -106,7 +210,8 @@ class WhatsAppBotService {
           } else if (shouldReconnect) {
             this.status = 'connecting';
             this.reconnectAttempts++;
-            const delay = Math.min(this.reconnectAttempts * 2000, 10000);
+            const delay = Math.min(this.reconnectAttempts * 2500, 15000);
+            console.log(`[WhatsApp Bot] 🔄 Reconnecting attempt #${this.reconnectAttempts} in ${delay / 1000}s...`);
             setTimeout(() => {
               this.isInitializing = false;
               this.initWhatsAppBot();
@@ -134,7 +239,10 @@ class WhatsAppBotService {
         try {
           await this.sock.logout();
         } catch (e) {}
-        this.sock.end(undefined);
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+        } catch (e) {}
       }
     } catch (err) {
       console.warn('[WhatsApp Bot] Disconnect warning:', err.message);
@@ -144,18 +252,20 @@ class WhatsAppBotService {
       this.qrCodeDataUrl = null;
       this.connectedNumber = null;
       this.lastConnectedAt = null;
-      this.cleanAuthDir();
+      await this.cleanAuthDir();
     }
     return { success: true, message: 'WhatsApp bot disconnected and session reset.' };
   }
 
-  // Wipe auth directory
-  cleanAuthDir() {
+  // Wipe auth directory and cloud credentials
+  async cleanAuthDir() {
     try {
       if (fs.existsSync(AUTH_DIR)) {
         fs.rmSync(AUTH_DIR, { recursive: true, force: true });
         fs.mkdirSync(AUTH_DIR, { recursive: true });
       }
+      await WhatsAppSession.deleteMany({}).catch(() => {});
+      console.log('[WhatsApp Bot] 🧹 Auth credentials wiped from disk and MongoDB Atlas.');
     } catch (e) {
       console.warn('[WhatsApp Bot] Could not wipe auth dir:', e.message);
     }

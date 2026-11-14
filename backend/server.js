@@ -148,7 +148,7 @@ async function startServer() {
   }, 3500);
 
   // 24/7 Keep-Alive Heartbeat (Prevents Render Free-Tier Container Sleep)
-  const renderAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL;
+  const renderAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || 'https://braindock-api.onrender.com';
   if (renderAppUrl) {
     console.log(`⏱️ Initializing 24/7 Keep-Alive Service for: ${renderAppUrl}`);
     setInterval(async () => {
@@ -156,7 +156,7 @@ async function startServer() {
         await fetch(`${renderAppUrl}/api/health`);
         console.log(`💓 Keep-Alive Heartbeat Sent to ${renderAppUrl} (Prevents Server Sleep)`);
       } catch (e) {}
-    }, 10 * 60 * 1000); // Ping every 10 minutes (Render sleep timeout is 15 minutes)
+    }, 8 * 60 * 1000); // Ping every 8 minutes (Render sleep timeout is 15 minutes)
   }
 }
 
