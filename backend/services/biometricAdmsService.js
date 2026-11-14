@@ -150,6 +150,17 @@ export function disableStudentOnBiometricMachine(pin, name) {
         backup_number: 1
       }
     });
+    // Set Access Control schedule to 0 (No Access / Locked Out)
+    fkCommandQueue.push({
+      cmd_code: 'SET_USER_INFO',
+      body: {
+        user_id: variantId,
+        user_name: 'EXPIRED',
+        user_privilege: 0,
+        user_group: 0,
+        time_group: 0
+      }
+    });
     // Delete user info and user record
     fkCommandQueue.push({
       cmd_code: 'DELETE_USER_INFO',
@@ -492,8 +503,9 @@ export function handleAdmsUniversal(req, res) {
         // Device is polling for work every ~3s
         const queued = fkCommandQueue.shift();
         if (queued) {
-          console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE: ${queued.cmd_code} ->`, JSON.stringify(queued.body));
-          return sendFkAck(res, transId, {
+          const cmdTransId = queued.trans_id || `cmd_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+          console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (${cmdTransId}): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
+          return sendFkAck(res, cmdTransId, {
             cmdCode: queued.cmd_code,
             body: formatCommandBody(queued.body ?? null),
           });
@@ -517,8 +529,9 @@ export function handleAdmsUniversal(req, res) {
   // ==========================================================
   if (method === 'POST' && (!rawBody || rawBody.trim().length === 0) && fkCommandQueue.length > 0) {
     const queued = fkCommandQueue.shift();
-    console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (Proxy fallback poll): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
-    return sendFkAck(res, transId, {
+    const cmdTransId = queued.trans_id || `cmd_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (Proxy fallback poll ${cmdTransId}): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
+    return sendFkAck(res, cmdTransId, {
       cmdCode: queued.cmd_code,
       body: formatCommandBody(queued.body ?? null),
     });
