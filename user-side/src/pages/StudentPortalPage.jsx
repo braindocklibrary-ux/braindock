@@ -722,7 +722,9 @@ export default function StudentPortalPage() {
     monthlyHours: '0 Hours',
     statusToday: 'Active'
   };
-  const isExpired = student?.status === 'Expired' || (student?.daysRemaining != null && student?.daysRemaining < 0);
+  const isPunchBlocked = bioProfile?.isPunchBlocked || (student?.daysRemaining != null && student.daysRemaining < -5);
+  const isGracePeriod = !isPunchBlocked && (bioProfile?.isGracePeriod || (student?.daysRemaining != null && student.daysRemaining < 0 && Math.abs(student.daysRemaining) <= 5));
+  const isExpired = isPunchBlocked;
   const hasPendingFee = (student?.pendingFee || 0) > 0;
   const finSplit = studentData?.financialSplit || {
     rawDeposit: Number(student?.deposit) || 0,
@@ -908,9 +910,11 @@ export default function StudentPortalPage() {
 
           {/* Card 2: TIMEWATCH Biometric Door Lock Access */}
           <div id="attendance-card" className={`rounded-3xl p-6 shadow-xs border flex flex-col justify-between transition-all ${
-            isExpired 
+            isPunchBlocked 
               ? 'bg-rose-50/70 border-rose-300 text-rose-950' 
-              : 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
+              : isGracePeriod 
+                ? 'bg-orange-50/70 border-orange-300 text-orange-950' 
+                : 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
           }`}>
             <div className="flex items-start justify-between">
               <div>
@@ -918,28 +922,37 @@ export default function StudentPortalPage() {
                   Biometric Smart Door Lock
                 </span>
                 <div className="flex items-center space-x-2 mt-1">
-                  {isExpired ? (
+                  {isPunchBlocked ? (
                     <Lock className="w-6 h-6 text-rose-600 shrink-0" />
                   ) : (
-                    <Unlock className="w-6 h-6 text-emerald-600 shrink-0" />
+                    <Unlock className={`w-6 h-6 shrink-0 ${isGracePeriod ? 'text-orange-600' : 'text-emerald-600'}`} />
                   )}
                   <h3 className="text-xl font-extrabold tracking-tight">
-                    {isExpired ? 'LOCK DISABLED' : 'ACCESS ACTIVE'}
+                    {isPunchBlocked ? 'LOCK DISABLED' : (isGracePeriod ? 'GRACE PERIOD ACTIVE' : 'ACCESS ACTIVE')}
                   </h3>
                 </div>
               </div>
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                isExpired ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                isPunchBlocked ? 'bg-rose-100 text-rose-700' : (isGracePeriod ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-700')
               }`}>
                 <Fingerprint className="w-5 h-5" />
               </div>
             </div>
 
             <div className="mt-4 pt-3 border-t border-black/5 text-xs">
-              {isExpired ? (
+              {isPunchBlocked ? (
                 <p className="text-rose-800 font-semibold leading-relaxed">
-                  ⛔ Door will NOT open. Membership expired on {student.endDate}. Please renew at desk.
+                  ⛔ Door will NOT open. Membership expired on {student.endDate} (&gt;5 days grace ended). Biometric punch disabled. Please renew at desk.
                 </p>
+              ) : isGracePeriod ? (
+                <div className="space-y-1">
+                  <p className="text-orange-900 font-bold leading-relaxed">
+                    ⚠️ Expired on {student.endDate} ({5 - Math.abs(student.daysRemaining || 0)} grace days remaining).
+                  </p>
+                  <p className="text-emerald-800 font-medium">
+                    🟢 Door Lock & Machine Punch are ACTIVE. Please renew soon.
+                  </p>
+                </div>
               ) : (
                 <div className="flex items-center justify-between">
                   <p className="text-emerald-800 font-medium leading-relaxed">
@@ -1139,7 +1152,7 @@ export default function StudentPortalPage() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <button
                 onClick={handlePunchAttendance}
-                disabled={punchActionLoading || isExpired}
+                disabled={punchActionLoading || isPunchBlocked}
                 className={`py-2 px-4 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 ${
                   stats.statusToday === 'Inside Library'
                     ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-900/10'

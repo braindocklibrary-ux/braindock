@@ -65,6 +65,31 @@ export function pushUserToDevice({ pin, name }) {
 }
 
 /**
+ * Disable user on TimeWatch biometric machine (Lockout after > 5 days expired)
+ */
+export function disableStudentOnBiometricMachine(pin) {
+  if (!pin) return;
+  const cleanPin = String(pin).trim();
+  const cmdId = Math.floor(100000 + Math.random() * 900000);
+  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tDisable=1`;
+  pendingCommands.push({ id: cmdId, pin: cleanPin, cmdString, status: 'PENDING' });
+  console.log(`[BIOMETRIC ADMS] 🔒 Queued Disable command for PIN ${cleanPin}`);
+}
+
+/**
+ * Re-enable user on TimeWatch biometric machine (Upon renewal)
+ */
+export function enableStudentOnBiometricMachine(pin, name) {
+  if (!pin) return;
+  const cleanPin = String(pin).trim();
+  const cleanName = String(name || '').trim();
+  const cmdId = Math.floor(100000 + Math.random() * 900000);
+  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=0\tPri=0`;
+  pendingCommands.push({ id: cmdId, pin: cleanPin, name: cleanName, cmdString, status: 'PENDING' });
+  console.log(`[BIOMETRIC ADMS] 🟢 Queued Enable command for PIN ${cleanPin}`);
+}
+
+/**
  * Handle ADMS / iClock Handshake & Options Request
  * GET /iclock/cdata?SN=... or GET /?SN=...
  */
@@ -200,6 +225,11 @@ function processSinglePunch({ pin, punchTime, verifyType, statusType, sn, ioMode
     record.receivedAt = new Date().toISOString();
     recentPunches.unshift(record);
     if (recentPunches.length > 200) recentPunches.pop();
+
+    // If student is blocked (> 5 days expired), dispatch disable command to machine
+    if (punchResult?.isPunchBlocked) {
+      disableStudentOnBiometricMachine(cleanPin);
+    }
 
     // Broadcast instant real-time punch event to student portal (< 0.1s latency)
     try {

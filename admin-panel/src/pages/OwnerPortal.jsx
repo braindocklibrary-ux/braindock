@@ -156,6 +156,7 @@ export default function OwnerPortal() {
 
   // 3-Day Expiry Reminders State & Configurable Renewal Fee
   const [expiryReminders, setExpiryReminders] = useState([]);
+  const [expiryFilter, setExpiryFilter] = useState('all'); // 'all' | 'expiring' | 'grace' | 'blocked'
   const [expiryLoading, setExpiryLoading] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState(null);
   const [renewalFee, setRenewalFee] = useState(() => {
@@ -2721,25 +2722,46 @@ export default function OwnerPortal() {
             </div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 mt-6 border-t border-amber-200/80">
-              <div className="bg-white/80 p-3.5 rounded-2xl border border-amber-200 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Expiring in ≤3 Days</span>
-                <span className="text-2xl font-black text-amber-700 mt-0.5 block">{expiryReminders.length} Students</span>
-                <span className="text-[10px] text-slate-500">Seat retention priority list</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6 mt-6 border-t border-amber-200/80">
+              <div 
+                onClick={() => setExpiryFilter('expiring')}
+                className="bg-white/80 hover:bg-amber-50/60 transition-colors p-3.5 rounded-2xl border border-amber-200 shadow-2xs cursor-pointer"
+              >
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">⏳ Expiring Soon (≤3d)</span>
+                <span className="text-2xl font-black text-amber-700 mt-0.5 block">
+                  {expiryReminders.filter(e => e.daysRemaining >= 0).length} Students
+                </span>
+                <span className="text-[10px] text-slate-500">Validity ends soon</span>
               </div>
-              <div className="bg-white/80 p-3.5 rounded-2xl border border-amber-200 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Due For Reminder Today</span>
+              <div 
+                onClick={() => setExpiryFilter('grace')}
+                className="bg-white/80 hover:bg-orange-50/60 transition-colors p-3.5 rounded-2xl border border-orange-200 shadow-2xs cursor-pointer"
+              >
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">⚠️ Grace Period (1-5d)</span>
+                <span className="text-2xl font-black text-orange-600 mt-0.5 block">
+                  {expiryReminders.filter(e => e.daysRemaining < 0 && Math.abs(e.daysRemaining) <= 5).length} Students
+                </span>
+                <span className="text-[10px] text-emerald-700 font-semibold">Machine Punch ON (Allowed)</span>
+              </div>
+              <div 
+                onClick={() => setExpiryFilter('blocked')}
+                className="bg-white/80 hover:bg-rose-50/60 transition-colors p-3.5 rounded-2xl border border-rose-300 shadow-2xs cursor-pointer"
+              >
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">⛔ Punch Blocked (&gt;5d)</span>
                 <span className="text-2xl font-black text-rose-700 mt-0.5 block">
+                  {expiryReminders.filter(e => e.daysRemaining < -5).length} Students
+                </span>
+                <span className="text-[10px] text-rose-600 font-semibold">Machine Punch OFF (Locked)</span>
+              </div>
+              <div 
+                onClick={() => setExpiryFilter('all')}
+                className="bg-white/80 hover:bg-purple-50/60 transition-colors p-3.5 rounded-2xl border border-amber-200 shadow-2xs cursor-pointer"
+              >
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Due For Reminder Today</span>
+                <span className="text-2xl font-black text-purple-700 mt-0.5 block">
                   {expiryReminders.filter(e => !e.alreadySentToday).length} Students
                 </span>
-                <span className="text-[10px] text-rose-600 font-semibold">Today's message pending</span>
-              </div>
-              <div className="bg-white/80 p-3.5 rounded-2xl border border-amber-200 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Already Sent Today</span>
-                <span className="text-2xl font-black text-emerald-700 mt-0.5 block">
-                  {expiryReminders.filter(e => e.alreadySentToday).length} Students
-                </span>
-                <span className="text-[10px] text-emerald-600 font-semibold">Protected from duplicate spam</span>
+                <span className="text-[10px] text-purple-600 font-semibold">{expiryReminders.filter(e => e.alreadySentToday).length} already sent</span>
               </div>
             </div>
           </div>
@@ -2890,14 +2912,39 @@ export default function OwnerPortal() {
 
           {/* Students List Table */}
           <div className="bg-white border border-slate-200/80 rounded-3xl shadow-xs overflow-hidden">
-            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+            <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Upcoming Expiry Cohort</h4>
-                <p className="text-xs text-slate-500">Students whose validity ends within 72 hours</p>
+                <h4 className="text-sm font-bold text-slate-900">Membership Expiry & Grace Period Cohort</h4>
+                <p className="text-xs text-slate-500">Expiring in ≤3 days + Already expired students with 5-day punch grace policy</p>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-                {expiryReminders.length} Total
-              </span>
+
+              {/* Filter Tabs */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setExpiryFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${expiryFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                >
+                  All ({expiryReminders.length})
+                </button>
+                <button
+                  onClick={() => setExpiryFilter('expiring')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${expiryFilter === 'expiring' ? 'bg-amber-600 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}`}
+                >
+                  ⏳ Expiring Soon ({expiryReminders.filter(e => e.daysRemaining >= 0).length})
+                </button>
+                <button
+                  onClick={() => setExpiryFilter('grace')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${expiryFilter === 'grace' ? 'bg-orange-600 text-white shadow-xs' : 'bg-orange-50 text-orange-900 hover:bg-orange-100 border border-orange-200'}`}
+                >
+                  ⚠️ Grace Period (1-5d) ({expiryReminders.filter(e => e.daysRemaining < 0 && Math.abs(e.daysRemaining) <= 5).length})
+                </button>
+                <button
+                  onClick={() => setExpiryFilter('blocked')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${expiryFilter === 'blocked' ? 'bg-rose-700 text-white shadow-xs' : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'}`}
+                >
+                  ⛔ Punch Blocked (&gt;5d) ({expiryReminders.filter(e => e.daysRemaining < -5).length})
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -2908,15 +2955,27 @@ export default function OwnerPortal() {
                     <th className="py-3.5 px-4">Student Details</th>
                     <th className="py-3.5 px-4">Mobile (+91)</th>
                     <th className="py-3.5 px-4">Valid Till (Expiry)</th>
-                    <th className="py-3.5 px-4">Days Left</th>
+                    <th className="py-3.5 px-4">Status & Machine Punch</th>
                     <th className="py-3.5 px-4">Today's Status</th>
                     <th className="py-3.5 px-4 text-center">Renewal Fee (₹)</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                  {expiryReminders.length > 0 ? (
-                    expiryReminders.map((item) => (
+                  {expiryReminders.filter(item => {
+                    if (expiryFilter === 'expiring') return item.daysRemaining >= 0;
+                    if (expiryFilter === 'grace') return item.daysRemaining < 0 && Math.abs(item.daysRemaining) <= 5;
+                    if (expiryFilter === 'blocked') return item.daysRemaining < -5;
+                    return true;
+                  }).length > 0 ? (
+                    expiryReminders
+                      .filter(item => {
+                        if (expiryFilter === 'expiring') return item.daysRemaining >= 0;
+                        if (expiryFilter === 'grace') return item.daysRemaining < 0 && Math.abs(item.daysRemaining) <= 5;
+                        if (expiryFilter === 'blocked') return item.daysRemaining < -5;
+                        return true;
+                      })
+                      .map((item) => (
                       <tr key={item.admissionId} className="hover:bg-slate-50/80 transition-colors">
                         {/* Seat Number */}
                         <td className="py-3.5 px-4">
@@ -2956,12 +3015,26 @@ export default function OwnerPortal() {
                           {item.endDate}
                         </td>
 
-                        {/* Days Remaining Badge */}
+                        {/* Days Remaining & Machine Punch Badge */}
                         <td className="py-3.5 px-4">
-                          {item.daysRemaining < 0 ? (
-                            <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300">
-                              Expired ({Math.abs(item.daysRemaining)}d ago)
-                            </span>
+                          {item.daysRemaining < -5 ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-900 border border-rose-300">
+                                <span>⛔ Expired {Math.abs(item.daysRemaining)}d ago</span>
+                              </span>
+                              <span className="block text-[10px] font-bold text-rose-700 font-mono">
+                                🔒 Punch OFF (Locked)
+                              </span>
+                            </div>
+                          ) : item.daysRemaining < 0 ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-300">
+                                <span>⚠️ Expired {Math.abs(item.daysRemaining)}d ago</span>
+                              </span>
+                              <span className="block text-[10px] font-bold text-emerald-700 font-mono">
+                                🟢 Punch ON ({5 - Math.abs(item.daysRemaining)}d grace left)
+                              </span>
+                            </div>
                           ) : item.daysRemaining === 0 ? (
                             <span className="px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse">
                               Expires Today!

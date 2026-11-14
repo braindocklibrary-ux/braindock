@@ -1458,9 +1458,10 @@ class DataStore {
     };
   }
 
-  buildExpiryReminderMessage({ studentName, seatNumber, shift, endDate, daysRemaining, renewalFee, offerNote }) {
+  buildExpiryReminderMessage({ studentName, seatNumber, shift, endDate, daysRemaining, daysExpired, isGracePeriod, isPunchBlocked, renewalFee, offerNote }) {
+    const expiredCount = daysExpired || (daysRemaining < 0 ? Math.abs(daysRemaining) : 0);
     const expiryLabel = daysRemaining < 0 
-      ? `EXPIRED ${Math.abs(daysRemaining)} day(s) ago` 
+      ? `EXPIRED ${expiredCount} day(s) ago` 
       : daysRemaining === 0 
         ? 'EXPIRES TODAY' 
         : `expiring in ${daysRemaining} day(s)`;
@@ -1469,23 +1470,32 @@ class DataStore {
     const note = offerNote !== undefined ? offerNote : (this.renewalSettings?.offerNote || '');
     const planText = `₹${feeAmount} / Month${note ? ` (${note})` : ''}`;
 
-    return `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${studentName}*,\n\nYour library membership for *Seat #${seatNumber}* is ${expiryLabel} on *${endDate}*.\n\n⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.\n\n📌 *Seat:* Seat #${seatNumber} (${shift || 'Full Day'})\n📅 *Valid Till:* ${endDate}\n💰 *Renewal Plan:* ${planText}\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
+    let noticeText = `⚠️ *Seat Protection Notice:*\nTo ensure your personal seat is retained and your 24/7 biometric attendance access continues without disruption, please renew your membership at the library desk today.`;
+    if (isPunchBlocked || daysRemaining < -5) {
+      noticeText = `⛔ *Biometric Machine Punch Disabled:*\nYour membership expired ${expiredCount} days ago and the 5-day grace period has ended. Your biometric gate punch is now DISABLED. Please renew today at the desk to reactivate your gate punch access and seat.`;
+    } else if (isGracePeriod || (daysRemaining < 0 && expiredCount <= 5)) {
+      noticeText = `⚠️ *5-Day Grace Period Notice:*\nYour membership expired ${expiredCount} day(s) ago. You are currently in the 5-day grace period (${5 - expiredCount} day(s) remaining). After 5 days, your biometric machine gate punch will be automatically turned OFF. Please renew at the desk today.`;
+    }
+
+    return `🔔 *Brain Dock Library - Membership Renewal Alert* 📚\n\nDear *${studentName}*,\n\nYour library membership for *Seat #${seatNumber}* is ${expiryLabel} on *${endDate}*.\n\n${noticeText}\n\n📌 *Seat:* Seat #${seatNumber} (${shift || 'Full Day'})\n📅 *Valid Till:* ${endDate}\n💰 *Renewal Plan:* ${planText}\n\n📍 *Brain Dock Library*\n2nd Floor, Jay Complex, Near Gandhi Baug, Amreli - 365601\nHelpline: +91 63 5600 6100\nThank you!`;
   }
 
-  // Check Upcoming Expiries (Last 3 Days Daily Notification Engine)
+  // Check Upcoming Expiries (Expiring in <= 3 Days + Already Expired with Grace & Blocked Status)
   getUpcomingExpiries(overrideDefaultFee, overrideNote) {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const todayDate = new Date(`${todayStr}T00:00:00+05:30`);
     const list = [];
     const defaultFee = Number(overrideDefaultFee) || Number(this.renewalSettings?.defaultRenewalFee) || 850;
     const offerNote = overrideNote !== undefined ? overrideNote : (this.renewalSettings?.offerNote || '');
 
     for (const adm of this.admissions) {
       if (adm.status === 'Vacated') continue;
+      if (!adm.endDate) continue;
       
-      const end = new Date(adm.endDate);
-      const diffTime = end.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
+      const diffMs = endDateVal.getTime() - todayDate.getTime();
+      const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
 
       // Notification window: 3 days prior or already expired (diffDays <= 3)
       if (diffDays <= 3) {
@@ -1494,12 +1504,26 @@ class DataStore {
         const fullPhone = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone.slice(-10)}`;
         const studentFee = Number(adm.renewalFee) || defaultFee;
 
+        const isExpired = diffDays < 0;
+        const daysExpired = isExpired ? Math.abs(diffDays) : 0;
+        const isGracePeriod = isExpired && daysExpired <= 5;
+        const isPunchBlocked = isExpired && daysExpired > 5;
+        const graceDaysLeft = isGracePeriod ? (5 - daysExpired) : 0;
+
+        let statusCategory = 'expiring_soon';
+        if (diffDays === 0) statusCategory = 'expires_today';
+        else if (isGracePeriod) statusCategory = 'grace_period';
+        else if (isPunchBlocked) statusCategory = 'punch_blocked';
+
         const reminderMessage = this.buildExpiryReminderMessage({
           studentName: adm.studentName,
           seatNumber: adm.seatNumber,
           shift: adm.shift,
           endDate: adm.endDate,
           daysRemaining: diffDays,
+          daysExpired,
+          isGracePeriod,
+          isPunchBlocked,
           renewalFee: studentFee,
           offerNote
         });
@@ -1515,7 +1539,12 @@ class DataStore {
           shift: adm.shift,
           endDate: adm.endDate,
           daysRemaining: diffDays,
-          isExpired: diffDays < 0,
+          isExpired,
+          daysExpired,
+          isGracePeriod,
+          isPunchBlocked,
+          graceDaysLeft,
+          statusCategory,
           alreadySentToday,
           lastReminderSentDate: adm.lastReminderSentDate || null,
           renewalFee: studentFee,
@@ -2625,12 +2654,23 @@ class DataStore {
       student.grId = `GR-${String(student.seatNumber).padStart(3, '0')}`;
     }
 
-    // 2. Check validity (Start Date & End Date)
-    const endDate = new Date(student.endDate);
-    const isExpired = student.status === 'Expired' || student.daysRemaining < 0 || now > endDate;
+    // 2. Check validity (Start Date & End Date) with 5-Day Grace Period
+    // Calculate calendar days difference in IST
+    let daysRemaining = student.daysRemaining;
+    if (student.endDate) {
+      const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
+      const endDateVal = new Date(`${student.endDate}T00:00:00+05:30`);
+      const diffMs = endDateVal.getTime() - todayDate.getTime();
+      daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    }
 
-    // RULE 1: If membership is expired, BIOMETRIC LOCK WILL NOT OPEN!
-    if (isExpired) {
+    const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+    const isGracePeriod = daysRemaining < 0 && daysExpired <= 5;
+    const isPunchBlocked = daysRemaining < 0 && daysExpired > 5;
+
+    // RULE 1: If membership is expired > 5 days, BIOMETRIC PUNCH IS COMPLETELY OFF!
+    if (isPunchBlocked) {
       const log = {
         id: `PUNCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         timestamp: timestampStr,
@@ -2648,7 +2688,7 @@ class DataStore {
         punchType: 'IN',
         accessResult: 'DENIED',
         doorStatus: 'LOCKED',
-        reason: `Membership Expired on ${student.endDate}. Biometric Lock Disabled.`,
+        reason: `Membership expired ${daysExpired} days ago on ${student.endDate} (5-day grace period exceeded). Biometric punch disabled.`,
         durationMinutes: null
       };
       this.biometricLogs.unshift(log);
@@ -2657,7 +2697,9 @@ class DataStore {
         success: false,
         granted: false,
         doorStatus: 'LOCKED',
-        message: `⛔ ACCESS DENIED: Membership expired on ${student.endDate}! Biometric lock remains LOCKED. Please renew at Director Desk.`,
+        daysExpired,
+        isPunchBlocked: true,
+        message: `⛔ ACCESS DENIED: Membership expired ${daysExpired} days ago on ${student.endDate}! 5-day grace period ended. Biometric punch disabled. Please renew at desk.`,
         student,
         log
       };
@@ -2748,9 +2790,13 @@ class DataStore {
       punchType,
       accessResult: 'GRANTED',
       doorStatus: 'UNLOCKED',
-      reason: punchType === 'IN' 
-        ? `Valid Active Membership (Till ${student.endDate}). Door Unlocked.` 
-        : `Exit punch recorded. Session time: ${durationFormatted || 'Recorded'}`,
+      reason: isGracePeriod 
+        ? (punchType === 'IN' 
+          ? `⚠️ GRACE PERIOD ACTIVE: Expired ${daysExpired}d ago (${5 - daysExpired} grace days left). Door Unlocked.` 
+          : `Exit punch recorded (Grace Period: Expired ${daysExpired}d ago). Session: ${durationFormatted || 'Recorded'}`)
+        : (punchType === 'IN' 
+          ? `Valid Active Membership (Till ${student.endDate}). Door Unlocked.` 
+          : `Exit punch recorded. Session time: ${durationFormatted || 'Recorded'}`),
       durationMinutes,
       durationFormatted
     };
@@ -2763,9 +2809,14 @@ class DataStore {
       granted: true,
       doorStatus: 'UNLOCKED',
       punchType,
-      message: punchType === 'IN' 
-        ? `🟢 ACCESS GRANTED! Welcome ${student.studentName} (Seat #${student.seatNumber}). Biometric lock UNLOCKED for 5 seconds.` 
-        : `👋 EXIT LOGGED! See you soon ${student.studentName}. Total study time: ${durationFormatted || 'Recorded'}.`,
+      isGracePeriod,
+      daysExpired,
+      graceDaysLeft: isGracePeriod ? (5 - daysExpired) : 0,
+      message: isGracePeriod
+        ? `⚠️ PUNCH RECORDED (Grace Period: Expired ${daysExpired} day(s) ago, ${5 - daysExpired}d left). Door Unlocked. Please renew membership.`
+        : (punchType === 'IN' 
+          ? `🟢 ACCESS GRANTED! Welcome ${student.studentName} (Seat #${student.seatNumber}). Biometric lock UNLOCKED for 5 seconds.` 
+          : `👋 EXIT LOGGED! See you soon ${student.studentName}. Total study time: ${durationFormatted || 'Recorded'}.`),
       student,
       log
     };
@@ -3086,9 +3137,19 @@ class DataStore {
     const receipts = this.getStudentReceipts(enrichedStudent);
     const receipt = receipts.find(r => r.receiptCategory === 'fee' || r.receiptCategory === 'renewal') || receipts[0] || null;
 
-    // Biometric lock status
-    const isExpired = student.status === 'Expired' || student.daysRemaining < 0;
-    const lockStatus = isExpired ? 'BLOCKED_EXPIRED' : 'ACTIVE_UNLOCKED';
+    // Biometric lock status with 5-Day Grace Period
+    let studentDaysRemaining = student.daysRemaining;
+    if (student.endDate) {
+      const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
+      const endDateVal = new Date(`${student.endDate}T00:00:00+05:30`);
+      const diffMs = endDateVal.getTime() - todayDate.getTime();
+      studentDaysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    }
+    const studentDaysExpired = studentDaysRemaining < 0 ? Math.abs(studentDaysRemaining) : 0;
+    const isStudentGrace = studentDaysRemaining < 0 && studentDaysExpired <= 5;
+    const isStudentPunchBlocked = studentDaysRemaining < 0 && studentDaysExpired > 5;
+    const lockStatus = isStudentPunchBlocked ? 'BLOCKED_EXPIRED' : (isStudentGrace ? 'GRACE_PERIOD_ACTIVE' : 'ACTIVE_UNLOCKED');
 
     return {
       student: enrichedStudent,
@@ -3106,7 +3167,11 @@ class DataStore {
         grId: student.grId,
         biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
         lockStatus,
-        doorAccessGranted: !isExpired,
+        doorAccessGranted: !isStudentPunchBlocked,
+        isGracePeriod: isStudentGrace,
+        isPunchBlocked: isStudentPunchBlocked,
+        daysExpired: studentDaysExpired,
+        graceDaysLeft: isStudentGrace ? (5 - studentDaysExpired) : 0,
         enrolledCredentials: ['Fingerprint (Primary)', 'Face Recognition (Active)', 'RFID Card']
       },
       attendanceStats: {
