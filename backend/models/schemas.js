@@ -392,6 +392,14 @@ const WhatsAppSessionSchema = new mongoose.Schema({
   data: { type: String, required: true } // Stringified auth payload
 }, { timestamps: true });
 
+// WhatsApp Distributed Single-Instance Leader Lock
+const WhatsAppBotLockSchema = new mongoose.Schema({
+  _id: { type: String, default: 'active_bot_master' },
+  holder: { type: String, required: true }, // 'local' or 'render'
+  instanceId: { type: String, required: true },
+  heartbeatAt: { type: Date, default: Date.now }
+}, { timestamps: true });
+
 export const User = mongoose.model('User', UserSchema);
 export const Book = mongoose.model('Book', BookSchema);
 export const BookIssue = mongoose.model('BookIssue', BookIssueSchema);
@@ -415,4 +423,5 @@ export const OwnerSeat = mongoose.model('OwnerSeat', OwnerSeatSchema);
 export const BiometricLog = mongoose.model('BiometricLog', BiometricLogSchema);
 export const HomepageContent = mongoose.model('HomepageContent', HomepageContentSchema);
 export const WhatsAppSession = mongoose.model('WhatsAppSession', WhatsAppSessionSchema);
+export const WhatsAppBotLock = mongoose.model('WhatsAppBotLock', WhatsAppBotLockSchema);
 

@@ -148,10 +148,14 @@ async function startServer() {
         daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
       }
 
-      // If expired > 5 days (daysRemaining < -5), lock/disable on machine immediately!
-      // (Only queue lockouts so machine processes them in seconds without waiting behind 50 active students)
-      if (daysRemaining < -5) {
+      // If expired >= 5 days (5-day grace period ended), lock/disable on machine immediately!
+      // (Purges optical templates and user records so physical relay CANNOT unlock)
+      const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+      if (daysExpired >= 5) {
         disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+        if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
+          disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
+        }
       }
     });
   }, 2000);

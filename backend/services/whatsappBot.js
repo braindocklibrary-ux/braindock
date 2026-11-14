@@ -4,16 +4,21 @@ import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WhatsAppSession } from '../models/schemas.js';
+import { WhatsAppSession, WhatsAppBotLock } from '../models/schemas.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const AUTH_DIR = path.join(__dirname, '..', 'data', 'baileys_auth');
 
+// Distinguish between Local Library PC and Cloud Container (Render)
+const isCloudServer = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL);
+const INSTANCE_TYPE = isCloudServer ? 'render' : 'local';
+const INSTANCE_ID = `${INSTANCE_TYPE}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
 class WhatsAppBotService {
   constructor() {
     this.sock = null;
-    this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'qr_ready' | 'connected'
+    this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'qr_ready' | 'connected' | 'standby'
     this.qrCodeDataUrl = null;
     this.rawQrString = null;
     this.connectedNumber = null;
@@ -21,6 +26,9 @@ class WhatsAppBotService {
     this.reconnectAttempts = 0;
     this.isInitializing = false;
     this._syncTimeout = null;
+    this._heartbeatInterval = null;
+    this._autoSyncInterval = null;
+    this.isMaster = false;
   }
 
   // Get current bot state
@@ -29,7 +37,9 @@ class WhatsAppBotService {
       status: this.status,
       qrCodeDataUrl: this.qrCodeDataUrl,
       connectedNumber: this.connectedNumber,
-      lastConnectedAt: this.lastConnectedAt
+      lastConnectedAt: this.lastConnectedAt,
+      isMaster: this.isMaster,
+      instanceType: INSTANCE_TYPE
     };
   }
 
@@ -40,14 +50,9 @@ class WhatsAppBotService {
         fs.mkdirSync(AUTH_DIR, { recursive: true });
       }
 
-      const credsPath = path.join(AUTH_DIR, 'creds.json');
-      if (fs.existsSync(credsPath)) {
-        return;
-      }
-
       const docs = await WhatsAppSession.find({}).lean();
       if (docs && docs.length > 0) {
-        console.log(`[WhatsApp Bot] 🔄 Restoring ${docs.length} session credentials from MongoDB Atlas into local container...`);
+        console.log(`[WhatsApp Bot] 🔄 Restoring ${docs.length} session credentials from MongoDB Atlas into local storage...`);
         for (const doc of docs) {
           try {
             const filePath = path.join(AUTH_DIR, doc.key);
@@ -96,7 +101,74 @@ class WhatsAppBotService {
     if (this._syncTimeout) clearTimeout(this._syncTimeout);
     this._syncTimeout = setTimeout(() => {
       this.syncAuthToMongo().catch(() => {});
-    }, 1500);
+    }, 1000);
+  }
+
+  // Check and update Distributed Leader Lock to prevent Localhost & Render dual-connection collision
+  async checkLeaderLock() {
+    try {
+      const lock = await WhatsAppBotLock.findById('active_bot_master').lean();
+      const now = Date.now();
+      const isLockRecent = lock && lock.heartbeatAt && (now - new Date(lock.heartbeatAt).getTime() < 40000);
+
+      if (INSTANCE_TYPE === 'render') {
+        // Render yields whenever the Library Local PC is active
+        if (isLockRecent && lock.holder === 'local') {
+          if (this.sock) {
+            console.log('[WhatsApp Bot] 💤 Library Local PC active as WhatsApp Master. Render yielding socket.');
+            try {
+              this.sock.ev.removeAllListeners();
+              this.sock.end(undefined);
+            } catch (e) {}
+            this.sock = null;
+          }
+          this.isMaster = false;
+          this.status = 'standby';
+          return false;
+        }
+      }
+
+      // Claim or renew lock
+      await WhatsAppBotLock.findOneAndUpdate(
+        { _id: 'active_bot_master' },
+        {
+          holder: INSTANCE_TYPE,
+          instanceId: INSTANCE_ID,
+          heartbeatAt: new Date()
+        },
+        { upsert: true }
+      );
+
+      this.isMaster = true;
+      return true;
+    } catch (e) {
+      // If MongoDB lock check fails, allow local PC to proceed
+      if (INSTANCE_TYPE === 'local') return true;
+      return false;
+    }
+  }
+
+  startHeartbeat() {
+    if (this._heartbeatInterval) clearInterval(this._heartbeatInterval);
+    this._heartbeatInterval = setInterval(async () => {
+      const allowed = await this.checkLeaderLock();
+      if (!allowed && this.sock) {
+        console.log('[WhatsApp Bot] 🛑 Lost leader lock. Putting socket into standby.');
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+        } catch (e) {}
+        this.sock = null;
+        this.status = 'standby';
+      }
+    }, 15000);
+
+    if (this._autoSyncInterval) clearInterval(this._autoSyncInterval);
+    this._autoSyncInterval = setInterval(() => {
+      if (this.status === 'connected' || this.status === 'qr_ready') {
+        this.syncAuthToMongo().catch(() => {});
+      }
+    }, 5000);
   }
 
   // Initialize or resume WhatsApp connection
@@ -105,8 +177,16 @@ class WhatsAppBotService {
       return this.getStatus();
     }
 
+    // Check distributed leader lock first
+    const canConnect = await this.checkLeaderLock();
+    if (!canConnect) {
+      console.log(`[WhatsApp Bot] ℹ️ Instance (${INSTANCE_TYPE}) is in STANDBY mode to prevent socket collisions.`);
+      return this.getStatus();
+    }
+
     this.isInitializing = true;
     this.status = 'connecting';
+    this.startHeartbeat();
 
     try {
       // 1. Ensure local folder is populated with cloud credentials from MongoDB Atlas
@@ -131,7 +211,8 @@ class WhatsAppBotService {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ['Brain Dock Library', 'Desktop', '1.0.0'],
+        // Use standard official Ubuntu Chrome browser signature so WhatsApp anti-bot AI never revokes pairing
+        browser: ['Ubuntu', 'Chrome', '22.04.4'],
         keepAliveIntervalMs: 25000, // 25s keepalive ping
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
@@ -180,7 +261,7 @@ class WhatsAppBotService {
             num = rawId.length >= 10 ? `+${rawId}` : rawId;
           }
           this.connectedNumber = num;
-          console.log(`[WhatsApp Bot] 🟢 Connected successfully! Linked Number: ${this.connectedNumber}`);
+          console.log(`[WhatsApp Bot] 🟢 Connected successfully! Linked Number: ${this.connectedNumber} (Host: ${INSTANCE_TYPE})`);
 
           // Persist full auth state to MongoDB Atlas immediately
           this.syncAuthToMongo().catch(() => {});
@@ -203,10 +284,13 @@ class WhatsAppBotService {
           }
 
           if (isLoggedOut) {
+            // Note: DO NOT call cleanAuthDir() here! 
+            // Automatic wiping on temporary glitches destroys valid sessions.
+            // Credentials are ONLY wiped when the owner clicks "Unlink" in the dashboard.
             this.status = 'disconnected';
             this.connectedNumber = null;
             this.qrCodeDataUrl = null;
-            this.cleanAuthDir();
+            console.log('[WhatsApp Bot] ⚠️ Connection logged out or replaced. Keeping keys intact for manual re-link.');
           } else if (shouldReconnect) {
             this.status = 'connecting';
             this.reconnectAttempts++;
@@ -232,9 +316,11 @@ class WhatsAppBotService {
     return this.getStatus();
   }
 
-  // Disconnect & logout cleanly
+  // Disconnect & logout cleanly (Triggered ONLY by owner clicking "Unlink" button)
   async disconnectWhatsAppBot() {
     try {
+      if (this._heartbeatInterval) clearInterval(this._heartbeatInterval);
+      if (this._autoSyncInterval) clearInterval(this._autoSyncInterval);
       if (this.sock) {
         try {
           await this.sock.logout();
@@ -252,7 +338,9 @@ class WhatsAppBotService {
       this.qrCodeDataUrl = null;
       this.connectedNumber = null;
       this.lastConnectedAt = null;
+      this.isMaster = false;
       await this.cleanAuthDir();
+      await WhatsAppBotLock.deleteMany({}).catch(() => {});
     }
     return { success: true, message: 'WhatsApp bot disconnected and session reset.' };
   }

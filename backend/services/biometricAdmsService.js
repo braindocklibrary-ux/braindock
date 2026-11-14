@@ -8,6 +8,29 @@ export const recentPunches = [];
 export const fkCommandQueue = [];
 export const pendingCommands = [];
 
+let lastClockSyncAt = 0;
+export function syncTimeWatchClock(force = false) {
+  const now = Date.now();
+  if (!force && (now - lastClockSyncAt < 3600000)) return; // Sync at most once per hour
+  lastClockSyncAt = now;
+
+  const dateObj = new Date();
+  const istTime = new Date(dateObj.getTime() + (5.5 * 60 * 60 * 1000));
+  const y = istTime.getUTCFullYear();
+  const m = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(istTime.getUTCDate()).padStart(2, '0');
+  const hh = String(istTime.getUTCHours()).padStart(2, '0');
+  const mm = String(istTime.getUTCMinutes()).padStart(2, '0');
+  const ss = String(istTime.getUTCSeconds()).padStart(2, '0');
+  const timeStr = `${y}${m}${d}${hh}${mm}${ss}`;
+
+  fkCommandQueue.unshift({
+    cmd_code: 'SET_TIME',
+    body: { time: timeStr }
+  });
+  console.log(`[BIOMETRIC ADMS] ⏰ Queued SET_TIME to sync TimeWatch clock to IST: ${y}-${m}-${d} ${hh}:${mm}:${ss}`);
+}
+
 /**
  * Format binary command body for EBKN / FK Web Protocol
  * Layout: 4-byte LE length prefix + JSON string + null terminator
@@ -100,16 +123,42 @@ export function disableStudentOnBiometricMachine(pin, name) {
   }
 
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // High-priority: Place DELETE_USER & DELETE_USER_INFO in queue so machine executes lockout immediately!
+  // High-priority: Place DELETE_ENROLL_DATA (purges optical fingerprint & face templates from DSP memory),
+  // DELETE_USER_INFO, and DELETE_USER in queue so the machine CANNOT verify the finger and CANNOT open door!
   pinVariants.forEach(variantId => {
+    // Delete all biometric templates (fingerprint slots 0-9, face 10-14, card 16)
     fkCommandQueue.push({
-      cmd_code: 'DELETE_USER',
+      cmd_code: 'DELETE_ENROLL_DATA',
+      body: {
+        user_id: variantId,
+        backup_number: -1
+      }
+    });
+    // Explicitly delete slot 0 (primary finger)
+    fkCommandQueue.push({
+      cmd_code: 'DELETE_ENROLL_DATA',
+      body: {
+        user_id: variantId,
+        backup_number: 0
+      }
+    });
+    // Explicitly delete slot 1 (secondary finger)
+    fkCommandQueue.push({
+      cmd_code: 'DELETE_ENROLL_DATA',
+      body: {
+        user_id: variantId,
+        backup_number: 1
+      }
+    });
+    // Delete user info and user record
+    fkCommandQueue.push({
+      cmd_code: 'DELETE_USER_INFO',
       body: {
         user_id: variantId
       }
     });
     fkCommandQueue.push({
-      cmd_code: 'DELETE_USER_INFO',
+      cmd_code: 'DELETE_USER',
       body: {
         user_id: variantId
       }
@@ -437,6 +486,9 @@ export function handleAdmsUniversal(req, res) {
       }
 
       case 'receive_cmd': {
+        // Automatically ensure TimeWatch internal clock is synchronized with IST
+        syncTimeWatchClock();
+
         // Device is polling for work every ~3s
         const queued = fkCommandQueue.shift();
         if (queued) {
