@@ -66,34 +66,54 @@ export function pushUserToDevice({ pin, name }) {
 
 /**
  * Disable / Lockout student on TimeWatch biometric machine (Expired > 5 days)
+ * Sends DELETE_USER to physical device to permanently remove access credentials.
+ * Without credentials in local EEPROM, the machine physically CANNOT energize
+ * the door relay, keeping the physical door 100% LOCKED!
  */
 export function disableStudentOnBiometricMachine(pin, name) {
   if (!pin) return;
   const cleanPin = String(pin).trim();
   const cleanName = String(name || '').trim().slice(0, 24);
 
+  // Collect all possible ID variants used on device (e.g. "19", "019", seatNumber, biometricEnrollmentId)
+  const pinVariants = new Set();
+  pinVariants.add(cleanPin);
+  const numPin = Number(cleanPin);
+  if (!isNaN(numPin)) {
+    pinVariants.add(String(numPin));
+    pinVariants.add(String(numPin).padStart(3, '0'));
+  }
+
+  const adm = (store.admissions || []).find(a => 
+    String(a.seatNumber) === cleanPin || 
+    String(a.biometricEnrollmentId) === cleanPin ||
+    (numPin && Number(a.seatNumber) === numPin)
+  );
+  if (adm?.biometricEnrollmentId) {
+    pinVariants.add(String(adm.biometricEnrollmentId));
+  }
+
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // Queue SET_USER_INFO with disabled privilege & group 0 (Lockout)
-  fkCommandQueue.push({
-    cmd_code: 'SET_USER_INFO',
-    body: {
-      user_id: cleanPin,
-      user_name: cleanName || `User-${cleanPin}`,
-      user_privilege: 'DISABLED',
-      enabled: false,
-      enabled_flag: 0,
-      user_group: 0,
-      use_group: 0,
-      lock_group: 0
-    }
+  // Queue DELETE_USER for each ID variant
+  pinVariants.forEach(variantId => {
+    fkCommandQueue.push({
+      cmd_code: 'DELETE_USER',
+      body: {
+        user_id: variantId
+      }
+    });
   });
 
   // 2. Standard ZK ADMS Protocol Fallback
-  const cmdId = Math.floor(100000 + Math.random() * 900000);
-  const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=1\tPri=0\tGroup=0`;
-  pendingCommands.push({ id: cmdId, pin: cleanPin, cmdString, status: 'PENDING' });
+  pinVariants.forEach(variantId => {
+    const cmdId = Math.floor(100000 + Math.random() * 900000);
+    const deleteCmd = `C:${cmdId}:DATA DELETE USER PIN=${variantId}`;
+    const disableCmd = `C:${cmdId + 1}:DATA USER PIN=${variantId}\tName=${cleanName}\tDisable=1\tPri=0\tGroup=0`;
+    pendingCommands.push({ id: cmdId, pin: variantId, cmdString: deleteCmd, status: 'PENDING' });
+    pendingCommands.push({ id: cmdId + 1, pin: variantId, cmdString: disableCmd, status: 'PENDING' });
+  });
 
-  console.log(`[BIOMETRIC ADMS] 🔒 Queued LOCKOUT/DISABLE command for TimeWatch machine: PIN "${cleanPin}" (${cleanName || 'Student'})`);
+  console.log(`[BIOMETRIC ADMS] 🔒 Queued DELETE_USER (Physical Relay Lockout) for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
 }
 
 /**
@@ -104,19 +124,27 @@ export function enableStudentOnBiometricMachine(pin, name) {
   const cleanPin = String(pin).trim();
   const cleanName = String(name || '').trim().slice(0, 24);
 
+  // Locate student to check if biometric templates are cached
+  const adm = (store.admissions || []).find(a => 
+    String(a.seatNumber) === cleanPin || 
+    String(a.biometricEnrollmentId) === cleanPin
+  );
+
+  const payload = {
+    user_id: cleanPin,
+    user_name: cleanName || `User-${cleanPin}`,
+    user_privilege: 0,
+    user_group: 1
+  };
+
+  if (adm?.enroll_data_array && Array.isArray(adm.enroll_data_array)) {
+    payload.enroll_data_array = adm.enroll_data_array;
+  }
+
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
   fkCommandQueue.push({
     cmd_code: 'SET_USER_INFO',
-    body: {
-      user_id: cleanPin,
-      user_name: cleanName || `User-${cleanPin}`,
-      user_privilege: 'USER',
-      enabled: true,
-      enabled_flag: 1,
-      user_group: 1,
-      use_group: 1,
-      lock_group: 1
-    }
+    body: payload
   });
 
   // 2. Standard ZK ADMS Protocol Fallback
@@ -319,9 +347,9 @@ export function handleAdmsAttendancePunch(req, res) {
  */
 export function handleAdmsUniversal(req, res) {
   const method = req.method;
-  const requestCode = req.headers['request_code'];
-  const devId = req.headers['dev_id'] || req.query.SN || req.query.sn || 'BIO1SE_DEVICE';
-  const transId = req.headers['trans_id'] || null;
+  const requestCode = req.headers['request_code'] || req.headers['request-code'] || req.headers['x-request-code'] || req.query.requestCode || req.query.request_code;
+  const devId = req.headers['dev_id'] || req.headers['dev-id'] || req.headers['device_id'] || req.query.SN || req.query.sn || 'BIO1SE_DEVICE';
+  const transId = req.headers['trans_id'] || req.headers['trans-id'] || req.headers['transid'] || req.query.transId || req.query.trans_id || null;
   const rawBody = typeof req.body === 'string' ? req.body : (req.body ? JSON.stringify(req.body) : '');
 
   // ==========================================================
@@ -380,9 +408,18 @@ export function handleAdmsUniversal(req, res) {
       }
 
       case 'realtime_enroll_data': {
-        // Device report of existing user on machine
-        if (parsed?.user_name) {
-          console.log(`[FK PROTOCOL] 👤 User on machine: ID "${parsed.user_id}", Name: "${parsed.user_name}"`);
+        // Device report of user credentials / biometric templates on machine
+        if (parsed?.user_id) {
+          console.log(`[FK PROTOCOL] 👤 User on machine: ID "${parsed.user_id}", Name: "${parsed.user_name || ''}"`);
+          const adm = (store.admissions || []).find(a => 
+            String(a.seatNumber) === String(parsed.user_id) || 
+            String(a.biometricEnrollmentId) === String(parsed.user_id)
+          );
+          if (adm && parsed.enroll_data_array) {
+            adm.enroll_data_array = parsed.enroll_data_array;
+            store.saveState();
+            console.log(`[FK PROTOCOL] 💾 Backed up biometric template for ${adm.studentName} (Seat #${adm.seatNumber})`);
+          }
         }
         return sendFkAck(res, transId);
       }
@@ -392,7 +429,7 @@ export function handleAdmsUniversal(req, res) {
         const queued = fkCommandQueue.shift();
         if (queued) {
           console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE: ${queued.cmd_code} ->`, JSON.stringify(queued.body));
-          return sendFkAck(res, `cmd${Date.now()}`, {
+          return sendFkAck(res, transId, {
             cmdCode: queued.cmd_code,
             body: formatCommandBody(queued.body ?? null),
           });
@@ -409,6 +446,18 @@ export function handleAdmsUniversal(req, res) {
       default:
         return sendFkAck(res, transId);
     }
+  }
+
+  // ==========================================================
+  // Fallback: If reverse proxy stripped request_code header on empty POST
+  // ==========================================================
+  if (method === 'POST' && (!rawBody || rawBody.trim().length === 0) && fkCommandQueue.length > 0) {
+    const queued = fkCommandQueue.shift();
+    console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (Proxy fallback poll): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
+    return sendFkAck(res, transId, {
+      cmdCode: queued.cmd_code,
+      body: formatCommandBody(queued.body ?? null),
+    });
   }
 
   // ==========================================================
