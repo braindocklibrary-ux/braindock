@@ -137,7 +137,7 @@ export const sendOtpEmail = async ({ to, studentName, otpCode, phone, seatNumber
         'https://api.resend.com/emails',
         { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
         {
-          from: process.env.RESEND_FROM || smtpFrom,
+          from: process.env.RESEND_FROM || 'Brain Dock Library <noreply@braindocklibrary.com>',
           to: [to],
           subject,
           html: htmlContent,
