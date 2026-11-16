@@ -1247,6 +1247,52 @@ router.put('/owner/admissions/:id/mpin', (req, res) => {
   res.json(result);
 });
 
+// Put student membership on Hold / Freeze (Pauses days & locks TimeWatch gate)
+const handleHoldAdmission = (req, res) => {
+  const result = store.holdAdmission(req.params.id, req.body);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  // Immediately lockout student on TimeWatch biometric machine
+  if (result.admission?.seatNumber) {
+    disableStudentOnBiometricMachine(result.admission.seatNumber, result.admission.studentName);
+    if (result.admission.biometricEnrollmentId && result.admission.biometricEnrollmentId !== result.admission.seatNumber) {
+      disableStudentOnBiometricMachine(result.admission.biometricEnrollmentId, result.admission.studentName);
+    }
+  }
+  res.json({
+    success: true,
+    message: result.message,
+    data: result.admission
+  });
+};
+router.put('/owner/admissions/:id/hold', handleHoldAdmission);
+router.post('/owner/admissions/:id/hold', handleHoldAdmission);
+
+// Resume student membership from Hold (Auto-extends end date & unlocks TimeWatch gate)
+const handleResumeAdmission = (req, res) => {
+  const result = store.resumeAdmission(req.params.id);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  // Re-enable on TimeWatch biometric machine if status restored to Active
+  if (result.admission?.seatNumber && result.admission.status === 'Active') {
+    enableStudentOnBiometricMachine(result.admission.seatNumber, result.admission.studentName);
+    if (result.admission.biometricEnrollmentId && result.admission.biometricEnrollmentId !== result.admission.seatNumber) {
+      enableStudentOnBiometricMachine(result.admission.biometricEnrollmentId, result.admission.studentName);
+    }
+  }
+  res.json({
+    success: true,
+    message: result.message,
+    data: result.admission,
+    daysPaused: result.daysPaused,
+    newEndDate: result.newEndDate
+  });
+};
+router.put('/owner/admissions/:id/resume', handleResumeAdmission);
+router.post('/owner/admissions/:id/resume', handleResumeAdmission);
+
 // ================= MEMBERSHIP EXPIRY NOTIFICATION ENGINE (LAST 3 DAYS DAILY) =================
 // Get/Update WhatsApp Notice Renewal Settings
 router.get('/owner/renewal-settings', (req, res) => {

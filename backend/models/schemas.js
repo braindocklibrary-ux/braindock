@@ -334,6 +334,16 @@ const AdmissionSchema = new mongoose.Schema({
   transactionRef: { type: String, default: '' },
   notes: { type: String, default: '' },
   status: { type: String, default: 'Active' },
+  isOnHold: { type: Boolean, default: false },
+  holdStartDate: { type: String, default: null },
+  holdReason: { type: String, default: '' },
+  holdExpectedResumeDate: { type: String, default: null },
+  holdHistory: [{
+    holdStartDate: { type: String },
+    resumeDate: { type: String },
+    daysPaused: { type: Number },
+    reason: { type: String }
+  }],
   createdAt: { type: String }
 }, { strict: false, timestamps: true });
 

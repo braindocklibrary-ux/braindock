@@ -768,11 +768,16 @@ class DataStore {
     // Recalculate live days remaining for occupied seats
     this.ownerSeats.forEach(seat => {
       if (seat.occupant && seat.occupant.endDate) {
-        const end = new Date(seat.occupant.endDate);
-        const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-        seat.occupant.daysRemaining = days;
-        if (days < 0 && seat.status !== 'Maintenance') {
-          seat.status = 'Expired';
+        if (seat.status === 'On Hold' || seat.occupant.status === 'On Hold' || seat.occupant.isOnHold) {
+          seat.status = 'On Hold';
+          seat.occupant.status = 'On Hold';
+        } else {
+          const end = new Date(seat.occupant.endDate);
+          const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+          seat.occupant.daysRemaining = days;
+          if (days < 0 && seat.status !== 'Maintenance') {
+            seat.status = 'Expired';
+          }
         }
       }
     });
@@ -880,7 +885,9 @@ class DataStore {
 
     // Update days remaining & attach clean fee vs deposit breakdown
     list.forEach(adm => {
-      if (adm.endDate) {
+      if (adm.status === 'On Hold' || adm.isOnHold) {
+        adm.status = 'On Hold';
+      } else if (adm.endDate) {
         const end = new Date(adm.endDate);
         adm.daysRemaining = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
         if (adm.daysRemaining < 0 && adm.status === 'Active') {
@@ -901,11 +908,13 @@ class DataStore {
     } else if (filter === 'paid') {
       list = list.filter(a => a.feeStatus === 'Paid' && a.pendingFee === 0);
     } else if (filter === 'expiring') {
-      list = list.filter(a => a.daysRemaining >= 0 && a.daysRemaining <= 5 && a.status !== 'Vacated');
+      list = list.filter(a => a.daysRemaining >= 0 && a.daysRemaining <= 5 && a.status !== 'Vacated' && a.status !== 'On Hold');
     } else if (filter === 'expired') {
-      list = list.filter(a => a.status === 'Expired' || a.daysRemaining < 0);
+      list = list.filter(a => (a.status === 'Expired' || a.daysRemaining < 0) && a.status !== 'On Hold');
     } else if (filter === 'active') {
       list = list.filter(a => a.status === 'Active' && a.daysRemaining >= 0);
+    } else if (filter === 'hold') {
+      list = list.filter(a => a.status === 'On Hold' || a.isOnHold);
     } else if (filter === 'vacated') {
       list = list.filter(a => a.status === 'Vacated' || a.seatNumber == null);
     }
@@ -1432,6 +1441,146 @@ class DataStore {
     };
   }
 
+  /**
+   * Put Student Membership On Hold (Temporary Leave / Freeze)
+   * Freezes days remaining, pauses TimeWatch gate access, keeps seat reserved.
+   */
+  holdAdmission(admissionId, { reason, expectedResumeDate } = {}) {
+    const adm = this.admissions.find(a => a.admissionId === admissionId);
+    if (!adm) return { success: false, message: 'Admission record not found' };
+    if (adm.status === 'Vacated') return { success: false, message: 'Cannot put a vacated admission on hold' };
+    if (adm.status === 'On Hold' || adm.isOnHold) return { success: false, message: 'Student is already on hold' };
+
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    adm.status = 'On Hold';
+    adm.isOnHold = true;
+    adm.holdStartDate = todayIST;
+    adm.holdReason = String(reason || 'Temporary Leave').trim();
+    adm.holdExpectedResumeDate = expectedResumeDate || null;
+
+    // Update Seat Status to On Hold while preserving student occupancy
+    if (adm.seatNumber != null) {
+      const seat = this.ownerSeats.find(s => s.seatNumber === adm.seatNumber);
+      if (seat) {
+        seat.status = 'On Hold';
+        if (seat.occupant) {
+          seat.occupant.status = 'On Hold';
+          seat.occupant.isOnHold = true;
+          seat.occupant.holdStartDate = todayIST;
+          seat.occupant.holdReason = adm.holdReason;
+          seat.occupant.holdExpectedResumeDate = adm.holdExpectedResumeDate;
+        }
+      }
+    }
+
+    this.auditLogs = this.auditLogs || [];
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      actorName: 'Library Owner',
+      actorRole: 'Owner Desk',
+      action: 'Membership Put On Hold',
+      module: '102-Seat Admission Desk',
+      details: `Put ${adm.studentName} (Seat #${adm.seatNumber}) on HOLD. Reason: ${adm.holdReason}. Biometric gate punch paused.`,
+      timestamp: new Date()
+    });
+
+    this.saveState();
+    return {
+      success: true,
+      message: `Membership for ${adm.studentName} (Seat #${adm.seatNumber}) is now ON HOLD. Biometric gate punch paused.`,
+      admission: adm
+    };
+  }
+
+  /**
+   * Resume Student Membership from Hold
+   * Calculates paused days, automatically extends endDate, restores seat and biometric access.
+   */
+  resumeAdmission(admissionId) {
+    const adm = this.admissions.find(a => a.admissionId === admissionId);
+    if (!adm) return { success: false, message: 'Admission record not found' };
+    if (!adm.isOnHold && adm.status !== 'On Hold') {
+      return { success: false, message: 'Student is not currently on hold' };
+    }
+
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const holdStartStr = adm.holdStartDate || todayIST;
+    const startMs = new Date(`${holdStartStr}T00:00:00+05:30`).getTime();
+    const nowMs = new Date(`${todayIST}T00:00:00+05:30`).getTime();
+    const diffDays = Math.max(0, Math.round((nowMs - startMs) / (24 * 60 * 60 * 1000)));
+    const daysPaused = diffDays;
+
+    let prevEndDateStr = adm.endDate || todayIST;
+    let newEndDateStr = prevEndDateStr;
+    if (daysPaused > 0 && adm.endDate) {
+      const prevEndMs = new Date(`${adm.endDate}T00:00:00+05:30`).getTime();
+      const newEndMs = prevEndMs + (daysPaused * 24 * 60 * 60 * 1000);
+      const targetDate = new Date(newEndMs);
+      const y = targetDate.getFullYear();
+      const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const d = String(targetDate.getDate()).padStart(2, '0');
+      newEndDateStr = `${y}-${m}-${d}`;
+      adm.endDate = newEndDateStr;
+    }
+
+    // Recalculate daysRemaining
+    const endObj = new Date(`${adm.endDate}T00:00:00+05:30`);
+    const todayDateObj = new Date(`${todayIST}T00:00:00+05:30`);
+    adm.daysRemaining = Math.round((endObj.getTime() - todayDateObj.getTime()) / (24 * 60 * 60 * 1000));
+    adm.status = adm.daysRemaining < 0 ? 'Expired' : 'Active';
+    adm.isOnHold = false;
+
+    // Archive hold history
+    adm.holdHistory = Array.isArray(adm.holdHistory) ? adm.holdHistory : [];
+    adm.holdHistory.push({
+      holdStartDate: adm.holdStartDate,
+      resumeDate: todayIST,
+      daysPaused,
+      reason: adm.holdReason || 'Leave'
+    });
+
+    adm.holdStartDate = null;
+    adm.holdReason = null;
+    adm.holdExpectedResumeDate = null;
+
+    // Update Seat Status
+    if (adm.seatNumber != null) {
+      const seat = this.ownerSeats.find(s => s.seatNumber === adm.seatNumber);
+      if (seat) {
+        seat.status = adm.status === 'Active' ? 'Occupied' : 'Expired';
+        if (seat.occupant) {
+          seat.occupant.status = adm.status;
+          seat.occupant.isOnHold = false;
+          seat.occupant.endDate = adm.endDate;
+          seat.occupant.daysRemaining = adm.daysRemaining;
+          delete seat.occupant.holdStartDate;
+          delete seat.occupant.holdReason;
+          delete seat.occupant.holdExpectedResumeDate;
+        }
+      }
+    }
+
+    this.auditLogs = this.auditLogs || [];
+    this.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      actorName: 'Library Owner',
+      actorRole: 'Owner Desk',
+      action: 'Membership Resumed',
+      module: '102-Seat Admission Desk',
+      details: `${adm.studentName} (Seat #${adm.seatNumber}) resumed after ${daysPaused} day(s) on hold. End date extended to ${adm.endDate}. Biometric access restored.`,
+      timestamp: new Date()
+    });
+
+    this.saveState();
+    return {
+      success: true,
+      message: `Membership for ${adm.studentName} resumed! End date automatically extended by ${daysPaused} day(s) to ${adm.endDate}. Biometric access restored.`,
+      admission: adm,
+      daysPaused,
+      newEndDate: adm.endDate
+    };
+  }
+
   // ================= RENEWAL SETTINGS & WHATSAPP NOTICE ENGINE =================
   getRenewalSettings() {
     return this.renewalSettings || { defaultRenewalFee: 850, offerNote: '' };
@@ -1490,7 +1639,7 @@ class DataStore {
     const offerNote = overrideNote !== undefined ? overrideNote : (this.renewalSettings?.offerNote || '');
 
     for (const adm of this.admissions) {
-      if (adm.status === 'Vacated') continue;
+      if (adm.status === 'Vacated' || adm.status === 'On Hold' || adm.isOnHold) continue;
       if (!adm.endDate) continue;
       
       const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
@@ -2482,11 +2631,13 @@ class DataStore {
   getOwnerStats() {
     const totalSeats = 102;
     const seats = this.get102Seats();
-    const occupiedSeats = seats.filter(s => s.status === 'Occupied' || s.status === 'Expired').length;
+    const occupiedSeats = seats.filter(s => s.status === 'Occupied' || s.status === 'Expired' || s.status === 'On Hold').length;
     const availableSeats = seats.filter(s => s.status === 'Available').length;
     const maintenanceSeats = seats.filter(s => s.status === 'Maintenance').length;
+    const onHoldSeats = seats.filter(s => s.status === 'On Hold' || s.occupant?.isOnHold).length;
 
     const activeAdmissions = this.admissions.filter(a => a.status !== 'Vacated');
+    const onHoldCount = activeAdmissions.filter(a => a.status === 'On Hold' || a.isOnHold).length;
     // Genuine financial records: include active admissions AND completed/vacated admissions that were NOT cancelled mistakes (`!isDeleted`)
     const validRevenueAdmissions = this.admissions.filter(a => !a.isDeleted);
 
@@ -2510,14 +2661,16 @@ class DataStore {
       return acc + fin.refundedDeposit;
     }, 0);
 
-    const expiringSoon = activeAdmissions.filter(a => a.daysRemaining >= 0 && a.daysRemaining <= 5);
-    const expiredCount = activeAdmissions.filter(a => a.daysRemaining < 0 || a.status === 'Expired');
+    const expiringSoon = activeAdmissions.filter(a => a.daysRemaining >= 0 && a.daysRemaining <= 5 && a.status !== 'On Hold');
+    const expiredCount = activeAdmissions.filter(a => (a.daysRemaining < 0 || a.status === 'Expired') && a.status !== 'On Hold');
 
     return {
       totalSeats,
       occupiedSeats,
       availableSeats,
       maintenanceSeats,
+      onHoldSeats,
+      onHoldCount,
       occupancyRate: Math.round((occupiedSeats / totalSeats) * 100),
       totalFeeCollected,
       totalDepositsHeld,
@@ -2669,6 +2822,41 @@ class DataStore {
     const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
     const isGracePeriod = daysRemaining < 0 && daysExpired <= 5;
     const isPunchBlocked = daysRemaining < 0 && daysExpired > 5;
+
+    // RULE 0: If membership is ON HOLD, BIOMETRIC PUNCH IS TEMPORARILY DISABLED!
+    if (student.status === 'On Hold' || student.isOnHold) {
+      const log = {
+        id: `PUNCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: timestampStr,
+        date: dateStr,
+        time: timeStr,
+        grId: student.grId,
+        biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
+        studentName: student.studentName,
+        studentEmail: student.studentEmail || student.parentEmail || null,
+        studentPhone: student.studentPhone,
+        seatNumber: student.seatNumber,
+        zone: student.zone,
+        floor: student.floor || 'Ground Floor',
+        method,
+        punchType: 'IN',
+        accessResult: 'DENIED',
+        doorStatus: 'LOCKED',
+        reason: `Membership is ON HOLD since ${student.holdStartDate || 'leave'} (Reason: ${student.holdReason || 'Leave'}). Gate punch paused.`,
+        durationMinutes: null
+      };
+      this.biometricLogs.unshift(log);
+      this.saveState();
+      return {
+        success: false,
+        granted: false,
+        doorStatus: 'LOCKED',
+        isOnHold: true,
+        message: `⏸️ ACCESS PAUSED: Membership is currently ON HOLD (${student.holdReason || 'Temporary Leave'}). Please contact library admin to resume.`,
+        student,
+        log
+      };
+    }
 
     // RULE 1: If membership is expired > 5 days, BIOMETRIC PUNCH IS COMPLETELY OFF!
     if (isPunchBlocked) {

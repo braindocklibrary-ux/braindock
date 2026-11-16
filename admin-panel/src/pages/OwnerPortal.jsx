@@ -59,7 +59,9 @@ import {
   Bot,
   Wifi,
   WifiOff,
-  Power
+  Power,
+  Pause,
+  Play
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
@@ -112,8 +114,9 @@ export default function OwnerPortal() {
         totalFeeCollected: paidFee,
         totalFeePending: pendingFee,
         pendingCount: activeAdms.filter(a => a.pendingFee > 0).length,
-        expiringSoonCount: activeAdms.filter(a => a.daysRemaining <= 3 && a.daysRemaining >= 0).length,
-        expiredCount: activeAdms.filter(a => a.daysRemaining < 0).length
+        expiringSoonCount: activeAdms.filter(a => a.daysRemaining <= 3 && a.daysRemaining >= 0 && a.status !== 'On Hold').length,
+        expiredCount: activeAdms.filter(a => a.daysRemaining < 0 && a.status !== 'On Hold').length,
+        onHoldCount: activeAdms.filter(a => a.status === 'On Hold' || a.isOnHold).length
       };
     }
     return {
@@ -126,7 +129,8 @@ export default function OwnerPortal() {
       totalFeePending: 0,
       pendingCount: 0,
       expiringSoonCount: 0,
-      expiredCount: 0
+      expiredCount: 0,
+      onHoldCount: 0
     };
   });
 
@@ -190,6 +194,16 @@ export default function OwnerPortal() {
   const [selectedAdmissionForMpin, setSelectedAdmissionForMpin] = useState(null);
   const [studentMpinInput, setStudentMpinInput] = useState('');
   const [mpinSaving, setMpinSaving] = useState(false);
+
+  // Student Hold & Resume Membership Modal State
+  const [holdModalOpen, setHoldModalOpen] = useState(false);
+  const [selectedAdmissionForHold, setSelectedAdmissionForHold] = useState(null);
+  const [holdForm, setHoldForm] = useState({ reason: 'Exam Preparation', customReason: '', expectedResumeDate: '' });
+  const [holdSaving, setHoldSaving] = useState(false);
+  const [resumeModalOpen, setResumeModalOpen] = useState(false);
+  const [selectedAdmissionForResume, setSelectedAdmissionForResume] = useState(null);
+  const [resumePreview, setResumePreview] = useState(null);
+  const [resumeSaving, setResumeSaving] = useState(false);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -1655,6 +1669,111 @@ export default function OwnerPortal() {
       });
   };
 
+  // Open Hold Membership Modal
+  const handleOpenHold = (admission) => {
+    setSelectedAdmissionForHold(admission);
+    setHoldForm({
+      reason: 'Exam Preparation',
+      customReason: '',
+      expectedResumeDate: ''
+    });
+    setHoldModalOpen(true);
+  };
+
+  // Submit Hold Membership
+  const handleSubmitHold = (e) => {
+    e.preventDefault();
+    if (!selectedAdmissionForHold) return;
+
+    const finalReason = holdForm.reason === 'Other' 
+      ? (holdForm.customReason?.trim() || 'Temporary Leave')
+      : holdForm.reason;
+
+    setHoldSaving(true);
+    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForHold.admissionId}/hold`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reason: finalReason,
+        expectedResumeDate: holdForm.expectedResumeDate || null
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        setHoldSaving(false);
+        if (data.success) {
+          setHoldModalOpen(false);
+          setSelectedAdmissionForHold(null);
+          fetchOwnerData();
+          showToast(`⏸️ ${selectedAdmissionForHold.studentName}'s membership is on HOLD. Biometric gate punch paused.`);
+        } else {
+          alert(data.message || 'Failed to put admission on hold');
+        }
+      })
+      .catch(err => {
+        setHoldSaving(false);
+        alert('Error putting on hold: ' + err.message);
+      });
+  };
+
+  // Open Resume Membership Modal
+  const handleOpenResume = (admission) => {
+    setSelectedAdmissionForResume(admission);
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const holdStart = admission.holdStartDate || todayIST;
+    const startMs = new Date(`${holdStart}T00:00:00+05:30`).getTime();
+    const nowMs = new Date(`${todayIST}T00:00:00+05:30`).getTime();
+    const diffDays = Math.max(0, Math.round((nowMs - startMs) / (24 * 60 * 60 * 1000)));
+    const daysPaused = diffDays;
+
+    let estNewEndDate = admission.endDate || todayIST;
+    if (daysPaused > 0 && admission.endDate) {
+      const prevEndMs = new Date(`${admission.endDate}T00:00:00+05:30`).getTime();
+      const targetDate = new Date(prevEndMs + (daysPaused * 24 * 60 * 60 * 1000));
+      const y = targetDate.getFullYear();
+      const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const d = String(targetDate.getDate()).padStart(2, '0');
+      estNewEndDate = `${y}-${m}-${d}`;
+    }
+
+    setResumePreview({
+      daysPaused,
+      holdStart,
+      todayIST,
+      oldEndDate: admission.endDate,
+      newEndDate: estNewEndDate,
+      reason: admission.holdReason || 'Temporary Leave'
+    });
+    setResumeModalOpen(true);
+  };
+
+  // Submit Resume Membership
+  const handleSubmitResume = () => {
+    if (!selectedAdmissionForResume) return;
+
+    setResumeSaving(true);
+    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForResume.admissionId}/resume`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then(res => res.json())
+      .then(data => {
+        setResumeSaving(false);
+        if (data.success) {
+          setResumeModalOpen(false);
+          setSelectedAdmissionForResume(null);
+          fetchOwnerData();
+          showToast(`▶️ ${data.message || 'Membership resumed successfully!'}`);
+        } else {
+          alert(data.message || 'Failed to resume membership');
+        }
+      })
+      .catch(err => {
+        setResumeSaving(false);
+        alert('Error resuming membership: ' + err.message);
+      });
+  };
+
   // Submit Renewal
   const handleSubmitRenew = (e) => {
     e.preventDefault();
@@ -1725,9 +1844,10 @@ export default function OwnerPortal() {
   const filteredGridSeats = seats
     .filter(s => {
       if (gridFilter === 'available') return s.status === 'Available';
-      if (gridFilter === 'occupied') return s.status === 'Occupied' || s.status === 'Expired';
+      if (gridFilter === 'occupied') return s.status === 'Occupied' || s.status === 'Expired' || s.status === 'On Hold';
+      if (gridFilter === 'hold') return s.status === 'On Hold' || s.occupant?.isOnHold || s.occupant?.status === 'On Hold';
       if (gridFilter === 'pending') return s.occupant && (s.occupant.feeStatus === 'Pending' || s.occupant.pendingFee > 0);
-      if (gridFilter === 'expiring') return s.occupant && (s.occupant.daysRemaining >= 0 && s.occupant.daysRemaining <= 5);
+      if (gridFilter === 'expiring') return s.occupant && (s.occupant.daysRemaining >= 0 && s.occupant.daysRemaining <= 5 && s.status !== 'On Hold');
       return true;
     })
     .sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
@@ -1795,8 +1915,9 @@ export default function OwnerPortal() {
 
     if (registerFilter === 'pending') return adm.feeStatus === 'Pending' || adm.pendingFee > 0;
     if (registerFilter === 'paid') return adm.feeStatus === 'Paid' && adm.pendingFee === 0;
-    if (registerFilter === 'expiring') return adm.daysRemaining >= 0 && adm.daysRemaining <= 5 && adm.status !== 'Vacated';
-    if (registerFilter === 'expired') return adm.status === 'Expired' || adm.daysRemaining < 0;
+    if (registerFilter === 'expiring') return adm.daysRemaining >= 0 && adm.daysRemaining <= 5 && adm.status !== 'Vacated' && adm.status !== 'On Hold';
+    if (registerFilter === 'expired') return (adm.status === 'Expired' || adm.daysRemaining < 0) && adm.status !== 'On Hold';
+    if (registerFilter === 'hold') return adm.status === 'On Hold' || adm.isOnHold;
     if (registerFilter === 'vacated') return adm.status === 'Vacated' || adm.seatNumber == null;
     return true;
   }).sort((a, b) => {
@@ -2035,7 +2156,9 @@ export default function OwnerPortal() {
         <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Occupied / Booked</span>
           <h3 className="text-2xl font-bold text-slate-900 mt-1">{stats.occupiedSeats} Seats</h3>
-          <span className="text-[11px] font-medium text-emerald-600">{stats.occupancyRate}% Occupancy</span>
+          <span className="text-[11px] font-medium text-emerald-600 block">
+            {stats.occupancyRate}% Occupancy{stats.onHoldCount > 0 ? ` • ⏸️ ${stats.onHoldCount} on Hold` : ''}
+          </span>
         </div>
 
         <div className="bg-white border border-emerald-100 p-5 rounded-2xl shadow-xs bg-emerald-50/20">
@@ -2172,6 +2295,7 @@ export default function OwnerPortal() {
                 { id: 'all', label: `All 102 Seats` },
                 { id: 'available', label: `Available (${stats.availableSeats})` },
                 { id: 'occupied', label: `Occupied (${stats.occupiedSeats})` },
+                { id: 'hold', label: `On Hold (${seats.filter(s => s.status === 'On Hold' || s.occupant?.isOnHold).length})` },
                 { id: 'pending', label: `Fee Pending (${stats.pendingCount})` },
                 { id: 'expiring', label: `Expiring Soon (${stats.expiringSoonCount})` }
               ].map(f => (
@@ -2213,9 +2337,10 @@ export default function OwnerPortal() {
                     const isAvail = seat.status === 'Available';
                     const isMaint = seat.status === 'Maintenance';
                     const occ = seat.occupant;
+                    const isOnHold = seat.status === 'On Hold' || occ?.isOnHold || occ?.status === 'On Hold';
                     const hasPendingFee = occ && (occ.feeStatus === 'Pending' || occ.pendingFee > 0);
-                    const isExpiring = occ && occ.daysRemaining >= 0 && occ.daysRemaining <= 5;
-                    const isExpired = occ && occ.daysRemaining < 0;
+                    const isExpiring = occ && occ.daysRemaining >= 0 && occ.daysRemaining <= 5 && !isOnHold;
+                    const isExpired = occ && occ.daysRemaining < 0 && !isOnHold;
 
                     let cardBg = 'bg-slate-50 border-slate-200 text-slate-700 hover:border-purple-300';
                     let statusPill = 'bg-slate-100 text-slate-600';
@@ -2226,6 +2351,9 @@ export default function OwnerPortal() {
                     } else if (isMaint) {
                       cardBg = 'bg-slate-100/70 border-dashed border-slate-300 text-slate-500 cursor-not-allowed';
                       statusPill = 'bg-slate-200 text-slate-600';
+                    } else if (isOnHold) {
+                      cardBg = 'bg-amber-500/15 border-amber-400 text-amber-950 hover:border-amber-500';
+                      statusPill = 'bg-amber-200 text-amber-950 font-extrabold';
                     } else if (hasPendingFee) {
                       cardBg = 'bg-amber-50/60 border-amber-300 text-amber-900 hover:border-amber-400';
                       statusPill = 'bg-amber-100 text-amber-900';
@@ -2255,7 +2383,7 @@ export default function OwnerPortal() {
                             #{String(seat.seatNumber).padStart(2, '0')}
                           </span>
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${statusPill}`}>
-                            {isAvail ? 'OPEN' : isMaint ? 'MAINT' : hasPendingFee ? `DUE` : isExpiring ? `${occ?.daysRemaining}d` : isExpired ? 'EXP' : 'PAID'}
+                            {isAvail ? 'OPEN' : isMaint ? 'MAINT' : isOnHold ? 'HOLD' : hasPendingFee ? `DUE` : isExpiring ? `${occ?.daysRemaining}d` : isExpired ? 'EXP' : 'PAID'}
                           </span>
                         </div>
 
@@ -2276,10 +2404,17 @@ export default function OwnerPortal() {
                             <p className={`text-[9px] font-mono truncate ${seat.status === 'Occupied' && !hasPendingFee && !isExpiring ? 'text-slate-400' : 'text-slate-500'}`}>
                               {occ?.targetExam || occ?.shift || 'Member'}
                             </p>
-                            <div className="flex items-center justify-between text-[9px] font-mono pt-1">
-                              <span>Till: {occ?.endDate ? occ.endDate.slice(5) : '-'}</span>
-                              {hasPendingFee && <span className="font-bold text-amber-700">₹{occ?.pendingFee}</span>}
-                            </div>
+                            {isOnHold ? (
+                              <div className="flex items-center justify-between text-[9px] font-mono pt-1 text-amber-800 font-bold">
+                                <span>⏸️ On Hold</span>
+                                {occ?.holdExpectedResumeDate && <span>Back: {occ.holdExpectedResumeDate.slice(5)}</span>}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-[9px] font-mono pt-1">
+                                <span>Till: {occ?.endDate ? occ.endDate.slice(5) : '-'}</span>
+                                {hasPendingFee && <span className="font-bold text-amber-700">₹{occ?.pendingFee}</span>}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2311,6 +2446,7 @@ export default function OwnerPortal() {
               <span className="text-slate-500 shrink-0">Filter:</span>
               {[
                 { id: 'all', label: `All (${admissions.length})` },
+                { id: 'hold', label: `On Hold (${admissions.filter(a => a.status === 'On Hold' || a.isOnHold).length})` },
                 { id: 'pending', label: `Pending Fee (${admissions.filter(a => a.pendingFee > 0).length})` },
                 { id: 'expiring', label: `Expiring Soon (${stats.expiringSoonCount})` },
                 { id: 'paid', label: `Fully Paid (${admissions.filter(a => a.pendingFee === 0).length})` },
@@ -2460,6 +2596,21 @@ export default function OwnerPortal() {
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-slate-100 text-slate-600 border border-slate-300">
                               Vacated / Freed
                             </span>
+                          ) : (adm.status === 'On Hold' || adm.isOnHold) ? (
+                            <div className="space-y-0.5">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center space-x-1">
+                                <Pause className="w-2.5 h-2.5 fill-amber-700 text-amber-700" />
+                                <span>ON HOLD</span>
+                              </span>
+                              <span className="block text-[9.5px] text-amber-700 font-medium">
+                                Since: {adm.holdStartDate || 'Leave'}
+                              </span>
+                              {adm.holdReason && (
+                                <span className="block text-[9px] text-slate-400 italic max-w-[120px] truncate" title={adm.holdReason}>
+                                  {adm.holdReason}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
                               isExpired 
@@ -2559,6 +2710,26 @@ export default function OwnerPortal() {
                           >
                             Renew
                           </button>
+
+                          {(adm.status === 'On Hold' || adm.isOnHold) ? (
+                            <button
+                              onClick={() => handleOpenResume(adm)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors inline-flex items-center space-x-1 cursor-pointer shadow-xs"
+                              title="Resume Membership (Auto-extend end date & enable biometric access)"
+                            >
+                              <Play className="w-3 h-3 fill-white" />
+                              <span>Resume</span>
+                            </button>
+                          ) : adm.status !== 'Vacated' && adm.seatNumber != null ? (
+                            <button
+                              onClick={() => handleOpenHold(adm)}
+                              className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] border border-amber-300 transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                              title="Put Student on Hold (Temporary Leave / Freeze days)"
+                            >
+                              <Pause className="w-3 h-3 fill-amber-700 text-amber-700" />
+                              <span>Hold</span>
+                            </button>
+                          ) : null}
 
                           <button
                             onClick={() => handleOpenManageMpin(adm)}
@@ -3294,6 +3465,26 @@ export default function OwnerPortal() {
               </div>
             </div>
 
+            {/* Student On-Hold Notice if Active */}
+            {(selectedSeat.status === 'On Hold' || selectedSeat.occupant?.status === 'On Hold' || selectedSeat.occupant?.isOnHold) && (
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-1.5 text-xs text-amber-950">
+                <div className="flex items-center space-x-2 font-bold text-amber-900">
+                  <Pause className="w-4 h-4 fill-amber-700 text-amber-700" />
+                  <span>Membership Currently ON HOLD (Paused)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                  <p>Hold Started: <strong>{selectedSeat.occupant.holdStartDate || 'Active'}</strong></p>
+                  {selectedSeat.occupant.holdExpectedResumeDate && <p>Expected Return: <strong>{selectedSeat.occupant.holdExpectedResumeDate}</strong></p>}
+                </div>
+                {selectedSeat.occupant.holdReason && (
+                  <p className="text-[11px]">Reason: <span className="font-semibold">{selectedSeat.occupant.holdReason}</span></p>
+                )}
+                <p className="text-[10.5px] text-amber-800/90 pt-0.5">
+                  Gate punch disabled. Seat remains reserved. Resuming will automatically extend their end date by the paused duration.
+                </p>
+              </div>
+            )}
+
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
@@ -3371,9 +3562,39 @@ export default function OwnerPortal() {
                 </button>
               )}
 
+              {(selectedSeat.status === 'On Hold' || selectedSeat.occupant?.status === 'On Hold' || selectedSeat.occupant?.isOnHold) ? (
+                <button
+                  onClick={() => {
+                    const adm = admissions.find(a => a.admissionId === selectedSeat.occupant.admissionId);
+                    if (adm) {
+                      setSelectedSeat(null);
+                      handleOpenResume(adm);
+                    }
+                  }}
+                  className="col-span-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>Resume Membership (Auto-Extend End Date)</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const adm = admissions.find(a => a.admissionId === selectedSeat.occupant.admissionId);
+                    if (adm) {
+                      setSelectedSeat(null);
+                      handleOpenHold(adm);
+                    }
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                >
+                  <Pause className="w-4 h-4 fill-amber-700 text-amber-700" />
+                  <span>Put on Hold / Freeze</span>
+                </button>
+              )}
+
               <button
                 onClick={() => handleVacateSeat(selectedSeat.seatNumber)}
-                className="col-span-2 py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 transition-colors"
+                className={`${(selectedSeat.status === 'On Hold' || selectedSeat.occupant?.status === 'On Hold' || selectedSeat.occupant?.isOnHold) ? 'col-span-2' : ''} py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 transition-colors`}
               >
                 Vacate Seat #{selectedSeat.seatNumber}
               </button>
@@ -4948,6 +5169,235 @@ export default function OwnerPortal() {
           </div>
         </div>
       )}
+
+      {/* ================= MODAL 4D: PUT STUDENT MEMBERSHIP ON HOLD ================= */}
+      {holdModalOpen && selectedAdmissionForHold && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget && !holdSaving) setHoldModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 text-slate-800 space-y-5 shadow-2xl relative">
+            <button 
+              onClick={() => setHoldModalOpen(false)}
+              disabled={holdSaving}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+              title="Close (ESC)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-300">
+                <Pause className="w-6 h-6 fill-amber-700 text-amber-700" />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-50 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
+                  MEMBERSHIP HOLD / FREEZE
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">
+                  Put {selectedAdmissionForHold.studentName} on Hold
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  Seat #{selectedAdmissionForHold.seatNumber} • Valid Till: {selectedAdmissionForHold.endDate}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitHold} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Reason for Hold / Leave *
+                </label>
+                <select
+                  value={holdForm.reason}
+                  onChange={(e) => setHoldForm({ ...holdForm, reason: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="Exam Preparation">Exam Preparation / Revision</option>
+                  <option value="College Vacation / Break">College Vacation / Semester Break</option>
+                  <option value="Out of Station / Going to Village">Out of Station / Going to Native Village</option>
+                  <option value="Medical / Sickness Leave">Medical / Sickness Leave</option>
+                  <option value="Family Function / Travel">Family Function / Personal Travel</option>
+                  <option value="Other">Other (Specify below)</option>
+                </select>
+              </div>
+
+              {holdForm.reason === 'Other' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Specify Reason *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter reason for leave..."
+                    value={holdForm.customReason}
+                    onChange={(e) => setHoldForm({ ...holdForm, customReason: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Expected Return Date <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={holdForm.expectedResumeDate}
+                  onChange={(e) => setHoldForm({ ...holdForm, expectedResumeDate: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Informational Policy Box */}
+              <div className="bg-amber-50/80 border border-amber-300/80 rounded-2xl p-3.5 text-xs text-amber-950 space-y-1.5">
+                <p className="font-bold flex items-center space-x-1.5 text-amber-900">
+                  <span>🔒 Auto-Protection on Hold:</span>
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-[11px] text-amber-900/90 leading-relaxed">
+                  <li><strong>Physical Gate Punch Disabled:</strong> TimeWatch biometric door punch will be paused immediately so the door remains locked.</li>
+                  <li><strong>Seat Kept Reserved:</strong> Seat #{selectedAdmissionForHold.seatNumber} will NOT be given to anyone else.</li>
+                  <li><strong>Days Frozen:</strong> Paid days will not decrement while on leave. When resumed, end date automatically extends!</li>
+                </ul>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setHoldModalOpen(false)}
+                  disabled={holdSaving}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={holdSaving}
+                  className="w-1/2 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-60 flex items-center justify-center space-x-1"
+                >
+                  {holdSaving ? (
+                    <span>Pausing...</span>
+                  ) : (
+                    <>
+                      <Pause className="w-3.5 h-3.5 fill-white" />
+                      <span>Confirm & Hold</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL 4E: RESUME STUDENT MEMBERSHIP ================= */}
+      {resumeModalOpen && selectedAdmissionForResume && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center animate-in fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget && !resumeSaving) setResumeModalOpen(false); }}
+        >
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 text-slate-800 space-y-5 shadow-2xl relative">
+            <button 
+              onClick={() => setResumeModalOpen(false)}
+              disabled={resumeSaving}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
+              title="Close (ESC)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-300">
+                <Play className="w-6 h-6 fill-emerald-700 text-emerald-700" />
+              </div>
+              <div>
+                <span className="text-[10px] font-mono font-bold tracking-wider uppercase bg-emerald-50 text-emerald-900 px-2 py-0.5 rounded border border-emerald-200">
+                  RESUME MEMBERSHIP & EXTEND
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">
+                  Resume {selectedAdmissionForResume.studentName}
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  Seat #{selectedAdmissionForResume.seatNumber} • Phone: {selectedAdmissionForResume.studentPhone}
+                </p>
+              </div>
+            </div>
+
+            {/* Resume Extension Summary Card */}
+            <div className="space-y-3">
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-2.5 text-xs text-emerald-950">
+                <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
+                  <span className="text-slate-500">Hold Start Date:</span>
+                  <span className="font-bold font-mono">{resumePreview?.holdStart || selectedAdmissionForResume.holdStartDate || 'Today'}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
+                  <span className="text-slate-500">Resume Date:</span>
+                  <span className="font-bold font-mono text-emerald-800">{resumePreview?.todayIST || 'Today'}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
+                  <span className="text-slate-500">Total Days Paused:</span>
+                  <span className="font-extrabold font-mono text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                    +{resumePreview?.daysPaused || 0} Day(s) Extension
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
+                  <span className="text-slate-500">Old End Date:</span>
+                  <span className="font-mono line-through text-slate-400">{resumePreview?.oldEndDate || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pt-0.5">
+                  <span className="font-bold text-slate-700">New Extended End Date:</span>
+                  <span className="font-extrabold font-mono text-emerald-900 bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-300">
+                    {resumePreview?.newEndDate || '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Biometric Re-enable Notice */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-700 space-y-1">
+                <p className="font-bold text-slate-900 flex items-center space-x-1.5">
+                  <Fingerprint className="w-4 h-4 text-purple-700" />
+                  <span>Biometric Machine Auto-Restore:</span>
+                </p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Upon confirmation, the TimeWatch machine command queue will re-enable <strong>{selectedAdmissionForResume.studentName}</strong> (Seat #{selectedAdmissionForResume.seatNumber}), restoring instant biometric gate punch access.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResumeModalOpen(false)}
+                  disabled={resumeSaving}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-xs hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitResume}
+                  disabled={resumeSaving}
+                  className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-60 flex items-center justify-center space-x-1"
+                >
+                  {resumeSaving ? (
+                    <span>Resuming...</span>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>Confirm & Resume</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {driveModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
