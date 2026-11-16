@@ -491,12 +491,19 @@ export default function OwnerPortal() {
 
   useEffect(() => {
     fetchOwnerData();
-    // Live Auto-Refresh: Poll biometric punches from machine every 3 seconds
-    const interval = setInterval(() => {
-      fetchBiometricData();
-    }, 3000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Smart Live Auto-Refresh: Poll biometric data only when viewing the biometric tab (10s throttle)
+  useEffect(() => {
+    if (activeTab === 'biometric' || activeTab === 'overview') {
+      const interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchBiometricData();
+        }
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
 
   const fetchOwnerData = async () => {
     // Only show full loading spinner if no cached data exists
@@ -723,12 +730,16 @@ export default function OwnerPortal() {
 
   // Poll status when in 'expiries' tab or when QR modal is active
   useEffect(() => {
-    if (activeTab === 'expiries') {
+    if (activeTab === 'expiries' || botModalOpen) {
       fetchBotStatus();
-      const interval = setInterval(fetchBotStatus, botStatus === 'qr_ready' ? 2500 : 8000);
+      const interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchBotStatus();
+        }
+      }, botStatus === 'qr_ready' ? 4000 : 15000);
       return () => clearInterval(interval);
     }
-  }, [activeTab, botStatus]);
+  }, [activeTab, botModalOpen, botStatus]);
 
   const handleConnectBot = async () => {
     setConnectingBot(true);
@@ -919,11 +930,11 @@ export default function OwnerPortal() {
 
   const fetchBiometricData = () => {
     Promise.all([
-      fetch(`${API_BASE_URL}/api/biometric/logs`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json())
+      fetch(`${API_BASE_URL}/api/biometric/logs?limit=50`).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()).catch(() => null)
     ]).then(([logsRes, statsRes]) => {
-      if (logsRes.success) setBiometricLogs(logsRes.data);
-      if (statsRes.success) setBiometricStats(logsRes.data);
+      if (logsRes && logsRes.success) setBiometricLogs(logsRes.data);
+      if (statsRes && statsRes.success) setBiometricStats(statsRes.data);
     }).catch(e => console.error(e));
   };
 

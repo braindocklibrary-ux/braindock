@@ -35,9 +35,31 @@ app.use((req, res, next) => {
   next();
 });
 
+const allowedOrigins = [
+  'https://admin.braindocklibrary.com',
+  'https://braindocklibrary.com',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174'
+];
+
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) || 
+      origin.endsWith('.braindocklibrary.com') || 
+      origin.endsWith('.onrender.com') || 
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1')
+    ) {
+      return callback(null, origin);
+    }
+    return callback(null, origin);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires', 'X-Requested-With', 'Accept', 'Origin']
 }));
 app.options('*', cors());

@@ -2534,7 +2534,7 @@ class DataStore {
   // TIMEWATCH BIOMETRIC & ATTENDANCE METHODS
   // ==========================================
 
-  getBiometricLogs({ search, filter, date } = {}) {
+  getBiometricLogs({ search, filter, date, limit } = {}) {
     let logs = [...this.biometricLogs];
 
     if (date) {
@@ -2561,7 +2561,8 @@ class DataStore {
       );
     }
 
-    return logs;
+    const maxRecords = limit ? Number(limit) : (search || filter || date ? 500 : 100);
+    return logs.slice(0, maxRecords);
   }
 
   getBiometricStats() {

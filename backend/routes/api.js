@@ -1379,8 +1379,8 @@ router.get('/owner/receipts/:receiptNumber', (req, res) => {
 
 // Get biometric punch logs
 router.get('/biometric/logs', (req, res) => {
-  const { search, filter, date } = req.query;
-  const logs = store.getBiometricLogs({ search, filter, date });
+  const { search, filter, date, limit } = req.query;
+  const logs = store.getBiometricLogs({ search, filter, date, limit: limit ? Number(limit) : 100 });
   res.json({ success: true, count: logs.length, data: logs });
 });
 
