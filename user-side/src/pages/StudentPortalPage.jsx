@@ -31,7 +31,8 @@ import {
   Receipt,
   Eye,
   EyeOff,
-  User
+  User,
+  Pause
 } from 'lucide-react';
 import DualA4ReceiptModal from '../components/DualA4ReceiptModal';
 import { API_BASE_URL } from '../config';
@@ -722,8 +723,9 @@ export default function StudentPortalPage() {
     monthlyHours: '0 Hours',
     statusToday: 'Active'
   };
-  const isPunchBlocked = bioProfile?.isPunchBlocked || (student?.daysRemaining != null && student.daysRemaining < -5);
-  const isGracePeriod = !isPunchBlocked && (bioProfile?.isGracePeriod || (student?.daysRemaining != null && student.daysRemaining < 0 && Math.abs(student.daysRemaining) <= 5));
+  const isOnHold = student?.status === 'On Hold' || student?.isOnHold === true;
+  const isPunchBlocked = !isOnHold && (bio?.isPunchBlocked || (student?.daysRemaining != null && student.daysRemaining < -5));
+  const isGracePeriod = !isOnHold && !isPunchBlocked && (bio?.isGracePeriod || (student?.daysRemaining != null && student.daysRemaining < 0 && Math.abs(student.daysRemaining) <= 5));
   const isExpired = isPunchBlocked;
   const hasPendingFee = (student?.pendingFee || 0) > 0;
   const finSplit = studentData?.financialSplit || {
@@ -910,7 +912,9 @@ export default function StudentPortalPage() {
 
           {/* Card 2: TIMEWATCH Biometric Door Lock Access */}
           <div id="attendance-card" className={`rounded-3xl p-6 shadow-xs border flex flex-col justify-between transition-all ${
-            isPunchBlocked 
+            isOnHold
+              ? 'bg-amber-50/80 border-amber-300 text-amber-950'
+              : isPunchBlocked 
               ? 'bg-rose-50/70 border-rose-300 text-rose-950' 
               : isGracePeriod 
                 ? 'bg-orange-50/70 border-orange-300 text-orange-950' 
@@ -922,25 +926,36 @@ export default function StudentPortalPage() {
                   Biometric Smart Door Lock
                 </span>
                 <div className="flex items-center space-x-2 mt-1">
-                  {isPunchBlocked ? (
+                  {isOnHold ? (
+                    <Pause className="w-6 h-6 text-amber-700 shrink-0" />
+                  ) : isPunchBlocked ? (
                     <Lock className="w-6 h-6 text-rose-600 shrink-0" />
                   ) : (
                     <Unlock className={`w-6 h-6 shrink-0 ${isGracePeriod ? 'text-orange-600' : 'text-emerald-600'}`} />
                   )}
                   <h3 className="text-xl font-extrabold tracking-tight">
-                    {isPunchBlocked ? 'LOCK DISABLED' : (isGracePeriod ? 'GRACE PERIOD ACTIVE' : 'ACCESS ACTIVE')}
+                    {isOnHold ? 'MEMBERSHIP ON HOLD' : isPunchBlocked ? 'LOCK DISABLED' : (isGracePeriod ? 'GRACE PERIOD ACTIVE' : 'ACCESS ACTIVE')}
                   </h3>
                 </div>
               </div>
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                isPunchBlocked ? 'bg-rose-100 text-rose-700' : (isGracePeriod ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-700')
+                isOnHold ? 'bg-amber-200 text-amber-900' : isPunchBlocked ? 'bg-rose-100 text-rose-700' : (isGracePeriod ? 'bg-orange-100 text-orange-800' : 'bg-emerald-100 text-emerald-700')
               }`}>
                 <Fingerprint className="w-5 h-5" />
               </div>
             </div>
 
             <div className="mt-4 pt-3 border-t border-black/5 text-xs">
-              {isPunchBlocked ? (
+              {isOnHold ? (
+                <div className="space-y-1">
+                  <p className="text-amber-900 font-bold leading-relaxed">
+                    ⏸️ Membership paused on hold since {student.holdStartDate || 'leave'}.
+                  </p>
+                  <p className="text-amber-800 text-[11px] leading-relaxed">
+                    Gate punch is temporarily paused. Your seat remains safely reserved. When you return, contact admin to resume and extend your dates!
+                  </p>
+                </div>
+              ) : isPunchBlocked ? (
                 <p className="text-rose-800 font-semibold leading-relaxed">
                   ⛔ Door will NOT open. Membership expired on {student.endDate} (&gt;5 days grace ended). Biometric punch disabled. Please renew at desk.
                 </p>
@@ -979,9 +994,9 @@ export default function StudentPortalPage() {
                 </span>
                 <div className="mt-1">
                   <span className={`text-xl font-extrabold font-mono ${
-                    student.daysRemaining <= 5 ? 'text-rose-600' : 'text-slate-900'
+                    isOnHold ? 'text-amber-700' : student.daysRemaining <= 5 ? 'text-rose-600' : 'text-slate-900'
                   }`}>
-                    {student.daysRemaining >= 0 ? `${student.daysRemaining} Days Left` : `Expired ${Math.abs(student.daysRemaining)}d Ago`}
+                    {isOnHold ? 'ON HOLD (Frozen)' : student.daysRemaining >= 0 ? `${student.daysRemaining} Days Left` : `Expired ${Math.abs(student.daysRemaining)}d Ago`}
                   </span>
                 </div>
               </div>
@@ -998,7 +1013,7 @@ export default function StudentPortalPage() {
               {/* Progress bar */}
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${isExpired ? 'bg-rose-500' : student.daysRemaining <= 5 ? 'bg-amber-500' : 'bg-purple-600'}`}
+                  className={`h-full rounded-full ${isOnHold ? 'bg-amber-500' : isExpired ? 'bg-rose-500' : student.daysRemaining <= 5 ? 'bg-amber-500' : 'bg-purple-600'}`}
                   style={{ width: `${Math.min(100, Math.max(5, (student.daysRemaining / 30) * 100))}%` }}
                 ></div>
               </div>
@@ -1152,21 +1167,25 @@ export default function StudentPortalPage() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <button
                 onClick={handlePunchAttendance}
-                disabled={punchActionLoading || isPunchBlocked}
+                disabled={punchActionLoading || isPunchBlocked || isOnHold}
                 className={`py-2 px-4 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 ${
-                  stats.statusToday === 'Inside Library'
+                  isOnHold
+                    ? 'bg-amber-600 text-white cursor-not-allowed'
+                    : stats.statusToday === 'Inside Library'
                     ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-900/10'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-900/10'
                 }`}
-                title={stats.statusToday === 'Inside Library' ? 'Click to record Exit Punch' : 'Click to record Entry Punch'}
+                title={isOnHold ? 'Membership is currently on hold' : stats.statusToday === 'Inside Library' ? 'Click to record Exit Punch' : 'Click to record Entry Punch'}
               >
                 <Fingerprint className="w-4 h-4 shrink-0" />
                 <span>
                   {punchActionLoading 
                     ? 'Recording...' 
-                    : stats.statusToday === 'Inside Library' 
-                      ? '🔴 Punch OUT (Mark Exit)' 
-                      : '🟢 Punch IN (Mark Entry)'}
+                    : isOnHold
+                      ? '⏸️ Punch Disabled (On Hold)'
+                      : stats.statusToday === 'Inside Library' 
+                        ? '🔴 Punch OUT (Mark Exit)' 
+                        : '🟢 Punch IN (Mark Entry)'}
                 </span>
               </button>
 
