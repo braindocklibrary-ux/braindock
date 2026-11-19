@@ -4,7 +4,7 @@ import { store } from '../data/store.js';
 import cloudinary from '../config/cloudinary.js';
 import multer from 'multer';
 import { searchGlobalBooks, getGlobalBookById, calculateRelevance } from '../services/globalBooksService.js';
-import { pushUserToDevice, enableStudentOnBiometricMachine, disableStudentOnBiometricMachine } from '../services/biometricAdmsService.js';
+import { pushUserToDevice, enableStudentOnBiometricMachine, disableStudentOnBiometricMachine, syncAllExpiredStudentsToDevice, fkCommandQueue } from '../services/biometricAdmsService.js';
 import { sendOtpEmail } from '../services/emailService.js';
 import { getFullChaptersForBook } from '../data/fullBookContents.js';
 import { streamBookPdf } from '../services/bookPdfService.js';
@@ -1253,11 +1253,11 @@ const handleHoldAdmission = (req, res) => {
   if (!result.success) {
     return res.status(400).json(result);
   }
-  // Immediately lockout student on TimeWatch biometric machine
+  // Immediately lockout student on TimeWatch biometric machine (High Priority)
   if (result.admission?.seatNumber) {
-    disableStudentOnBiometricMachine(result.admission.seatNumber, result.admission.studentName);
+    disableStudentOnBiometricMachine(result.admission.seatNumber, result.admission.studentName, { priority: true });
     if (result.admission.biometricEnrollmentId && result.admission.biometricEnrollmentId !== result.admission.seatNumber) {
-      disableStudentOnBiometricMachine(result.admission.biometricEnrollmentId, result.admission.studentName);
+      disableStudentOnBiometricMachine(result.admission.biometricEnrollmentId, result.admission.studentName, { priority: true });
     }
   }
   res.json({
@@ -1450,48 +1450,26 @@ router.post('/biometric/punch', (req, res) => {
   res.status(result.granted ? 200 : 403).json(result);
 });
 
-// Force sync active students & lockout all expired (>5d) students on TimeWatch machine
+// Force sync active students & lockout all expired (>5d) and on-hold students on TimeWatch machine
 router.post('/biometric/sync-lockouts', (req, res) => {
-  const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
-  let lockedCount = 0;
-
-  (store.admissions || []).forEach(adm => {
-    if (adm.status === 'Vacated' || !adm.seatNumber) return;
-
-    let daysRemaining = adm.daysRemaining;
-    if (adm.endDate) {
-      const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
-      const diffMs = endDateVal.getTime() - todayDate.getTime();
-      daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
-    }
-
-    // Lockout all students expired >= 5 days (grace period ended)
-    const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
-    if (daysExpired >= 5) {
-      disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
-      if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
-        disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
-      }
-      lockedCount++;
-    }
-  });
-
+  const lockedCount = syncAllExpiredStudentsToDevice();
   res.json({
     success: true,
-    message: `Biometric sync queued: ${lockedCount} expired student(s) locked out on TimeWatch machine.`,
-    lockedCount
+    message: `Biometric sync queued: ${lockedCount} expired/on-hold student(s) locked out on TimeWatch machine.`,
+    lockedCount,
+    queueLength: fkCommandQueue.length
   });
 });
 
-// Direct Instant Lockout for a single user/PIN (for live testing)
+// Direct Instant Lockout for a single user/PIN (Immediate High Priority Wipe)
 router.post('/biometric/lock-user/:pin', (req, res) => {
   const pin = req.params.pin;
   const adm = (store.admissions || []).find(a => String(a.seatNumber) === String(pin) || String(a.biometricEnrollmentId) === String(pin));
-  disableStudentOnBiometricMachine(pin, adm?.studentName || `User-${pin}`);
+  disableStudentOnBiometricMachine(pin, adm?.studentName || `User-${pin}`, { priority: true });
   res.json({
     success: true,
-    message: `Lockout command queued immediately for PIN "${pin}" (${adm?.studentName || 'Student'})! It will be sent to the machine on the next poll.`
+    message: `🚨 High-priority lockout queued immediately for PIN "${pin}" (${adm?.studentName || 'Student'})! Sent on the very next poll (~3s).`,
+    queueLength: fkCommandQueue.length
   });
 });
 

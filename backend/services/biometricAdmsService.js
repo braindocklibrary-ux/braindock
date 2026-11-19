@@ -88,23 +88,26 @@ export function pushUserToDevice({ pin, name }) {
 }
 
 /**
- * Disable / Lockout student on TimeWatch biometric machine (Expired > 5 days)
- * Sends DELETE_USER to physical device to permanently remove access credentials.
- * Without credentials in local EEPROM, the machine physically CANNOT energize
- * the door relay, keeping the physical door 100% LOCKED!
+ * Disable / Lockout student on TimeWatch biometric machine (Expired > 5 days or On-Hold)
+ * Sends native Realand/TimeWatch FK Web Protocol DELETE_USER to physical device.
+ * When the user is deleted from the device's onboard EEPROM flash memory, the machine
+ * has ZERO templates to match, and physically CANNOT energize the door relay!
+ * The door stays 100% LOCKED!
  */
-export function disableStudentOnBiometricMachine(pin, name) {
+export function disableStudentOnBiometricMachine(pin, name, { priority = false } = {}) {
   if (!pin) return;
   const cleanPin = String(pin).trim();
   const cleanName = String(name || '').trim().slice(0, 24);
 
-  // Collect all possible ID variants used on device (e.g. "1", "001", "00000001", seatNumber, biometricEnrollmentId)
+  // Collect all possible ID variants used on device (e.g. "1", "01", "001", "0001", "00000001", seatNumber, biometricEnrollmentId)
   const pinVariants = new Set();
   pinVariants.add(cleanPin);
   const numPin = Number(cleanPin);
   if (!isNaN(numPin)) {
     pinVariants.add(String(numPin));
+    pinVariants.add(String(numPin).padStart(2, '0'));
     pinVariants.add(String(numPin).padStart(3, '0'));
+    pinVariants.add(String(numPin).padStart(4, '0'));
     pinVariants.add(String(numPin).padStart(8, '0'));
   }
 
@@ -113,79 +116,80 @@ export function disableStudentOnBiometricMachine(pin, name) {
     String(a.biometricEnrollmentId) === cleanPin ||
     (numPin && Number(a.seatNumber) === numPin)
   );
+
+  if (adm?.seatNumber) {
+    const sNum = Number(adm.seatNumber);
+    if (!isNaN(sNum)) {
+      pinVariants.add(String(sNum));
+      pinVariants.add(String(sNum).padStart(2, '0'));
+      pinVariants.add(String(sNum).padStart(3, '0'));
+      pinVariants.add(String(sNum).padStart(8, '0'));
+    }
+  }
+
   if (adm?.biometricEnrollmentId) {
     pinVariants.add(String(adm.biometricEnrollmentId));
     const numBio = Number(adm.biometricEnrollmentId);
     if (!isNaN(numBio)) {
+      pinVariants.add(String(numBio));
+      pinVariants.add(String(numBio).padStart(2, '0'));
       pinVariants.add(String(numBio).padStart(3, '0'));
       pinVariants.add(String(numBio).padStart(8, '0'));
     }
   }
 
-  const expiryDate = adm?.endDate || '2026-11-01';
-
   // 1. EBKN / FK Web Protocol (TimeWatch Bio-1SE Native Mode)
-  // Step A: Set Access Control schedule to 0 (No Access / Locked Out) and expired date.
-  // This is the #1 most reliable hardware lockout in Realand/TimeWatch:
-  // When time_group is 0, the machine's onboard CPU displays "Invalid Time / Access Denied"
-  // and REFUSES to energize the door relay!
+  // Clean, high-impact native command: DELETE_USER
+  // This removes the user record and purges all fingerprint & face templates
+  const newCommands = [];
   pinVariants.forEach(variantId => {
-    fkCommandQueue.push({
-      cmd_code: 'SET_USER_INFO',
-      body: {
-        user_id: variantId,
-        user_name: 'EXPIRED-LOCK',
-        user_privilege: 0,
-        user_group: 0,
-        time_group: 0,
-        time_group_id: 0,
-        enabled: 0,
-        disable: 1,
-        expire_date: expiryDate
-      }
-    });
-
-    // Step B: Purge ALL biometric template slots:
-    // -1 = all templates
-    // 0..9 = fingerprints
-    // 10..14 = face recognition templates (Critical: Jadavbhai & others have Face templates in slot 12/13!)
-    // 16 = RFID card
-    const backupSlotsToDelete = [-1, 0, 1, 2, 3, 10, 11, 12, 13, 14, 16];
-    backupSlotsToDelete.forEach(slot => {
-      fkCommandQueue.push({
-        cmd_code: 'DELETE_ENROLL_DATA',
-        body: {
-          user_id: variantId,
-          backup_number: slot
-        }
-      });
-    });
-
-    // Step C: Delete user info & record
-    fkCommandQueue.push({
-      cmd_code: 'DELETE_USER_INFO',
-      body: {
-        user_id: variantId
-      }
-    });
-    fkCommandQueue.push({
+    newCommands.push({
       cmd_code: 'DELETE_USER',
-      body: {
-        user_id: variantId
-      }
+      body: { user_id: variantId }
+    });
+    // Explicit deletion of primary finger (0) and primary face (10)
+    newCommands.push({
+      cmd_code: 'DELETE_ENROLL_DATA',
+      body: { user_id: variantId, backup_number: 0 }
+    });
+    newCommands.push({
+      cmd_code: 'DELETE_ENROLL_DATA',
+      body: { user_id: variantId, backup_number: 10 }
     });
   });
+
+  // Prevent duplicate commands from clogging the queue
+  const isDuplicate = (cmd) => fkCommandQueue.some(q => 
+    q.cmd_code === cmd.cmd_code && 
+    String(q.body?.user_id) === String(cmd.body?.user_id) && 
+    q.body?.backup_number === cmd.body?.backup_number
+  );
+
+  const cleanCmds = newCommands.filter(cmd => !isDuplicate(cmd));
+
+  if (cleanCmds.length > 0) {
+    if (priority) {
+      // Put at the VERY FRONT of the queue so it is dispatched on the immediate next poll (~3s)
+      fkCommandQueue.unshift(...cleanCmds);
+      console.log(`[BIOMETRIC ADMS] 🚨 HIGH PRIORITY LOCKOUT INJECTED AT FRONT OF QUEUE: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
+    } else {
+      fkCommandQueue.push(...cleanCmds);
+      console.log(`[BIOMETRIC ADMS] 🔒 Queued DELETE_USER for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
+    }
+  }
 
   // 2. Standard ZK ADMS Protocol Fallback
   pinVariants.forEach(variantId => {
     const cmdId = Math.floor(100000 + Math.random() * 900000);
     const deleteCmd = `C:${cmdId}:DATA DELETE USER PIN=${variantId}`;
-    const disableCmd = `C:${cmdId + 1}:DATA USER PIN=${variantId}\tName=EXPIRED\tDisable=1\tPri=0\tGroup=0\tTZ=0`;
-    pendingCommands.push({ id: cmdId, pin: variantId, cmdString: deleteCmd, status: 'PENDING' });
-    pendingCommands.push({ id: cmdId + 1, pin: variantId, cmdString: disableCmd, status: 'PENDING' });
+    if (!pendingCommands.some(c => c.pin === variantId && c.cmdString.includes('DELETE'))) {
+      if (priority) {
+        pendingCommands.unshift({ id: cmdId, pin: variantId, cmdString: deleteCmd, status: 'PENDING' });
+      } else {
+        pendingCommands.push({ id: cmdId, pin: variantId, cmdString: deleteCmd, status: 'PENDING' });
+      }
+    }
   });
-
-  console.log(`[BIOMETRIC ADMS] 🔒 Queued FULL LOCKOUT (SET_USER_INFO group 0 + DELETE_ENROLL_DATA face/finger + DELETE_USER) for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
 }
 
 /**
@@ -196,6 +200,18 @@ export function enableStudentOnBiometricMachine(pin, name) {
   const cleanPin = String(pin).trim();
   const cleanName = String(name || '').trim().slice(0, 24);
 
+  // Remove any pending DELETE_USER commands for this pin
+  const numPin = Number(cleanPin);
+  const pinVariants = [cleanPin];
+  if (!isNaN(numPin)) {
+    pinVariants.push(String(numPin), String(numPin).padStart(2, '0'), String(numPin).padStart(3, '0'), String(numPin).padStart(8, '0'));
+  }
+  for (let i = fkCommandQueue.length - 1; i >= 0; i--) {
+    if (pinVariants.includes(String(fkCommandQueue[i].body?.user_id))) {
+      fkCommandQueue.splice(i, 1);
+    }
+  }
+
   // Locate student to check if biometric templates are cached
   const adm = (store.admissions || []).find(a => 
     String(a.seatNumber) === cleanPin || 
@@ -205,8 +221,7 @@ export function enableStudentOnBiometricMachine(pin, name) {
   const payload = {
     user_id: cleanPin,
     user_name: cleanName || `User-${cleanPin}`,
-    user_privilege: 0,
-    user_group: 1
+    user_privilege: 'USER'
   };
 
   if (adm?.enroll_data_array && Array.isArray(adm.enroll_data_array)) {
@@ -219,12 +234,56 @@ export function enableStudentOnBiometricMachine(pin, name) {
     body: payload
   });
 
+  // Also push zero-padded 8-digit format if different
+  if (!isNaN(numPin) && String(numPin).padStart(8, '0') !== cleanPin) {
+    fkCommandQueue.push({
+      cmd_code: 'SET_USER_INFO',
+      body: {
+        ...payload,
+        user_id: String(numPin).padStart(8, '0')
+      }
+    });
+  }
+
   // 2. Standard ZK ADMS Protocol Fallback
   const cmdId = Math.floor(100000 + Math.random() * 900000);
   const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=0\tPri=0\tGroup=1\tPasswd=\tCard=`;
   pendingCommands.push({ id: cmdId, pin: cleanPin, name: cleanName, cmdString, status: 'PENDING' });
 
   console.log(`[BIOMETRIC ADMS] 🟢 Queued UNLOCK/ENABLE command for TimeWatch machine: PIN "${cleanPin}" (${cleanName})`);
+}
+
+/**
+ * Universal Sync: Queue lockout for all expired (>5 days) and On-Hold students
+ */
+export function syncAllExpiredStudentsToDevice() {
+  const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
+  let count = 0;
+
+  (store.admissions || []).forEach(adm => {
+    if (adm.status === 'Vacated' || !adm.seatNumber) return;
+
+    let daysRemaining = adm.daysRemaining;
+    if (adm.endDate) {
+      const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
+      const diffMs = endDateVal.getTime() - todayDate.getTime();
+      daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    }
+
+    const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
+    const isBlocked = (daysRemaining < 0 && daysExpired > 5) || adm.status === 'On Hold' || adm.isOnHold;
+
+    if (isBlocked) {
+      disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
+        disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
+      }
+      count++;
+    }
+  });
+  console.log(`[BIOMETRIC ADMS] 🛡️ Synced lockouts: ${count} expired/on-hold students queued for physical door lockout on TimeWatch machine.`);
+  return count;
 }
 
 /**
@@ -364,9 +423,15 @@ function processSinglePunch({ pin, punchTime, verifyType, statusType, sn, ioMode
     recentPunches.unshift(record);
     if (recentPunches.length > 200) recentPunches.pop();
 
-    // If student is blocked (> 5 days expired), dispatch disable command to machine
-    if (punchResult?.isPunchBlocked) {
-      disableStudentOnBiometricMachine(cleanPin, record?.studentName);
+    // If student is blocked (> 5 days expired or On Hold or Access Denied), dispatch IMMEDIATE HIGH PRIORITY lockout to machine
+    if (punchResult?.isPunchBlocked || punchResult?.isOnHold || record.accessResult === 'DENIED' || record.doorStatus === 'LOCKED') {
+      disableStudentOnBiometricMachine(cleanPin, record?.studentName, { priority: true });
+      if (student?.seatNumber) {
+        disableStudentOnBiometricMachine(student.seatNumber, record?.studentName, { priority: true });
+      }
+      if (student?.biometricEnrollmentId && String(student.biometricEnrollmentId) !== String(student.seatNumber)) {
+        disableStudentOnBiometricMachine(student.biometricEnrollmentId, record?.studentName, { priority: true });
+      }
     }
 
     // Broadcast instant real-time punch event to student portal (< 0.1s latency)

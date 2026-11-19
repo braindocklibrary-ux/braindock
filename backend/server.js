@@ -13,6 +13,7 @@ import {
   pushUserToDevice,
   enableStudentOnBiometricMachine,
   disableStudentOnBiometricMachine,
+  syncAllExpiredStudentsToDevice,
   recentPunches 
 } from './services/biometricAdmsService.js';
 import { store } from './data/store.js';
@@ -155,32 +156,13 @@ async function startServer() {
     console.log(`📡 BIOMETRIC ADMS ENGINE LISTENING ON PORT: ${BIOMETRIC_PORT}`);
   });
 
-  // Auto-sync admitted students to TimeWatch device on boot (Sync active vs blocked users)
+  // Auto-sync admitted students to TimeWatch device on boot & every 15 minutes
   setTimeout(() => {
-    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    const todayDate = new Date(`${todayIST}T00:00:00+05:30`);
-
-    (store.admissions || []).forEach(adm => {
-      if (adm.status === 'Vacated' || !adm.seatNumber) return;
-
-      let daysRemaining = adm.daysRemaining;
-      if (adm.endDate) {
-        const endDateVal = new Date(`${adm.endDate}T00:00:00+05:30`);
-        const diffMs = endDateVal.getTime() - todayDate.getTime();
-        daysRemaining = Math.round(diffMs / (24 * 60 * 60 * 1000));
-      }
-
-      // If expired >= 5 days (5-day grace period ended), lock/disable on machine immediately!
-      // (Purges optical templates and user records so physical relay CANNOT unlock)
-      const daysExpired = daysRemaining < 0 ? Math.abs(daysRemaining) : 0;
-      if (daysExpired >= 5) {
-        disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
-        if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
-          disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
-        }
-      }
-    });
+    syncAllExpiredStudentsToDevice();
   }, 2000);
+  setInterval(() => {
+    syncAllExpiredStudentsToDevice();
+  }, 15 * 60 * 1000);
 
   // Initialize Automated Google Drive Cloud Backup Service
   initScheduledGoogleDriveBackup();
