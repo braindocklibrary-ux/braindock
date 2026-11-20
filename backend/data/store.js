@@ -169,7 +169,11 @@ class DataStore {
               match.password = su.password;
               if (su.name) match.name = su.name;
               if (su.phone) match.phone = su.phone;
+              if (su.membershipStatus) match.membershipStatus = su.membershipStatus;
+              if (su.membershipValidUntil) match.membershipValidUntil = new Date(su.membershipValidUntil);
+              if (su.membershipPlan) match.membershipPlan = su.membershipPlan;
             } else {
+              if (su.membershipValidUntil) su.membershipValidUntil = new Date(su.membershipValidUntil);
               this.users.push(su);
             }
           });
@@ -270,6 +274,47 @@ class DataStore {
     return newUser;
   }
 
+  // Bi-directional synchronization between web user account and physical desk admission
+  syncUserAndAdmission(identifier) {
+    if (!identifier) return null;
+    const cleanId = String(identifier).trim().toLowerCase();
+    const cleanDigits = String(identifier).replace(/\D/g, '').slice(-10);
+
+    const adm = (this.admissions || []).find(a => {
+      if (a.studentEmail && a.studentEmail.toLowerCase() === cleanId) return true;
+      if (a.admissionId && a.admissionId.toLowerCase() === cleanId) return true;
+      if (cleanDigits.length >= 10 && a.studentPhone && a.studentPhone.replace(/\D/g, '').slice(-10) === cleanDigits) return true;
+      return false;
+    });
+
+    const user = (this.users || []).find(u => {
+      const uEmail = u.email ? String(u.email).toLowerCase() : '';
+      const uPhone = u.phone ? String(u.phone).replace(/\D/g, '').slice(-10) : '';
+      if (uEmail && (uEmail === cleanId || (adm?.studentEmail && uEmail === adm.studentEmail.toLowerCase()))) return true;
+      if (cleanDigits.length >= 10 && uPhone && uPhone.length >= 10 && uPhone === cleanDigits) return true;
+      if (adm?.studentPhone) {
+        const admPhone = adm.studentPhone.replace(/\D/g, '').slice(-10);
+        if (admPhone.length >= 10 && uPhone && uPhone.length >= 10 && uPhone === admPhone) return true;
+      }
+      return false;
+    });
+
+    if (adm && user) {
+      if (adm.endDate) {
+        user.membershipValidUntil = new Date(`${adm.endDate}T23:59:59+05:30`);
+      }
+      if (adm.status === 'Active') {
+        user.membershipStatus = 'Active';
+      } else if (adm.status === 'Expired') {
+        user.membershipStatus = 'Expired';
+      } else if (adm.status === 'On Hold' || adm.isOnHold) {
+        user.membershipStatus = 'Suspended';
+      }
+      this.saveState();
+    }
+    return { adm, user };
+  }
+
   requestPasswordResetOtp(email) {
     if (!email) return { success: false, message: 'Email address is required.' };
     const user = this.findUserByEmail(email);
@@ -328,7 +373,8 @@ class DataStore {
     const cleanCurrent = String(currentPin || '').trim();
     const cleanNew = String(newPin).trim();
     const activePin = this.getOwnerPin();
-    if (cleanCurrent !== activePin && cleanCurrent !== '2026' && cleanCurrent !== 'braindock123') {
+    const envPin = process.env.OWNER_PIN || '2026';
+    if (cleanCurrent !== activePin && cleanCurrent !== envPin) {
       return { success: false, message: 'Current Passkey PIN is incorrect.' };
     }
     this.ownerPin = cleanNew;
@@ -1274,7 +1320,25 @@ class DataStore {
     };
 
     const renewalStartDate = startDate || adm.endDate || adm.startDate || new Date().toISOString().split('T')[0];
-    const newEndDate = endDate || addMonthsToDateStr(renewalStartDate, renewMonths);
+    let calculatedEndDate = addMonthsToDateStr(renewalStartDate, renewMonths);
+    const customEndDate = endDate || arguments[1]?.newEndDate;
+    if (customEndDate && typeof customEndDate === 'string') {
+      const parts = customEndDate.split('T')[0].split('-').map(Number);
+      const parsedCustomEnd = new Date(`${customEndDate.split('T')[0]}T00:00:00+05:30`);
+      const startObj = new Date(`${renewalStartDate.split('T')[0]}T00:00:00+05:30`);
+      if (isNaN(parsedCustomEnd.getTime()) || parts.length !== 3 || parts.some(isNaN)) {
+        return { success: false, message: 'Invalid renewal end date format. Expected YYYY-MM-DD.' };
+      }
+      if (parsedCustomEnd.getTime() <= startObj.getTime()) {
+        return { success: false, message: 'Renewal end date must be strictly after renewal start date.' };
+      }
+      const maxAllowed = new Date(startObj.getTime() + (3 * 365 * 24 * 60 * 60 * 1000));
+      if (parsedCustomEnd.getTime() > maxAllowed.getTime()) {
+        return { success: false, message: 'Renewal duration cannot exceed 3 years.' };
+      }
+      calculatedEndDate = customEndDate.split('T')[0];
+    }
+    const newEndDate = calculatedEndDate;
 
     adm.lastRenewedFrom = renewalStartDate;
     adm.endDate = newEndDate;
@@ -1283,6 +1347,11 @@ class DataStore {
     adm.pendingFee = Math.max(0, adm.totalFee - adm.paidAmount);
     adm.feeStatus = adm.pendingFee === 0 ? 'Paid' : 'Pending';
     adm.status = 'Active';
+
+    // Synchronize linked web user membership if present
+    if (adm.studentEmail || adm.studentPhone) {
+      this.syncUserAndAdmission(adm.studentEmail || adm.studentPhone);
+    }
 
     // Update days remaining relative to current wall-clock date
     const endObj = new Date(newEndDate);
@@ -2223,7 +2292,11 @@ class DataStore {
               name: u.name,
               password: u.password,
               role: u.role,
-              memberId: u.memberId
+              memberId: u.memberId,
+              phone: u.phone,
+              membershipStatus: u.membershipStatus,
+              membershipValidUntil: u.membershipValidUntil,
+              membershipPlan: u.membershipPlan
             }))
           }, null, 2));
         } catch (e) {}
@@ -2257,7 +2330,11 @@ class DataStore {
           name: u.name,
           password: u.password,
           role: u.role,
-          memberId: u.memberId
+          memberId: u.memberId,
+          phone: u.phone,
+          membershipStatus: u.membershipStatus,
+          membershipValidUntil: u.membershipValidUntil,
+          membershipPlan: u.membershipPlan
         }))
       }, null, 2));
     } catch (e) {
@@ -2853,6 +2930,78 @@ class DataStore {
         doorStatus: 'LOCKED',
         isOnHold: true,
         message: `⏸️ ACCESS PAUSED: Membership is currently ON HOLD (${student.holdReason || 'Temporary Leave'}). Please contact library admin to resume.`,
+        student,
+        log
+      };
+    }
+
+    // RULE 0.5: Synchronize and check linked website user account (membershipStatus & membershipValidUntil)
+    let isWebUserBlocked = false;
+    let webBlockReason = '';
+
+    const cleanStudentPhone = student.studentPhone ? String(student.studentPhone).replace(/\D/g, '').slice(-10) : '';
+    const cleanStudentEmail = student.studentEmail ? String(student.studentEmail).trim().toLowerCase() : '';
+
+    // Prefer exact email match first, then fall back to phone match
+    let linkedUser = null;
+    if (cleanStudentEmail) {
+      linkedUser = (this.users || []).find(u => u.email && String(u.email).trim().toLowerCase() === cleanStudentEmail);
+    }
+    if (!linkedUser && cleanStudentPhone && cleanStudentPhone.length >= 10) {
+      linkedUser = (this.users || []).find(u => {
+        const uPhone = u.phone ? String(u.phone).replace(/\D/g, '').slice(-10) : '';
+        return uPhone && uPhone === cleanStudentPhone;
+      });
+    }
+
+    if (linkedUser) {
+      if (linkedUser.membershipStatus === 'Suspended' || linkedUser.isSuspended) {
+        isWebUserBlocked = true;
+        webBlockReason = 'Website member account is Suspended/Inactive.';
+      } else if (linkedUser.membershipStatus === 'Expired') {
+        if (linkedUser.membershipValidUntil) {
+          const webExpiryDate = new Date(linkedUser.membershipValidUntil);
+          const webDiffDays = Math.round((webExpiryDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+          if (webDiffDays < -5) {
+            isWebUserBlocked = true;
+            webBlockReason = `Website subscription expired ${Math.abs(webDiffDays)} days ago (5-day grace period exceeded).`;
+          }
+        } else {
+          isWebUserBlocked = true;
+          webBlockReason = 'Website member account is Expired.';
+        }
+      }
+    }
+
+    if (isWebUserBlocked) {
+      const log = {
+        id: `PUNCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        timestamp: timestampStr,
+        date: dateStr,
+        time: timeStr,
+        grId: student.grId,
+        biometricEnrollmentId: student.biometricEnrollmentId || student.seatNumber,
+        studentName: student.studentName,
+        studentEmail: student.studentEmail || student.parentEmail || null,
+        studentPhone: student.studentPhone,
+        seatNumber: student.seatNumber,
+        zone: student.zone,
+        floor: student.floor || 'Ground Floor',
+        method,
+        punchType: 'IN',
+        accessResult: 'DENIED',
+        doorStatus: 'LOCKED',
+        reason: webBlockReason,
+        durationMinutes: null
+      };
+      this.biometricLogs.unshift(log);
+      this.saveState();
+      return {
+        success: false,
+        granted: false,
+        doorStatus: 'LOCKED',
+        isPunchBlocked: true,
+        message: `⛔ ACCESS DENIED: ${webBlockReason} Biometric punch disabled.`,
         student,
         log
       };

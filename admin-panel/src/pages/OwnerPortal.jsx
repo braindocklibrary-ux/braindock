@@ -70,6 +70,19 @@ import CameraCaptureCropModal from '../components/CameraCaptureCropModal';
 import { compressImage } from '../utils/imageCompressor';
 import { API_BASE_URL } from '../config';
 
+const ownerFetch = (url, options = {}) => {
+  const token = localStorage.getItem('bdl_owner_token') || localStorage.getItem('bdl_super_admin_token');
+  const pin = localStorage.getItem('bdl_owner_pin');
+  const headers = { ...(options.headers || {}) };
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (pin && !headers['x-owner-pin']) {
+    headers['x-owner-pin'] = pin;
+  }
+  return fetch(url, { ...options, headers });
+};
+
 export default function OwnerPortal() {
   const { currentStaff } = useAdminAuth();
 
@@ -527,7 +540,7 @@ export default function OwnerPortal() {
 
     try {
       // 1. High-Speed Single Roundtrip Consolidated Bootstrap
-      const bootstrapRes = await fetch(`${API_BASE_URL}/api/owner/bootstrap`).then(r => r.json()).catch(() => null);
+      const bootstrapRes = await ownerFetch(`${API_BASE_URL}/api/owner/bootstrap`).then(r => r.json()).catch(() => null);
       if (bootstrapRes && bootstrapRes.success && bootstrapRes.data) {
         const { seats: bSeats, admissions: bAdmissions, stats: bStats, biometricLogs: bBioLogs, biometricStats: bBioStats, expiryReminders: bExp } = bootstrapRes.data;
 
@@ -578,12 +591,12 @@ export default function OwnerPortal() {
 
     // Fallback: Parallel requests
     Promise.all([
-      fetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/owner/stats`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/biometric/logs`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/owner/expiry-reminders`).then(r => r.json())
+      ownerFetch(`${API_BASE_URL}/api/owner/seats`).then(r => r.json()),
+      ownerFetch(`${API_BASE_URL}/api/owner/admissions`).then(r => r.json()),
+      ownerFetch(`${API_BASE_URL}/api/owner/stats`).then(r => r.json()),
+      ownerFetch(`${API_BASE_URL}/api/biometric/logs`).then(r => r.json()),
+      ownerFetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()),
+      ownerFetch(`${API_BASE_URL}/api/owner/expiry-reminders`).then(r => r.json())
     ])
       .then(async ([seatsRes, admRes, statsRes, bioLogsRes, bioStatsRes, expRes]) => {
         let currentAdmissions = (admRes && admRes.success && Array.isArray(admRes.data)) ? admRes.data : [];
@@ -611,7 +624,7 @@ export default function OwnerPortal() {
         // Keep local storage backup fresh
         if (currentAdmissions.length > 0) {
           try {
-            fetch(`${API_BASE_URL}/api/owner/backup`)
+            ownerFetch(`${API_BASE_URL}/api/owner/backup`)
               .then(r => r.json())
               .then(d => {
                 if (d.success && d.data && Array.isArray(d.data.admissions)) {
@@ -643,7 +656,7 @@ export default function OwnerPortal() {
     if (customFee) query.append('fee', customFee);
     if (customNote) query.append('offerNote', customNote);
 
-    fetch(`${API_BASE_URL}/api/owner/expiry-reminders?${query.toString()}`)
+    ownerFetch(`${API_BASE_URL}/api/owner/expiry-reminders?${query.toString()}`)
       .then(r => r.json())
       .then(d => {
         if (d.success) setExpiryReminders(d.data || []);
@@ -659,7 +672,7 @@ export default function OwnerPortal() {
   const handleSyncBiometricLockouts = async () => {
     setSyncingLockouts(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/biometric/sync-lockouts`, { method: 'POST' });
+      const res = await ownerFetch(`${API_BASE_URL}/api/biometric/sync-lockouts`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showToast(`🔒 ${data.message}`);
@@ -691,7 +704,7 @@ export default function OwnerPortal() {
   const handleSaveRenewalSettings = async () => {
     setSavingRenewalSettings(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/renewal-settings`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/renewal-settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ defaultRenewalFee: Number(renewalFee), offerNote })
@@ -728,7 +741,7 @@ export default function OwnerPortal() {
 
   const fetchBotStatus = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/status`);
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/status`);
       const data = await res.json();
       if (data.success) {
         if (data.bot) {
@@ -759,7 +772,7 @@ export default function OwnerPortal() {
     setConnectingBot(true);
     setBotModalOpen(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/connect`, { method: 'POST' });
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/connect`, { method: 'POST' });
       const data = await res.json();
       if (data.success && data.bot) {
         setBotStatus(data.bot.status);
@@ -775,7 +788,7 @@ export default function OwnerPortal() {
   const handleDisconnectBot = async () => {
     if (!window.confirm('Are you sure you want to unlink WhatsApp from the server?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/disconnect`, { method: 'POST' });
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/disconnect`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showToast('WhatsApp session unlinked.');
@@ -796,7 +809,7 @@ export default function OwnerPortal() {
 
     setDispatchingNow(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/trigger-dispatch`, { method: 'POST' });
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/trigger-dispatch`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showToast(`🎉 ${data.message}`);
@@ -814,7 +827,7 @@ export default function OwnerPortal() {
 
   const handleSaveSchedulerSettings = async (newSettings) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/scheduler-settings`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/scheduler-settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSettings)
@@ -833,7 +846,7 @@ export default function OwnerPortal() {
     e.preventDefault();
     setSendingTest(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/whatsapp/send-test`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/whatsapp/send-test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: testPhone, message: testMessage })
@@ -895,7 +908,7 @@ export default function OwnerPortal() {
       : (item.renewalFee || Number(renewalFee));
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/expiry-reminders/${item.admissionId}/send`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/expiry-reminders/${item.admissionId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ renewalFee: customFee, offerNote })
@@ -920,7 +933,7 @@ export default function OwnerPortal() {
     const dueCount = expiryReminders.filter(e => !e.alreadySentToday).length;
     if (!window.confirm(`Send WhatsApp renewal reminder to all ${dueCount} student(s) expiring in the next 3 days?\n\nActive Renewal Fee: ₹${renewalFee} / month`)) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/expiry-reminders/send-all-due`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/expiry-reminders/send-all-due`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -944,8 +957,8 @@ export default function OwnerPortal() {
 
   const fetchBiometricData = () => {
     Promise.all([
-      fetch(`${API_BASE_URL}/api/biometric/logs?limit=50`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()).catch(() => null)
+      ownerFetch(`${API_BASE_URL}/api/biometric/logs?limit=50`).then(r => r.json()).catch(() => null),
+      ownerFetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()).catch(() => null)
     ]).then(([logsRes, statsRes]) => {
       if (logsRes && logsRes.success) setBiometricLogs(logsRes.data);
       if (statsRes && statsRes.success) setBiometricStats(statsRes.data);
@@ -956,7 +969,7 @@ export default function OwnerPortal() {
   const handleDownloadBackup = async () => {
     try {
       showToast('Preparing full library database backup...');
-      const res = await fetch(`${API_BASE_URL}/api/owner/backup`);
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/backup`);
       const data = await res.json();
       if (data.success) {
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data.data, null, 2))}`;
@@ -984,7 +997,7 @@ export default function OwnerPortal() {
     try {
       const text = await file.text();
       const backupObj = JSON.parse(text);
-      const res = await fetch(`${API_BASE_URL}/api/owner/restore`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ backup: backupObj })
@@ -1006,7 +1019,7 @@ export default function OwnerPortal() {
   const fetchDriveStatus = async () => {
     setLoadingDriveStatus(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/backup/google-drive/status`);
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/backup/google-drive/status`);
       const data = await res.json();
       if (data.success) {
         setDriveStatus(data.data);
@@ -1027,7 +1040,7 @@ export default function OwnerPortal() {
     setPushingDrive(true);
     try {
       showToast('Uploading full backup to Google Drive...');
-      const res = await fetch(`${API_BASE_URL}/api/owner/backup/google-drive`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/backup/google-drive`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -1049,7 +1062,7 @@ export default function OwnerPortal() {
     const seatToPunch = targetSeatNum != null ? targetSeatNum : simulatedSeatNum;
     setSimulatingPunch(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/biometric/punch`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/biometric/punch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1077,7 +1090,7 @@ export default function OwnerPortal() {
   const handleVerifyPin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/verify-pin`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin: masterPin })
@@ -1086,15 +1099,20 @@ export default function OwnerPortal() {
       if (data.success && data.authorized) {
         setIsUnlocked(true);
         setPinError('');
+        if (data.token) {
+          localStorage.setItem('bdl_owner_token', data.token);
+        }
+        localStorage.setItem('bdl_owner_pin', masterPin);
         showToast('Owner access verified! Welcome Director.');
         return;
       }
     } catch (err) {}
 
-    // Fallback offline verification
-    if (masterPin === '2026' || masterPin === '1234' || masterPin === 'braindock123') {
+    // Fallback verification
+    if (masterPin === '2026' || masterPin === '1234') {
       setIsUnlocked(true);
       setPinError('');
+      localStorage.setItem('bdl_owner_pin', masterPin);
       showToast('Owner access verified! Welcome Director.');
     } else {
       setPinError('Invalid Passkey PIN. Please enter the authorized owner PIN.');
@@ -1163,7 +1181,7 @@ export default function OwnerPortal() {
 
     setSecPinLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/owner/change-pin`, {
+      const res = await ownerFetch(`${API_BASE_URL}/api/owner/change-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1174,6 +1192,7 @@ export default function OwnerPortal() {
       const data = await res.json();
       setSecPinLoading(false);
       if (data.success) {
+        localStorage.setItem('bdl_owner_pin', secNewPin);
         setSecPinMsg('✅ Director Passkey PIN updated successfully!');
         setSecCurrentPin('');
         setSecNewPin('');
@@ -1436,7 +1455,7 @@ export default function OwnerPortal() {
       date: admForm.startDate
     };
 
-    fetch(url, {
+    ownerFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1471,7 +1490,7 @@ export default function OwnerPortal() {
   const confirmDeleteAdmission = () => {
     if (!deleteConfirmModal) return;
 
-    fetch(`${API_BASE_URL}/api/owner/admissions/${deleteConfirmModal.admissionId}`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${deleteConfirmModal.admissionId}`, {
       method: 'DELETE'
     })
       .then(res => res.json())
@@ -1544,7 +1563,7 @@ export default function OwnerPortal() {
     e.preventDefault();
     if (!selectedAdmissionForPay) return;
 
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForPay.admissionId}/pay`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForPay.admissionId}/pay`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payForm)
@@ -1609,7 +1628,7 @@ export default function OwnerPortal() {
     e.preventDefault();
     if (!selectedAdmissionForRefund) return;
 
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForRefund.admissionId}/refund-deposit`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForRefund.admissionId}/refund-deposit`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(refundForm)
@@ -1646,7 +1665,7 @@ export default function OwnerPortal() {
     }
 
     setMpinSaving(true);
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForMpin.admissionId}/mpin`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForMpin.admissionId}/mpin`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mpin: cleanPin })
@@ -1690,7 +1709,7 @@ export default function OwnerPortal() {
       : holdForm.reason;
 
     setHoldSaving(true);
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForHold.admissionId}/hold`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForHold.admissionId}/hold`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1752,7 +1771,7 @@ export default function OwnerPortal() {
     if (!selectedAdmissionForResume) return;
 
     setResumeSaving(true);
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForResume.admissionId}/resume`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForResume.admissionId}/resume`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' }
     })
@@ -1779,7 +1798,7 @@ export default function OwnerPortal() {
     e.preventDefault();
     if (!selectedAdmissionForRenew) return;
 
-    fetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForRenew.admissionId}/renew`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/admissions/${selectedAdmissionForRenew.admissionId}/renew`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(renewForm)
@@ -1804,7 +1823,7 @@ export default function OwnerPortal() {
   const handleVacateSeat = (seatNumber) => {
     if (!window.confirm(`Are you sure you want to VACATE Seat #${seatNumber}? This will mark the seat as Available for new students.`)) return;
 
-    fetch(`${API_BASE_URL}/api/owner/seats/${seatNumber}/vacate`, {
+    ownerFetch(`${API_BASE_URL}/api/owner/seats/${seatNumber}/vacate`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason: 'Vacated by Library Owner' })
@@ -1823,7 +1842,7 @@ export default function OwnerPortal() {
 
   // View Receipt
   const handleViewReceipt = (receiptNum) => {
-    fetch(`${API_BASE_URL}/api/owner/receipts/${receiptNum}`)
+    ownerFetch(`${API_BASE_URL}/api/owner/receipts/${receiptNum}`)
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -3501,7 +3520,7 @@ export default function OwnerPortal() {
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${API_BASE_URL}/api/owner/sync-student-to-device`, {
+                    const res = await ownerFetch(`${API_BASE_URL}/api/owner/sync-student-to-device`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({

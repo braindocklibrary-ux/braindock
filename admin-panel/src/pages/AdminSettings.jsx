@@ -95,9 +95,14 @@ export default function AdminSettings() {
 
     setPinLoading(true);
     try {
+      const token = localStorage.getItem('bdl_super_admin_token') || localStorage.getItem('bdl_owner_token') || '';
       const res = await fetch(`${API_BASE_URL}/api/owner/change-pin`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+          'x-owner-pin': currentPin
+        },
         body: JSON.stringify({
           currentPin,
           newPin

@@ -732,6 +732,31 @@ router.post('/memberships/subscribe', authMiddleware, (req, res) => {
   user.membershipStatus = 'Active';
   user.membershipValidUntil = new Date(Date.now() + (plan.durationDays || 365) * 24 * 60 * 60 * 1000);
 
+  // Synchronize desk admission record & re-enable biometric access
+  const uEmail = user.email ? String(user.email).trim().toLowerCase() : '';
+  const uPhone = user.phone ? String(user.phone).replace(/\D/g, '').slice(-10) : '';
+  const adm = (store.admissions || []).find(a => {
+    const aEmail = a.studentEmail ? String(a.studentEmail).trim().toLowerCase() : '';
+    const aPhone = a.studentPhone ? String(a.studentPhone).replace(/\D/g, '').slice(-10) : '';
+    if (uEmail && aEmail && uEmail === aEmail) return true;
+    if (uPhone && uPhone.length >= 10 && aPhone && aPhone.length >= 10 && uPhone === aPhone) return true;
+    return false;
+  });
+  if (adm) {
+    const y = user.membershipValidUntil.getFullYear();
+    const m = String(user.membershipValidUntil.getMonth() + 1).padStart(2, '0');
+    const d = String(user.membershipValidUntil.getDate()).padStart(2, '0');
+    adm.endDate = `${y}-${m}-${d}`;
+    adm.status = 'Active';
+    store.saveState();
+    if (adm.seatNumber) {
+      enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+    }
+    if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
+      enableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName);
+    }
+  }
+
   const payment = store.recordPayment({
     memberId: user.memberId,
     purpose: `Membership Upgrade (${plan.name})`,
@@ -931,6 +956,35 @@ router.put('/admin/members/:memberId/status', authMiddleware, (req, res) => {
   const user = store.findUserById(req.params.memberId);
   if (!user) return res.status(404).json({ success: false, message: 'Member not found' });
   user.membershipStatus = req.body.status || 'Active';
+
+  // Synchronize desk admission record & biometric physical door lockout/enable
+  const uEmail = user.email ? String(user.email).trim().toLowerCase() : '';
+  const uPhone = user.phone ? String(user.phone).replace(/\D/g, '').slice(-10) : '';
+  const adm = (store.admissions || []).find(a => {
+    const aEmail = a.studentEmail ? String(a.studentEmail).trim().toLowerCase() : '';
+    const aPhone = a.studentPhone ? String(a.studentPhone).replace(/\D/g, '').slice(-10) : '';
+    if (uEmail && aEmail && uEmail === aEmail) return true;
+    if (uPhone && uPhone.length >= 10 && aPhone && aPhone.length >= 10 && uPhone === aPhone) return true;
+    return false;
+  });
+  if (adm) {
+    if (user.membershipStatus === 'Suspended' || user.membershipStatus === 'Expired') {
+      adm.status = user.membershipStatus === 'Suspended' ? 'On Hold' : 'Expired';
+      if (adm.seatNumber) {
+        disableStudentOnBiometricMachine(adm.seatNumber, adm.studentName, { priority: true });
+      }
+      if (adm.biometricEnrollmentId && adm.biometricEnrollmentId !== adm.seatNumber) {
+        disableStudentOnBiometricMachine(adm.biometricEnrollmentId, adm.studentName, { priority: true });
+      }
+    } else if (user.membershipStatus === 'Active') {
+      adm.status = 'Active';
+      if (adm.seatNumber) {
+        enableStudentOnBiometricMachine(adm.seatNumber, adm.studentName);
+      }
+    }
+    store.saveState();
+  }
+
   res.json({ success: true, message: `Member status updated to ${user.membershipStatus}`, user });
 });
 
@@ -989,24 +1043,84 @@ router.delete('/content/features/:id', (req, res) => {
 });
 
 // ================= OWNER DESK & 102-SEAT ADMISSION SUITE =================
-// Verify Owner Master Passkey / PIN
+// Strict Owner Authentication Middleware (Token or Header Passkey)
+export const ownerAuthMiddleware = (req, res, next) => {
+  if (req.method === 'OPTIONS') return next();
+
+  const authHeader = req.headers.authorization || req.headers['x-owner-pin'] || req.headers['x-owner-token'];
+  const activePin = store.getOwnerPin();
+  const envPin = process.env.OWNER_PIN || '2026';
+
+  if (authHeader) {
+    if (String(authHeader).startsWith('Bearer ')) {
+      const token = String(authHeader).slice(7).trim();
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded && (decoded.role === 'owner' || decoded.role === 'admin' || decoded.role === 'Super Admin')) {
+          req.owner = decoded;
+          return next();
+        }
+      } catch (err) {}
+    } else if (String(authHeader).trim() === activePin || String(authHeader).trim() === envPin) {
+      return next();
+    }
+  }
+
+  // Also check explicit x-owner-pin header
+  if (req.headers['x-owner-pin'] && (String(req.headers['x-owner-pin']).trim() === activePin || String(req.headers['x-owner-pin']).trim() === envPin)) {
+    return next();
+  }
+
+  // Query parameter fallback for downloads (e.g. GET /owner/backup)
+  if (req.query.token) {
+    try {
+      const decoded = jwt.verify(req.query.token, JWT_SECRET);
+      if (decoded && (decoded.role === 'owner' || decoded.role === 'admin' || decoded.role === 'Super Admin')) {
+        req.owner = decoded;
+        return next();
+      }
+    } catch (err) {}
+  }
+  if (req.query.pin && (String(req.query.pin).trim() === activePin || String(req.query.pin).trim() === envPin)) {
+    return next();
+  }
+
+  return res.status(401).json({ 
+    success: false, 
+    authorized: false, 
+    message: 'Unauthorized: Owner master passkey or valid session token required.' 
+  });
+};
+
+// Verify Owner Master Passkey / PIN & Issue Signed JWT
 router.post('/owner/verify-pin', (req, res) => {
   const { pin } = req.body;
   const activePin = store.getOwnerPin();
+  const envPin = process.env.OWNER_PIN || '2026';
   const cleanPin = String(pin || '').trim();
-  if (cleanPin === activePin || cleanPin === '2026' || cleanPin === 'braindock123') {
-    return res.json({ success: true, authorized: true, message: 'Owner master access granted' });
+  if (cleanPin === activePin || cleanPin === envPin) {
+    const token = jwt.sign(
+      { role: 'owner', id: 'owner_master', issuedAt: Date.now() }, 
+      JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    return res.json({ 
+      success: true, 
+      authorized: true, 
+      token, 
+      message: 'Owner master access granted' 
+    });
   }
   return res.status(401).json({ success: false, authorized: false, message: 'Invalid Owner Access PIN' });
 });
 
 // Get Current Owner Passkey PIN
-router.get('/owner/pin', (req, res) => {
+router.get('/owner/pin', ownerAuthMiddleware, (req, res) => {
   res.json({ success: true, pin: store.getOwnerPin() });
 });
 
 // Change Owner Master Passkey PIN
-router.post('/owner/change-pin', (req, res) => {
+router.post('/owner/change-pin', ownerAuthMiddleware, (req, res) => {
   const { currentPin, newPin } = req.body;
   const result = store.setOwnerPin(currentPin, newPin);
   if (!result.success) {
@@ -1016,7 +1130,7 @@ router.post('/owner/change-pin', (req, res) => {
 });
 
 // Export Full Database Backup (JSON)
-router.get('/owner/backup', (req, res) => {
+router.get('/owner/backup', ownerAuthMiddleware, (req, res) => {
   const backup = {
     version: '1.0',
     libraryName: 'Brain Dock Library',
@@ -1053,7 +1167,7 @@ router.use('/owner', async (req, res, next) => {
 });
 
 // Restore Database from Backup (JSON)
-router.post('/owner/restore', (req, res) => {
+router.post('/owner/restore', ownerAuthMiddleware, (req, res) => {
   const { backup } = req.body;
   if (!backup || typeof backup !== 'object') {
     return res.status(400).json({ success: false, message: 'Invalid backup file payload.' });
@@ -1068,13 +1182,13 @@ router.post('/owner/restore', (req, res) => {
 });
 
 // Google Drive Backup Status
-router.get('/owner/backup/google-drive/status', (req, res) => {
+router.get('/owner/backup/google-drive/status', ownerAuthMiddleware, (req, res) => {
   const status = getGoogleDriveBackupStatus();
   res.json({ success: true, data: status });
 });
 
 // Trigger Instant Backup to Google Drive
-router.post('/owner/backup/google-drive', async (req, res) => {
+router.post('/owner/backup/google-drive', ownerAuthMiddleware, async (req, res) => {
   const result = await uploadBackupToGoogleDrive();
   if (result.success) {
     res.json(result);
@@ -1126,7 +1240,7 @@ router.get('/owner/admissions', (req, res) => {
 });
 
 // Create new admission & allocate seat & generate receipt
-router.post('/owner/admissions', (req, res) => {
+router.post('/owner/admissions', ownerAuthMiddleware, (req, res) => {
   const result = store.createAdmission(req.body);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1149,7 +1263,7 @@ router.post('/owner/admissions', (req, res) => {
 });
 
 // Update an existing student admission form
-router.put('/owner/admissions/:id', (req, res) => {
+router.put('/owner/admissions/:id', ownerAuthMiddleware, (req, res) => {
   const result = store.updateAdmission(req.params.id, req.body);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1172,7 +1286,7 @@ router.put('/owner/admissions/:id', (req, res) => {
 });
 
 // Delete an admission form & vacate seat
-router.delete('/owner/admissions/:id', (req, res) => {
+router.delete('/owner/admissions/:id', ownerAuthMiddleware, (req, res) => {
   const result = store.deleteAdmission(req.params.id);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1181,7 +1295,7 @@ router.delete('/owner/admissions/:id', (req, res) => {
 });
 
 // Manual Push / Sync Student to TimeWatch Machine
-router.post('/owner/sync-student-to-device', (req, res) => {
+router.post('/owner/sync-student-to-device', ownerAuthMiddleware, (req, res) => {
   const { pin, name } = req.body;
   if (!pin || !name) {
     return res.status(400).json({ success: false, message: 'PIN and Name are required' });
@@ -1194,7 +1308,7 @@ router.post('/owner/sync-student-to-device', (req, res) => {
 });
 
 // Collect pending fee payment
-router.put('/owner/admissions/:id/pay', (req, res) => {
+router.put('/owner/admissions/:id/pay', ownerAuthMiddleware, (req, res) => {
   const result = store.collectPendingFee(req.params.id, req.body);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1208,7 +1322,7 @@ router.put('/owner/admissions/:id/pay', (req, res) => {
 });
 
 // Renew membership validity
-router.put('/owner/admissions/:id/renew', (req, res) => {
+router.put('/owner/admissions/:id/renew', ownerAuthMiddleware, (req, res) => {
   const result = store.renewAdmission(req.params.id, req.body);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1226,7 +1340,7 @@ router.put('/owner/admissions/:id/renew', (req, res) => {
 });
 
 // Refund Security Deposit (Return ₹500 when student leaves, optionally vacate seat)
-router.put('/owner/admissions/:id/refund-deposit', (req, res) => {
+router.put('/owner/admissions/:id/refund-deposit', ownerAuthMiddleware, (req, res) => {
   const result = store.refundDeposit(req.params.id, req.body);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1239,7 +1353,7 @@ router.put('/owner/admissions/:id/refund-deposit', (req, res) => {
 });
 
 // Admin sets or resets Student Portal MPIN
-router.put('/owner/admissions/:id/mpin', (req, res) => {
+router.put('/owner/admissions/:id/mpin', ownerAuthMiddleware, (req, res) => {
   const result = store.adminSetStudentMpin(req.params.id, req.body?.mpin);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1266,8 +1380,8 @@ const handleHoldAdmission = (req, res) => {
     data: result.admission
   });
 };
-router.put('/owner/admissions/:id/hold', handleHoldAdmission);
-router.post('/owner/admissions/:id/hold', handleHoldAdmission);
+router.put('/owner/admissions/:id/hold', ownerAuthMiddleware, handleHoldAdmission);
+router.post('/owner/admissions/:id/hold', ownerAuthMiddleware, handleHoldAdmission);
 
 // Resume student membership from Hold (Auto-extends end date & unlocks TimeWatch gate)
 const handleResumeAdmission = (req, res) => {
@@ -1290,8 +1404,8 @@ const handleResumeAdmission = (req, res) => {
     newEndDate: result.newEndDate
   });
 };
-router.put('/owner/admissions/:id/resume', handleResumeAdmission);
-router.post('/owner/admissions/:id/resume', handleResumeAdmission);
+router.put('/owner/admissions/:id/resume', ownerAuthMiddleware, handleResumeAdmission);
+router.post('/owner/admissions/:id/resume', ownerAuthMiddleware, handleResumeAdmission);
 
 // ================= MEMBERSHIP EXPIRY NOTIFICATION ENGINE (LAST 3 DAYS DAILY) =================
 // Get/Update WhatsApp Notice Renewal Settings
@@ -1300,7 +1414,7 @@ router.get('/owner/renewal-settings', (req, res) => {
   res.json({ success: true, data: settings });
 });
 
-router.put('/owner/renewal-settings', (req, res) => {
+router.put('/owner/renewal-settings', ownerAuthMiddleware, (req, res) => {
   const result = store.updateRenewalSettings ? store.updateRenewalSettings(req.body) : { success: true };
   res.json(result);
 });
@@ -1318,7 +1432,7 @@ router.get('/owner/expiry-reminders', (req, res) => {
 });
 
 // Send/Record individual student daily WhatsApp reminder (with customizable renewal fee)
-router.post('/owner/expiry-reminders/:id/send', async (req, res) => {
+router.post('/owner/expiry-reminders/:id/send', ownerAuthMiddleware, async (req, res) => {
   const { renewalFee, offerNote } = req.body || {};
   const result = store.sendExpiryReminder(req.params.id, renewalFee, offerNote);
   if (!result.success) {
@@ -1338,7 +1452,7 @@ router.post('/owner/expiry-reminders/:id/send', async (req, res) => {
 });
 
 // Batch send/record for all due students today (with customizable renewal fees)
-router.post('/owner/expiry-reminders/send-all-due', (req, res) => {
+router.post('/owner/expiry-reminders/send-all-due', ownerAuthMiddleware, (req, res) => {
   const { renewalFee, offerNote, feesByAdmission } = req.body || {};
   const list = store.getUpcomingExpiries(renewalFee, offerNote);
   const dueList = list.filter(item => !item.alreadySentToday);
@@ -1370,19 +1484,19 @@ router.get('/whatsapp/status', (req, res) => {
 });
 
 // Trigger connection or QR generation
-router.post('/whatsapp/connect', async (req, res) => {
+router.post('/whatsapp/connect', ownerAuthMiddleware, async (req, res) => {
   const status = await whatsAppBot.initWhatsAppBot();
   res.json({ success: true, bot: status });
 });
 
 // Disconnect and wipe session
-router.post('/whatsapp/disconnect', async (req, res) => {
+router.post('/whatsapp/disconnect', ownerAuthMiddleware, async (req, res) => {
   const result = await whatsAppBot.disconnectWhatsAppBot();
   res.json(result);
 });
 
 // Send test message
-router.post('/whatsapp/send-test', async (req, res) => {
+router.post('/whatsapp/send-test', ownerAuthMiddleware, async (req, res) => {
   const { phone, message } = req.body || {};
   if (!phone || !message) {
     return res.status(400).json({ success: false, message: 'Recipient phone number and test message required.' });
@@ -1392,19 +1506,19 @@ router.post('/whatsapp/send-test', async (req, res) => {
 });
 
 // Trigger manual batch dispatch now
-router.post('/whatsapp/trigger-dispatch', async (req, res) => {
+router.post('/whatsapp/trigger-dispatch', ownerAuthMiddleware, async (req, res) => {
   const result = await expiryScheduler.executeDispatchBatch({ isManualTrigger: true });
   res.json(result);
 });
 
 // Update auto-scheduler settings
-router.put('/whatsapp/scheduler-settings', (req, res) => {
+router.put('/whatsapp/scheduler-settings', ownerAuthMiddleware, (req, res) => {
   const updated = expiryScheduler.updateSettings(req.body || {});
   res.json({ success: true, settings: updated });
 });
 
 // Vacate seat
-router.delete('/owner/seats/:seatNumber/vacate', (req, res) => {
+router.delete('/owner/seats/:seatNumber/vacate', ownerAuthMiddleware, (req, res) => {
   const result = store.vacateSeat(req.params.seatNumber, req.body?.reason);
   if (!result.success) {
     return res.status(400).json(result);
@@ -1451,7 +1565,7 @@ router.post('/biometric/punch', (req, res) => {
 });
 
 // Force sync active students & lockout all expired (>5d) and on-hold students on TimeWatch machine
-router.post('/biometric/sync-lockouts', (req, res) => {
+router.post('/biometric/sync-lockouts', ownerAuthMiddleware, (req, res) => {
   const lockedCount = syncAllExpiredStudentsToDevice();
   res.json({
     success: true,
@@ -1462,7 +1576,7 @@ router.post('/biometric/sync-lockouts', (req, res) => {
 });
 
 // Direct Instant Lockout for a single user/PIN (Immediate High Priority Wipe)
-router.post('/biometric/lock-user/:pin', (req, res) => {
+router.post('/biometric/lock-user/:pin', ownerAuthMiddleware, (req, res) => {
   const pin = req.params.pin;
   const adm = (store.admissions || []).find(a => String(a.seatNumber) === String(pin) || String(a.biometricEnrollmentId) === String(pin));
   disableStudentOnBiometricMachine(pin, adm?.studentName || `User-${pin}`, { priority: true });
@@ -1474,7 +1588,7 @@ router.post('/biometric/lock-user/:pin', (req, res) => {
 });
 
 // Clear all dummy admissions and attendance logs (Owner Reset to Live State - Protected)
-router.post('/owner/clear-all-data', (req, res) => {
+router.post('/owner/clear-all-data', ownerAuthMiddleware, (req, res) => {
   if (req.body?.confirm !== 'CLEAR_ALL_DATA_CONFIRM') {
     return res.status(403).json({ success: false, message: 'Safety Confirmation required to execute full database reset.' });
   }
@@ -1486,7 +1600,7 @@ router.post('/owner/clear-all-data', (req, res) => {
 });
 
 // Clear biometric logs only
-router.post('/biometric/clear-logs', (req, res) => {
+router.post('/biometric/clear-logs', ownerAuthMiddleware, (req, res) => {
   store.biometricLogs = [];
   res.json({ success: true, message: 'Biometric punch logs cleared.' });
 });

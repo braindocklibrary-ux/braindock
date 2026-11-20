@@ -1,5 +1,12 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { store } from '../data/store.js';
 import { broadcastStudentPunchEvent } from './biometricStreamService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PERSIST_QUEUE_FILE = path.join(__dirname, '..', 'data', 'pendingBiometricQueue.json');
 
 // Store in-memory recent biometric punches for real-time dashboard
 export const recentPunches = [];
@@ -7,6 +14,55 @@ export const recentPunches = [];
 // Command Queues for bidirectional device sync
 export const fkCommandQueue = [];
 export const pendingCommands = [];
+
+// In-Flight Commands Tracker for Reliability & Failure Recovery
+// Key: transId -> { cmd, sentAt, retryCount }
+export const inFlightCommands = new Map();
+
+/**
+ * Persist pending lockout commands to disk (survives server reboots)
+ */
+export function saveQueueToDisk() {
+  try {
+    const data = {
+      fkCommandQueue: fkCommandQueue.filter(c => c.cmd_code !== 'SET_TIME'),
+      savedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(PERSIST_QUEUE_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[BIOMETRIC ADMS] Failed to persist command queue to disk:', e.message);
+  }
+}
+
+/**
+ * Load persisted pending lockout commands on server startup
+ */
+export function loadQueueFromDisk() {
+  try {
+    if (fs.existsSync(PERSIST_QUEUE_FILE)) {
+      const raw = fs.readFileSync(PERSIST_QUEUE_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.fkCommandQueue)) {
+        data.fkCommandQueue.forEach(cmd => {
+          const exists = fkCommandQueue.some(q => 
+            q.cmd_code === cmd.cmd_code && 
+            String(q.body?.user_id) === String(cmd.body?.user_id) && 
+            q.body?.backup_number === cmd.body?.backup_number
+          );
+          if (!exists) {
+            fkCommandQueue.push(cmd);
+          }
+        });
+        console.log(`[BIOMETRIC ADMS] 💾 Restored ${fkCommandQueue.length} pending biometric commands from disk.`);
+      }
+    }
+  } catch (e) {
+    console.warn('[BIOMETRIC ADMS] Failed to load command queue from disk:', e.message);
+  }
+}
+
+// Load persisted queue on module init
+loadQueueFromDisk();
 
 let lastClockSyncAt = 0;
 export function syncTimeWatchClock(force = false) {
@@ -171,9 +227,11 @@ export function disableStudentOnBiometricMachine(pin, name, { priority = false }
     if (priority) {
       // Put at the VERY FRONT of the queue so it is dispatched on the immediate next poll (~3s)
       fkCommandQueue.unshift(...cleanCmds);
+      saveQueueToDisk();
       console.log(`[BIOMETRIC ADMS] 🚨 HIGH PRIORITY LOCKOUT INJECTED AT FRONT OF QUEUE: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
     } else {
       fkCommandQueue.push(...cleanCmds);
+      saveQueueToDisk();
       console.log(`[BIOMETRIC ADMS] 🔒 Queued DELETE_USER for TimeWatch machine: PIN variants [${Array.from(pinVariants).join(', ')}] (${cleanName || 'Student'})`);
     }
   }
@@ -250,6 +308,7 @@ export function enableStudentOnBiometricMachine(pin, name) {
   const cmdString = `C:${cmdId}:DATA USER PIN=${cleanPin}\tName=${cleanName}\tDisable=0\tPri=0\tGroup=1\tPasswd=\tCard=`;
   pendingCommands.push({ id: cmdId, pin: cleanPin, name: cleanName, cmdString, status: 'PENDING' });
 
+  saveQueueToDisk();
   console.log(`[BIOMETRIC ADMS] 🟢 Queued UNLOCK/ENABLE command for TimeWatch machine: PIN "${cleanPin}" (${cleanName})`);
 }
 
@@ -565,11 +624,35 @@ export function handleAdmsUniversal(req, res) {
         // Automatically ensure TimeWatch internal clock is synchronized with IST
         syncTimeWatchClock();
 
-        // Device is polling for work every ~3s
+        // 1. Recover and retry any in-flight commands that timed out (>25s without ACK)
+        const nowMs = Date.now();
+        for (const [tId, inFlight] of inFlightCommands.entries()) {
+          if (nowMs - inFlight.sentAt > 25000) {
+            inFlightCommands.delete(tId);
+            if ((inFlight.retryCount || 0) < 3) {
+              console.warn(`[FK PROTOCOL] ⏱️ Command ${tId} (${inFlight.cmd.cmd_code}) timed out without ACK. Re-queuing retry #${(inFlight.retryCount || 0) + 1}...`);
+              fkCommandQueue.unshift({
+                ...inFlight.cmd,
+                retryCount: (inFlight.retryCount || 0) + 1
+              });
+              saveQueueToDisk();
+            } else {
+              console.error(`[FK PROTOCOL] ❌ Command ${tId} (${inFlight.cmd.cmd_code}) exceeded 3 retries without ACK.`);
+            }
+          }
+        }
+
+        // 2. Pop next command from queue and track as in-flight
         const queued = fkCommandQueue.shift();
         if (queued) {
+          saveQueueToDisk();
           const cmdTransId = queued.trans_id || `cmd_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-          console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (${cmdTransId}): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
+          inFlightCommands.set(cmdTransId, {
+            cmd: queued,
+            sentAt: Date.now(),
+            retryCount: queued.retryCount || 0
+          });
+          console.log(`[FK PROTOCOL] 📤 INJECTING COMMAND TO DEVICE (${cmdTransId}, retry=${queued.retryCount || 0}): ${queued.cmd_code} ->`, JSON.stringify(queued.body));
           return sendFkAck(res, cmdTransId, {
             cmdCode: queued.cmd_code,
             body: formatCommandBody(queued.body ?? null),
@@ -580,7 +663,30 @@ export function handleAdmsUniversal(req, res) {
       }
 
       case 'send_cmd_result': {
-        console.log(`[FK PROTOCOL] 🎉 Command execution result from device: trans_id=${transId}, code=${req.headers['cmd_return_code']}`);
+        const retCode = req.headers['cmd_return_code'];
+        console.log(`[FK PROTOCOL] 🎉 Command execution result from device: trans_id=${transId}, code=${retCode}`);
+
+        if (transId && inFlightCommands.has(transId)) {
+          const inFlight = inFlightCommands.get(transId);
+          inFlightCommands.delete(transId);
+
+          // If return code is non-zero (device failed to execute) and retries remain
+          if (retCode && retCode !== '0' && retCode !== 'OK' && retCode !== '200') {
+            if ((inFlight.retryCount || 0) < 3) {
+              console.warn(`[FK PROTOCOL] ⚠️ Device rejected command ${transId} with code "${retCode}". Re-queuing retry #${(inFlight.retryCount || 0) + 1}...`);
+              fkCommandQueue.unshift({
+                ...inFlight.cmd,
+                retryCount: (inFlight.retryCount || 0) + 1
+              });
+              saveQueueToDisk();
+            } else {
+              console.error(`[FK PROTOCOL] ❌ Device failed command ${transId} permanently after 3 retries. Return code: ${retCode}`);
+            }
+          } else {
+            // Command successfully executed on hardware!
+            saveQueueToDisk();
+          }
+        }
         return sendFkAck(res, transId);
       }
 
