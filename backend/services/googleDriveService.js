@@ -238,41 +238,51 @@ export async function uploadBackupToGoogleDrive() {
   // METHOD A: Google Apps Script Webhook (Works 100% on Personal Gmail & 15GB Drive Storage)
   const webhookUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GOOGLE_DRIVE_WEBHOOK_URL;
   if (webhookUrl) {
-    try {
-      console.log('☁️ Dispatching backup to Google Drive via Google Apps Script Webhook...');
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonFileName,
-          csvFileName,
-          jsonData: backupData,
-          csvData: csvString,
-          timestamp: new Date().toISOString(),
-          folderName: 'Brain Dock Library Backups'
-        })
-      });
+    let attempt = 0;
+    while (attempt < 2) {
+      attempt++;
+      try {
+        console.log(`☁️ Dispatching backup to Google Drive via Google Apps Script Webhook${attempt > 1 ? ` (Retry ${attempt})` : ''}...`);
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          redirect: 'follow',
+          body: JSON.stringify({
+            jsonFileName,
+            csvFileName,
+            jsonData: backupData,
+            csvData: csvString,
+            timestamp: new Date().toISOString(),
+            folderName: 'Brain Dock Library Backups'
+          })
+        });
 
-      const resData = await response.json().catch(() => ({}));
-      lastBackupStatus.configured = true;
-      lastBackupStatus.lastBackupAt = new Date().toISOString();
-      lastBackupStatus.lastStatus = `✅ Backup Successful on ${displayDate} (Google Drive)`;
-      lastBackupStatus.error = null;
+        const resData = await response.json().catch(() => ({}));
+        lastBackupStatus.configured = true;
+        lastBackupStatus.lastBackupAt = new Date().toISOString();
+        lastBackupStatus.lastStatus = `✅ Backup Successful on ${displayDate} (Google Drive)`;
+        lastBackupStatus.error = null;
 
-      console.log(`☁️ Google Drive Backup Success via Webhook: Uploaded ${jsonFileName} & ${csvFileName}`);
-      return {
-        success: true,
-        message: `Google Drive Backup successfully saved to your personal Google Drive folder!`,
-        timestamp: lastBackupStatus.lastBackupAt,
-        files: [
-          { name: jsonFileName, type: 'JSON (Full System Restore File)' },
-          { name: csvFileName, type: 'CSV (Google Sheets / Excel Format)' }
-        ]
-      };
-    } catch (err) {
-      console.error('Google Apps Script Webhook Backup Error:', err.message);
-      lastBackupStatus.error = err.message;
-      return { success: false, message: `Google Drive Webhook error: ${err.message}` };
+        console.log(`☁️ Google Drive Backup Success via Webhook: Uploaded ${jsonFileName} & ${csvFileName}`);
+        return {
+          success: true,
+          message: `Google Drive Backup successfully saved to your personal Google Drive folder!`,
+          timestamp: lastBackupStatus.lastBackupAt,
+          files: [
+            { name: jsonFileName, type: 'JSON (Full System Restore File)' },
+            { name: csvFileName, type: 'CSV (Google Sheets / Excel Format)' }
+          ]
+        };
+      } catch (err) {
+        if (attempt < 2) {
+          console.warn(`[Google Drive Webhook] Transient network pause (${err.message}), retrying in 2.5s...`);
+          await new Promise(r => setTimeout(r, 2500));
+        } else {
+          console.error('Google Apps Script Webhook Backup Error:', err.message);
+          lastBackupStatus.error = err.message;
+          return { success: false, message: `Google Drive Webhook error: ${err.message}` };
+        }
+      }
     }
   }
 
@@ -418,7 +428,7 @@ let pendingBackup = false;
 /**
  * Trigger Instant Real-time Cloud Backup to Google Drive upon any Action / Form Save / Edit
  */
-export function triggerRealtimeGoogleDriveBackup(delayMs = 2000) {
+export function triggerRealtimeGoogleDriveBackup(delayMs = 3500) {
   const isWebhookConfigured = Boolean(process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GOOGLE_DRIVE_WEBHOOK_URL);
   const drive = getDriveClient();
   if (!drive && !isWebhookConfigured) return;
