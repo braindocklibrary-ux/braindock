@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import compression from 'compression';
 import { connectDB, getDBStatus } from './config/db.js';
 import apiRouter from './routes/api.js';
 
@@ -27,12 +28,33 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const BIOMETRIC_PORT = 8001;
 
-// Middleware
-app.set('etag', false);
+// Bandwidth Optimizer Middleware: Enable Gzip / Deflate Compression
+app.use(compression({
+  threshold: 512,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Enable ETag so that conditional HTTP 304 Not Modified works on repeat reads
+app.set('etag', true);
+
+// Smart Caching Middleware
 app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  if (req.method === 'GET') {
+    // Binary assets (photos, documents, rendered PDFs) get 24h browser cache
+    if (req.path.includes('/photo') || req.path.includes('/document/') || req.path.includes('/pdf')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    } else {
+      // API JSON endpoints: allow conditional revalidation via ETag / 304 Not Modified
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    }
+  } else {
+    // Mutating requests (POST, PUT, DELETE, PATCH) are never cached
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+  }
   next();
 });
 

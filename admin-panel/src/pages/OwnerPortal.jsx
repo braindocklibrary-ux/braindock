@@ -520,14 +520,14 @@ export default function OwnerPortal() {
     fetchOwnerData();
   }, []);
 
-  // Smart Live Auto-Refresh: Poll biometric data only when viewing the biometric tab (10s throttle)
+  // Smart Bandwidth-Friendly Auto-Refresh: Poll biometric punches only when actively viewing biometric tab (30s throttle)
   useEffect(() => {
-    if (activeTab === 'biometric' || activeTab === 'overview') {
+    if (activeTab === 'biometric') {
       const interval = setInterval(() => {
         if (!document.hidden) {
           fetchBiometricData();
         }
-      }, 10000);
+      }, 30000);
       return () => clearInterval(interval);
     }
   }, [activeTab]);
@@ -754,16 +754,19 @@ export default function OwnerPortal() {
     } catch (e) {}
   };
 
-  // Poll status when in 'expiries' tab or when QR modal is active
+  // Poll status when QR modal is active or entering 'expiries' tab
   useEffect(() => {
     if (activeTab === 'expiries' || botModalOpen) {
       fetchBotStatus();
-      const interval = setInterval(() => {
-        if (!document.hidden) {
-          fetchBotStatus();
-        }
-      }, botStatus === 'qr_ready' ? 4000 : 15000);
-      return () => clearInterval(interval);
+      // Only keep polling if the modal is actively open or scanning QR
+      if (botModalOpen || botStatus === 'qr_ready') {
+        const interval = setInterval(() => {
+          if (!document.hidden) {
+            fetchBotStatus();
+          }
+        }, botStatus === 'qr_ready' ? 4000 : 15000);
+        return () => clearInterval(interval);
+      }
     }
   }, [activeTab, botModalOpen, botStatus]);
 
@@ -956,7 +959,7 @@ export default function OwnerPortal() {
 
   const fetchBiometricData = () => {
     Promise.all([
-      ownerFetch(`${API_BASE_URL}/api/biometric/logs?limit=50`).then(r => r.json()).catch(() => null),
+      ownerFetch(`${API_BASE_URL}/api/biometric/logs?limit=15`).then(r => r.json()).catch(() => null),
       ownerFetch(`${API_BASE_URL}/api/biometric/stats`).then(r => r.json()).catch(() => null)
     ]).then(([logsRes, statsRes]) => {
       if (logsRes && logsRes.success) setBiometricLogs(logsRes.data);

@@ -811,18 +811,26 @@ class DataStore {
     if (Array.isArray(this.ownerSeats)) {
       this.ownerSeats.sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
     }
-    // Recalculate live days remaining for occupied seats
+    // Recalculate live days remaining for occupied seats & strip heavy base64 strings
     this.ownerSeats.forEach(seat => {
-      if (seat.occupant && seat.occupant.endDate) {
-        if (seat.status === 'On Hold' || seat.occupant.status === 'On Hold' || seat.occupant.isOnHold) {
-          seat.status = 'On Hold';
-          seat.occupant.status = 'On Hold';
-        } else {
-          const end = new Date(seat.occupant.endDate);
-          const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-          seat.occupant.daysRemaining = days;
-          if (days < 0 && seat.status !== 'Maintenance') {
-            seat.status = 'Expired';
+      if (seat.occupant) {
+        if (seat.occupant.studentPhoto) {
+          seat.occupant.hasPhoto = true;
+          delete seat.occupant.studentPhoto;
+        }
+        if (seat.occupant.aadhaarFront) delete seat.occupant.aadhaarFront;
+        if (seat.occupant.aadhaarBack) delete seat.occupant.aadhaarBack;
+        if (seat.occupant.endDate) {
+          if (seat.status === 'On Hold' || seat.occupant.status === 'On Hold' || seat.occupant.isOnHold) {
+            seat.status = 'On Hold';
+            seat.occupant.status = 'On Hold';
+          } else {
+            const end = new Date(seat.occupant.endDate);
+            const days = Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+            seat.occupant.daysRemaining = days;
+            if (days < 0 && seat.status !== 'Maintenance') {
+              seat.status = 'Expired';
+            }
           }
         }
       }
@@ -1140,7 +1148,7 @@ class DataStore {
       studentName: newAdmission.studentName,
       studentPhone: newAdmission.studentPhone,
       studentEmail: newAdmission.studentEmail,
-      studentPhoto: newAdmission.studentPhoto,
+      hasPhoto: Boolean(newAdmission.studentPhoto),
       targetExam: newAdmission.targetExam,
       shift: newAdmission.shift,
       startDate: newAdmission.startDate,
@@ -1899,13 +1907,24 @@ class DataStore {
     if (data.idProofNo !== undefined) adm.idProofNo = data.idProofNo;
     if (data.aadhaarNo !== undefined) adm.aadhaarNo = data.aadhaarNo;
     if (data.studentPhoto !== undefined) {
-      adm.studentPhoto = data.studentPhoto;
-      adm.photoAttached = !!data.studentPhoto;
+      // Only update photo if it is a new base64 data-URI, an external http URL, or an explicit empty string (cleared)
+      if (!data.studentPhoto || !data.studentPhoto.includes('/photo') || !adm.studentPhoto) {
+        adm.studentPhoto = data.studentPhoto;
+        adm.photoAttached = !!data.studentPhoto;
+      }
     }
-    if (data.aadhaarFront !== undefined) adm.aadhaarFront = data.aadhaarFront;
-    if (data.aadhaarBack !== undefined) adm.aadhaarBack = data.aadhaarBack;
-    if (data.idProofFront !== undefined) adm.aadhaarFront = data.idProofFront;
-    if (data.idProofBack !== undefined) adm.aadhaarBack = data.idProofBack;
+    if (data.aadhaarFront !== undefined) {
+      if (!data.aadhaarFront || !data.aadhaarFront.includes('/document/') || !adm.aadhaarFront) {
+        adm.aadhaarFront = data.aadhaarFront;
+      }
+    }
+    if (data.aadhaarBack !== undefined) {
+      if (!data.aadhaarBack || !data.aadhaarBack.includes('/document/') || !adm.aadhaarBack) {
+        adm.aadhaarBack = data.aadhaarBack;
+      }
+    }
+    if (data.idProofFront !== undefined && !data.idProofFront.includes('/document/')) adm.aadhaarFront = data.idProofFront;
+    if (data.idProofBack !== undefined && !data.idProofBack.includes('/document/')) adm.aadhaarBack = data.idProofBack;
 
     // 06 Financials / Fees & Payment Sync
     if (data.deposit !== undefined) adm.deposit = Number(data.deposit) || 0;
@@ -2234,7 +2253,7 @@ class DataStore {
                 studentName: adm.studentName,
                 studentPhone: adm.studentPhone,
                 studentEmail: adm.studentEmail,
-                studentPhoto: adm.studentPhoto,
+                hasPhoto: Boolean(adm.studentPhoto),
                 targetExam: adm.targetExam,
                 shift: adm.shift,
                 startDate: adm.startDate,
@@ -2519,7 +2538,7 @@ class DataStore {
               studentName: adm.studentName,
               studentPhone: adm.studentPhone,
               studentEmail: adm.studentEmail,
-              studentPhoto: adm.studentPhoto,
+              hasPhoto: Boolean(adm.studentPhoto),
               targetExam: adm.targetExam,
               shift: adm.shift,
               startDate: adm.startDate,

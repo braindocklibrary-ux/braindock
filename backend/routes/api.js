@@ -615,10 +615,18 @@ router.post('/rooms/book', authMiddleware, (req, res) => {
 // ================= SEATS =================
 router.get('/seats', (req, res) => {
   const seats102 = store.get102Seats();
+  // Strip private occupant details for public visitors (massive bandwidth saving & privacy protection)
+  const publicSeats = seats102.map(s => ({
+    seatNumber: s.seatNumber,
+    seatLabel: s.seatLabel,
+    status: s.status,
+    floor: s.floor,
+    zone: s.zone
+  }));
   res.json({ 
     success: true, 
-    data: seats102, 
-    bookings: store.seatBookings,
+    data: publicSeats, 
+    bookings: (store.seatBookings || []).slice(-10),
     summary: {
       total: seats102.length,
       available: seats102.filter(s => s.status === 'Available').length,
@@ -1197,15 +1205,95 @@ router.post('/owner/backup/google-drive', ownerAuthMiddleware, async (req, res) 
   }
 });
 
+// Helper: Determine API base URL dynamically
+const getApiBase = (req) => {
+  const host = req.get('host');
+  const protocol = req.protocol || 'https';
+  if (host) return `${protocol}://${host}`;
+  return process.env.API_BASE_URL || 'https://braindock-a7b8.onrender.com';
+};
+
+// Helper: Transform admission for API response (stripping heavy base64 strings into cached streaming URLs)
+const formatAdmissionForApi = (adm, baseUrl, includeRawPhotos = false) => {
+  if (!adm) return null;
+  const copy = { ...adm };
+  
+  if (!includeRawPhotos) {
+    if (copy.studentPhoto && !copy.studentPhoto.startsWith('http')) {
+      copy.studentPhoto = `${baseUrl}/api/owner/admissions/${adm.admissionId}/photo`;
+    }
+    if (copy.aadhaarFront && !copy.aadhaarFront.startsWith('http')) {
+      copy.aadhaarFront = `${baseUrl}/api/owner/admissions/${adm.admissionId}/document/aadhaarFront`;
+    }
+    if (copy.aadhaarBack && !copy.aadhaarBack.startsWith('http')) {
+      copy.aadhaarBack = `${baseUrl}/api/owner/admissions/${adm.admissionId}/document/aadhaarBack`;
+    }
+    copy.hasStudentPhoto = Boolean(adm.studentPhoto);
+    copy.hasAadhaarFront = Boolean(adm.aadhaarFront || adm.idProofFront);
+    copy.hasAadhaarBack = Boolean(adm.aadhaarBack || adm.idProofBack);
+  }
+  return copy;
+};
+
+// Cached high-speed student photo endpoint (streams binary image with aggressive 24h browser cache)
+router.get('/owner/admissions/:id/photo', (req, res) => {
+  const adm = store.admissions.find(a => String(a.admissionId) === String(req.params.id) || String(a.seatNumber) === String(req.params.id));
+  if (!adm || !adm.studentPhoto) {
+    return res.status(404).send('No photo found');
+  }
+  if (adm.studentPhoto.startsWith('http://') || adm.studentPhoto.startsWith('https://')) {
+    return res.redirect(adm.studentPhoto);
+  }
+  const matches = adm.studentPhoto.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (matches && matches.length === 3) {
+    const mimeType = matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return res.send(buffer);
+  }
+  res.status(400).send('Invalid photo format');
+});
+
+// Cached high-speed Aadhaar document streaming endpoint (streams binary document with 24h browser cache)
+router.get('/owner/admissions/:id/document/:docType', (req, res) => {
+  const { id, docType } = req.params;
+  const adm = store.admissions.find(a => String(a.admissionId) === String(id) || String(a.seatNumber) === String(id));
+  if (!adm) return res.status(404).send('Admission not found');
+
+  const rawDoc = docType === 'aadhaarFront' ? (adm.aadhaarFront || adm.idProofFront) : (adm.aadhaarBack || adm.idProofBack);
+  if (!rawDoc) return res.status(404).send('Document not found');
+
+  if (rawDoc.startsWith('http://') || rawDoc.startsWith('https://')) {
+    return res.redirect(rawDoc);
+  }
+
+  const matches = rawDoc.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (matches && matches.length === 3) {
+    const mimeType = matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    return res.send(buffer);
+  }
+  res.status(400).send('Invalid document format');
+});
+
 // High-Speed 1-Click Consolidated Bootstrap for Owner Portal (Loads everything in 1 instant request)
 router.get('/owner/bootstrap', (req, res) => {
+  const baseUrl = getApiBase(req);
+  const seats = (store.get102Seats() || []).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber));
+  const admissions = (store.admissions || []).map(a => formatAdmissionForApi(a, baseUrl, req.query.includeRawPhotos === 'true'));
+
   res.json({
     success: true,
     data: {
-      seats: (store.get102Seats() || []).sort((a, b) => Number(a.seatNumber) - Number(b.seatNumber)),
-      admissions: store.admissions || [],
+      seats,
+      admissions,
       stats: store.getOwnerStats(),
-      biometricLogs: store.getBiometricLogs ? store.getBiometricLogs({ filter: 'all' }).slice(0, 50) : [],
+      biometricLogs: store.getBiometricLogs ? store.getBiometricLogs({ filter: 'all' }).slice(0, 15) : [],
       biometricStats: store.getBiometricStats ? store.getBiometricStats() : null,
       expiryReminders: store.getUpcomingExpiries ? store.getUpcomingExpiries() : [],
       renewalSettings: store.getRenewalSettings ? store.getRenewalSettings() : { defaultRenewalFee: 999, offerNote: '' }
@@ -1234,9 +1322,19 @@ router.get('/owner/seats/:seatNumber', (req, res) => {
 
 // Get admissions with optional filtering: filter=pending|paid|expiring|expired|active
 router.get('/owner/admissions', (req, res) => {
-  const { filter, search } = req.query;
-  const admissions = store.getAdmissions({ filter, search });
+  const baseUrl = getApiBase(req);
+  const { filter, search, includeRawPhotos } = req.query;
+  const rawAdmissions = store.getAdmissions({ filter, search });
+  const admissions = rawAdmissions.map(a => formatAdmissionForApi(a, baseUrl, includeRawPhotos === 'true'));
   res.json({ success: true, count: admissions.length, data: admissions });
+});
+
+// Get single admission detail
+router.get('/owner/admissions/:id', (req, res) => {
+  const baseUrl = getApiBase(req);
+  const adm = store.getAdmissionById(req.params.id);
+  if (!adm) return res.status(404).json({ success: false, message: 'Admission not found' });
+  res.json({ success: true, data: formatAdmissionForApi(adm, baseUrl, req.query.includeRawPhotos === 'true') });
 });
 
 // Create new admission & allocate seat & generate receipt
@@ -1476,9 +1574,14 @@ router.post('/owner/expiry-reminders/send-all-due', ownerAuthMiddleware, (req, r
 
 // Get bot status and scheduler settings
 router.get('/whatsapp/status', (req, res) => {
+  const botState = { ...whatsAppBot.getStatus() };
+  // Bandwidth Saver: If bot is connected or QR is not needed, do not transmit large base64 QR code
+  if (botState.status === 'connected' || (req.query.includeQr !== 'true' && botState.status !== 'qr_ready')) {
+    botState.qrCodeDataUrl = null;
+  }
   res.json({
     success: true,
-    bot: whatsAppBot.getStatus(),
+    bot: botState,
     scheduler: expiryScheduler.getSettings()
   });
 });
