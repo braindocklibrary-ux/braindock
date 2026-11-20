@@ -174,7 +174,7 @@ async function startServer() {
   }, 3500);
 
   // 24/7 Keep-Alive Heartbeat (Prevents Render Free-Tier Container Sleep)
-  const renderAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || 'https://braindock-api.onrender.com';
+  const renderAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || 'https://braindock-a7b8.onrender.com';
   if (renderAppUrl) {
     console.log(`⏱️ Initializing 24/7 Keep-Alive Service for: ${renderAppUrl}`);
     setInterval(async () => {

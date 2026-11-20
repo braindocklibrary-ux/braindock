@@ -419,7 +419,7 @@ router.get('/books/:id', async (req, res) => {
     embedReaderUrl = `https://archive.org/embed/${iaId}`;
     pdfUrl = pdfUrl || `https://archive.org/download/${iaId}/${iaId}.pdf`;
   } else if (!pdfUrl || pdfUrl.includes('localhost:5000')) {
-    pdfUrl = `${process.env.API_BASE_URL || 'https://braindock-api.onrender.com'}/api/books/${book.bookId}/pdf`;
+    pdfUrl = `${process.env.API_BASE_URL || 'https://braindock-a7b8.onrender.com'}/api/books/${book.bookId}/pdf`;
   }
 
   const chapters = getFullChaptersForBook(book);
